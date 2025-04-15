@@ -26,20 +26,13 @@ class BellStateEntanglement(BaseEntanglement, QuantumModel):
     `BellStateEntanglement` is the ideal max entangled qubits. Its fidelity is always 1.
     """
 
-    def __init__(self, fidelity: float = 1, name: Optional[str] = None, p_swap: float = 1):
+    def __init__(self, fidelity: float = 1, name: Optional[str] = None):
         super().__init__(fidelity=1, name=name)
-        self.p_swap = p_swap
 
-    def swapping(self, epr: "BellStateEntanglement"):
-        ne = BellStateEntanglement()
+    def swapping(self, epr: "BellStateEntanglement", name: Optional[str] = None) -> "BellStateEntanglement":
+        ne = BellStateEntanglement(name=name)
         if self.is_decoherenced or epr.is_decoherenced:
-            ne.is_decoherenced = True
-            ne.fidelity = 0
-
-        r = get_rand()
-        if r > min(self.p_swap, epr.p_swap):
-            ne.is_decoherenced = True
-            ne.fidelity = 0
+            return None
         epr.is_decoherenced = True
         self.is_decoherenced = True
         return ne

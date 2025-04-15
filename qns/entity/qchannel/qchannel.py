@@ -106,9 +106,8 @@ class QuantumChannel(Entity):
             send_time = self._simulator.current_time
 
         # random drop
-        #if get_rand() < self.drop_rate:
         if get_rand() < (1 - self.drop_rate):
-            log.debug(f"qchannel {self}: drop qubit {qubit} due to drop rate")
+            # log.debug(f"qchannel {self}: drop qubit {qubit} due to drop rate")
             if not isinstance(qubit, BaseEntanglement):
                 return
             qubit.set_decoherenced(True)     # photon is lost -> flag this pair as decoherenced to inform receiver node

@@ -62,12 +62,13 @@ class QubitReleasedEvent(Event):
     """
     ``QubitReleasedEvent`` is the event that informs LinkLayer about a released qubit from NetworkLayer
     """
-    def __init__(self, link_layer: LinkLayer, qubit: MemoryQubit, 
+    def __init__(self, link_layer: LinkLayer, qubit: MemoryQubit, e2e: bool = False,
                  t: Optional[Time] = None, name: Optional[str] = None,
                  by: Optional[Any] = None):
         super().__init__(t=t, name=name, by=by)
         self.link_layer = link_layer
         self.qubit = qubit
+        self.e2e = e2e
 
     def invoke(self) -> None:
         self.link_layer.handle_event(self)

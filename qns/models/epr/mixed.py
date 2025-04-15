@@ -70,7 +70,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
         self.c = self.c/total
         self.d = self.d/total
 
-    def swapping(self, epr: "MixedStateEntanglement", name: Optional[str] = None):
+    def swapping(self, epr: "MixedStateEntanglement", name: Optional[str] = None, ps: float = 1) -> "MixedStateEntanglement":
         """
         Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
@@ -82,10 +82,13 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
         """
         ne = MixedStateEntanglement(name=name)
         if self.is_decoherenced or epr.is_decoherenced:
-            ne.is_decoherenced = True
-            ne.fidelity = 0
+            return None
         epr.is_decoherenced = True
         self.is_decoherenced = True
+        
+        r = get_rand()
+        if r > ps:              # swap failed
+            return None
 
         ne.a = self.a*epr.a + self.b*epr.b + self.c*epr.c + self.d*epr.d
         ne.b = self.a*epr.b + self.b*epr.a + self.c*epr.d + self.d*epr.c

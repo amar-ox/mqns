@@ -24,6 +24,11 @@ import numpy as np
 
 from qns.utils.rnd import get_rand
 
+import hashlib
+
+def hash(s1: str) -> str:
+    return hashlib.sha256(s1.encode()).hexdigest()
+
 
 class WernerStateEntanglement(BaseEntanglement, QuantumModel):
     """
@@ -40,12 +45,19 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         self.w = (fidelity * 4 - 1) / 3
         self.name = name
         self.is_decoherenced = False
+        self.src = None
+        self.dst = None
+        self.ch_index = -1
+        self.orig_eprs = []
 
     def __deepcopy__(self, memo):
         new_obj = WernerStateEntanglement(self.fidelity, self.name)
         new_obj.is_decoherenced = self.is_decoherenced
         new_obj.src = self.src
         new_obj.dst = self.dst
+        new_obj.ch_index = self.ch_index
+        new_obj.orig_eprs = self.orig_eprs
+        # new_obj.orig_eprs = copy.deepcopy(self.orig_eprs, memo)
         return new_obj
 
     @property
@@ -56,7 +68,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
     def fidelity(self, fidelity: float = 1):
         self.w = (fidelity * 4 - 1) / 3
 
-    def swapping(self, epr: "WernerStateEntanglement", name: Optional[str] = None):
+    def swapping(self, epr: "WernerStateEntanglement", name: Optional[str] = None, ps: float = 1) -> "WernerStateEntanglement":
         """
         Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
@@ -66,14 +78,21 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         Returns:
             the new distributed entanglement
         """
-        ne = WernerStateEntanglement(name=name)
+        ne = WernerStateEntanglement()
         if self.is_decoherenced or epr.is_decoherenced:
-            ne.is_decoherenced = True
-            ne.fidelity = 0
-        epr.is_decoherenced = True
-        self.is_decoherenced = True
+            return None
         
+        r = get_rand()
+        if r >= ps:              # swap failed
+            epr.is_decoherenced = True
+            self.is_decoherenced = True
+            return None
+
         ne.w = self.w * epr.w
+        ne.orig_eprs = self.merge_orig_eprs(epr)
+        
+        eprs_name_list = [e.name for e in ne.orig_eprs]
+        ne.name = hash('-'.join(eprs_name_list))
         return ne
 
     def distillation(self, epr: "WernerStateEntanglement", name: Optional[str] = None):
@@ -144,3 +163,27 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         q1.state = qs
         self.is_decoherenced = True
         return [q0, q1]
+    
+    
+    def merge_orig_eprs(self, epr):
+        # Helper: get a dict of name -> epr from an object's orig_epr list
+        def epr_dict(obj):
+            return { e.name: e for e in obj.orig_eprs }
+
+        # Merge by name
+        merged = epr_dict(self)
+        for name, epr in epr_dict(epr).items():
+            if name not in merged:
+                merged[name] = epr
+
+        # Add elementary eprs
+        if self.ch_index > -1:       
+            merged['self'] = self
+        if epr.ch_index > -1:
+            merged['epr'] = epr
+
+        # Sort the result by epr.index
+        return sorted(
+            merged.values(),
+            key=lambda e: e.ch_index
+        )

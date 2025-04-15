@@ -32,13 +32,14 @@ from qns.simulator.event import Event, func_to_event
 class TimingModeEnum(Enum):
     ASYNC = auto()
     LSYNC = auto()
-    SLOT = auto()
+    SYNC = auto()
 
 class SignalTypeEnum(Enum):
-    INTERNAL_START = auto()
-    INTERNAL_END = auto()
-    EXTERNAL_START = auto()
-    EXTERNAL_END = auto()
+    EXTERNAL_START = auto()     # used by LSYNC to signal new slot
+    INTERNAL = auto()           # used by SYNC to set the phase
+    EXTERNAL = auto()           # used by SYNC to set the phase
+    ROUTING = auto()            # used by SYNC to set the phase
+    APP = auto()                # used by SYNC to set the phase
 
 """ class SyncSignal(Event):
     # ``SyncSignal`` is the event that signals a synchronization phase (internal, external, route, app)
@@ -61,7 +62,9 @@ class QuantumNetwork(object):
 
     def __init__(self, topo: Optional[Topology] = None, route: Optional[RouteImpl] = None,
                  classic_topo: Optional[ClassicTopology] = None,
-                 name: Optional[str] = None, timing_mode: TimingModeEnum = TimingModeEnum.ASYNC, t_slot:float = 0):
+                 name: Optional[str] = None, 
+                 timing_mode: TimingModeEnum = TimingModeEnum.ASYNC, 
+                 t_slot:float = 0, t_ext:float = 0, t_int:float = 0):
         """
         Args:
             topo: a `Topology` class. If topo is not None, a special quantum topology is built.
@@ -71,7 +74,9 @@ class QuantumNetwork(object):
         """
 
         self.timing_mode = timing_mode
-        self.t_slot = t_slot
+        self.t_slot = t_slot            # for LSYNC
+        self.t_ext = t_ext              # for SYNC
+        self.t_int = t_int              # for SYNC
 
         self.name = name
         self.controller = None
@@ -117,22 +122,49 @@ class QuantumNetwork(object):
             n.install(s)
         if self.controller:
             self.controller.install(s)
-            
+
         if self.timing_mode == TimingModeEnum.LSYNC and self.t_slot > 0:
             event = func_to_event(self._simulator.ts, self.send_sync_signal, by=self)
+            self._simulator.add_event(event)
+        elif self.timing_mode == TimingModeEnum.SYNC and self.t_ext > 0 and self.t_int > 0:
+            event = func_to_event(self._simulator.ts, self.send_ext_signal, by=self)
             self._simulator.add_event(event)
 
     def send_sync_signal(self):
         # insert the next send_sync_signal
         t_next = self._simulator.tc + Time(sec=self.t_slot)
-        nexy_event = func_to_event(t_next, self.send_sync_signal, by=self)
-        self._simulator.add_event(nexy_event)
+        next_event = func_to_event(t_next, self.send_sync_signal, by=self)
+        self._simulator.add_event(next_event)
 
         log.debug("TIME_SYNC: signal EXTERNAL_START")
         # TODO: add controller
         for node in self.nodes:
             node.handle_sync_signal(SignalTypeEnum.EXTERNAL_START)
- 
+
+
+    def send_ext_signal(self):
+        # insert the INT phase after t_ext
+        t_int = self._simulator.tc + Time(sec=self.t_ext)
+        int_event = func_to_event(t_int, self.send_int_signal, by=self)
+        self._simulator.add_event(int_event)
+
+        log.debug("TIME_SYNC: signal EXTERNAL phase")
+        # TODO: add controller
+        for node in self.nodes:
+            node.handle_sync_signal(SignalTypeEnum.EXTERNAL)
+
+    def send_int_signal(self):
+        # insert the EXT phase after t_int
+        t_ext = self._simulator.tc + Time(sec=self.t_int)
+        ext_event = func_to_event(t_ext, self.send_ext_signal, by=self)
+        self._simulator.add_event(ext_event)
+
+        log.debug("TIME_SYNC: signal INTERNAL phase")
+        # TODO: add controller
+        for node in self.nodes:
+            node.handle_sync_signal(SignalTypeEnum.INTERNAL)
+
+
     def get_nodes(self):
         return self.nodes
 

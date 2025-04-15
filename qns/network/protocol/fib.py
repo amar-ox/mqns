@@ -24,8 +24,7 @@ class ForwardingInformationBase:
         self.table: Dict[str, Dict] = {}
 
     def add_entry(self, path_id: str, path_vector: List[str], swap_sequence: List[int], 
-                  purification_scheme: Dict[Tuple[str, str], int], qubit_addresses: List[int], 
-                  received_swaps: Dict[str, int] = {}, swapped_self: int = 0):
+                  purification_scheme: Dict[Tuple[str, str], int], qubit_addresses: List[int]):
         """Add a new path entry to the forwarding table."""
         if path_id in self.table:
             raise ValueError(f"Path ID '{path_id}' already exists.")
@@ -35,9 +34,7 @@ class ForwardingInformationBase:
             "path_vector": path_vector,
             "swap_sequence": swap_sequence,
             "purification_scheme": purification_scheme,
-            "qubit_addresses": qubit_addresses,
-            "received_swaps": received_swaps,
-            "swapped_self": swapped_self
+            "qubit_addresses": qubit_addresses
         }
     
     def get_entry(self, path_id: str):
@@ -56,15 +53,6 @@ class ForwardingInformationBase:
                 self.table[path_id][key] = value
             else:
                 raise KeyError(f"Invalid key '{key}' for update.")
-            
-    def update_received_swaps(self, path_id: str, node: str, swap_result: int):
-        """Update the received_swaps list for a given path_id by adding one more swap result."""
-        if path_id not in self.table:
-            raise KeyError(f"Path ID '{path_id}' not found.")
-
-        # Update or add the swap result for the given node
-        self.table[path_id]["received_swaps"][node] = swap_result
-    
     
     def delete_entry(self, path_id: str):
         """Remove an entry from the table."""
@@ -76,7 +64,7 @@ class ForwardingInformationBase:
     def __repr__(self):
         """Return a string representation of the forwarding table."""
         return "\n".join(
-            f"Path ID: {path_id}, Path: {entry['path_vector']}, Swaps: {entry['swap_sequence']}, "
+            f"Path ID: {path_id}, Path: {entry['path_vector']}, Swap Sequence: {entry['swap_sequence']}, "
             f"Purification: {entry['purification_scheme']}, Qubit Addresses: {entry['qubit_addresses']}"
             for path_id, entry in self.table.items()
         )

@@ -74,6 +74,8 @@ class QuantumMemory(Entity):
         self.store_error_model_args = store_error_model_args
         
         self.link_layer = None
+        
+        self.pending_decohere_events = {}
 
 
     def install(self, simulator: Simulator) -> None:
@@ -163,9 +165,15 @@ class QuantumMemory(Entity):
         t_now = self._simulator.current_time
         sec_diff = t_now.sec - store_time.sec
         data.store_error_model(t=sec_diff, decoherence_rate=self.decoherence_rate, **self.store_error_model_args)
+        
+        # cancel scheduled decoherence event
+        event = self.pending_decohere_events[data.name]
+        event.cancel()
+        self.pending_decohere_events.pop(data.name)
+
         return (qubit, data)
 
-    def write(self, qm: QuantumModel, pid: Optional[int] = None, address: Optional[int] = None) -> Optional[MemoryQubit]:
+    def write(self, qm: QuantumModel, pid: Optional[int] = None, address: Optional[int] = None, delay: float = 0) -> Optional[MemoryQubit]:
         """
         The API for storing a qubit to the memory
 
@@ -191,14 +199,60 @@ class QuantumMemory(Entity):
         self._store_time[idx] = self._simulator.current_time
         self._usage += 1
 
-        # schedule an event after T_coh to decohere the qubit
-        # TODO: use a generation time to coordinate sender-receiver decoherence time 
-        t = self._simulator.tc + Time(sec = 1 / self.decoherence_rate)
-        event = func_to_event(t, self.decohere_qubit, by=self, qubit=self._storage[idx][0], epr=qm)
+        # schedule an event at T_coh to decohere the qubit
+        t = self._simulator.tc + Time(sec = 1 / self.decoherence_rate) - Time(sec=delay)    # align store time with EPR generation time at sender
+        event = func_to_event(t, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=qm)
+        self.pending_decohere_events[qm.name] = event
         self._simulator.add_event(event)
-        
         return self._storage[idx][0]    # return the memory qubit
 
+    def update(self, old_qm: QuantumModel, new_qm: QuantumModel) -> bool:
+        """
+        The API for updating a qubit with a new data without resetting coherence time
+
+        Args:
+            old_qm (QuantumModel): the `QuantumModel` to update, could be a qubit or an entangled pair
+            new_qm (QuantumModel): the `QuantumModel` to store, could be a qubit or an entangled pair
+
+        Returns:
+            bool: whether the qubit is updated successfully. Returns False if old_qm does not exist anymore.
+        """
+        idx = self._search(key=old_qm)
+        if idx == -1:
+            if old_qm.name in self.pending_decohere_events:
+                print(f"UNEXPECTED ==> decohere event not cleared")
+                old_event = self.pending_decohere_events[old_qm.name]
+                old_event.cancel()
+                self.pending_decohere_events.pop(old_qm.name)
+            return False
+
+        (qubit, old_qm) = self._storage[idx]
+
+        self._storage[idx] = (self._storage[idx][0], new_qm)
+        
+        old_event = self.pending_decohere_events[old_qm.name]
+        old_event.cancel()
+        old_time = old_event.t
+        self.pending_decohere_events.pop(old_qm.name)
+
+        # schedule an event at old T_coh to decohere the qubit
+        new_event = func_to_event(old_time, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=new_qm)
+        self.pending_decohere_events[new_qm.name] = new_event
+        self._simulator.add_event(new_event)
+        return True
+
+    def clear(self) -> None:
+        """
+        Clear all qubits in the memory
+        """
+        for idx, (qubit, _) in enumerate(self._storage):
+            qubit.fsm.to_release()
+            self._storage[idx] = (qubit, None)
+            self._store_time[idx] = None
+        self._usage = 0
+        for _, event in self.pending_decohere_events.items():
+            event.cancel()
+        self.pending_decohere_events = {}
 
     def allocate(self, path_id: int) -> int:
         for (qubit,_) in self._storage:
@@ -264,17 +318,19 @@ class QuantumMemory(Entity):
             self._simulator.add_event(response)
 
 
-    def decohere_qubit(self, qubit: MemoryQubit, epr: QuantumModel):
+    def decohere_qubit(self, qubit: MemoryQubit, qm: QuantumModel):
         # we try to read EPR (not qubit addr) to make sure we are dealing with this particular EPR:
         # - if qubit has been in swap/purify -> L3 should have released qubit and notified L2.
         # - if qubit has been re-entangled, self.read for EPR.name will not find it, so no notification.
-        if self.read(key=epr):
-            log.debug(f"{self.node}: Qubit {self.name},{qubit} decohered.")
+        if self.read(key=qm):
+            # self.pending_decohere_events.pop(qm.name)    # already done by read()
+            log.debug(f"{self.node}: Qubit {self.name},{qubit} decohered. EPR = {qm.name}")
             qubit.fsm.to_release()
             from qns.network.protocol.event import QubitDecoheredEvent
-            t = self._simulator.tc + self._simulator.time(sec=0)   # simulate comm. time between Memory and L2
+            t = self._simulator.tc # + self._simulator.time(sec=0)
             event = QubitDecoheredEvent(link_layer=self.link_layer, qubit=qubit, t=t, by=self)
             self._simulator.add_event(event)
+
 
     def __repr__(self) -> str:
         if self.name is not None:

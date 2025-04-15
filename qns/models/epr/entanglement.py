@@ -41,13 +41,14 @@ class BaseEntanglement(object):
         self.is_decoherenced = False
         self.src = None
         self.dst = None
+        self.ch_index = -1
+        self.orig_eprs = []
 
     def set_decoherenced(self, value: bool):
         self.is_decoherenced = value
         
 
-
-    def swapping(self, epr: "BaseEntanglement") -> "BaseEntanglement":
+    def swapping(self, epr: "BaseEntanglement", name: Optional[str] = None, ps: float = 1) -> "BaseEntanglement":
         """
         Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
@@ -115,7 +116,16 @@ class BaseEntanglement(object):
         self.is_decoherenced = True
         return q2
 
-    def __repr__(self) -> str:
-        if self.name is not None:
-            return "<epr "+self.name+">"
-        return super().__repr__()
+    #def __repr__(self) -> str:
+    #    if self.name is not None:
+    #        return "<epr "+self.name+">"
+    #    return super().__repr__()
+
+    def __repr__(self):
+        return (f"{self.__class__.__name__}("
+            f"name={self.name!r}, fidelity={self.fidelity:.4f}, "
+            f"is_decoherenced={self.is_decoherenced}, "
+            f"src={self.src}, dst={self.dst}, "
+            f"ch_index={self.ch_index}, "
+            f"orig_eprs={[e.name if hasattr(e, 'name') else repr(e) for e in self.orig_eprs]})")
+

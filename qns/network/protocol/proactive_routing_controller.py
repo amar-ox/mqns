@@ -82,7 +82,7 @@ class ProactiveRoutingControllerApp(Application):
                 src = qn
             if qn.name == "D":
                 dst = qn
-        
+
         route_result = self.net.query_route(src, dst)
         path_nodes = route_result[0][2]
         print(f"{self.own}: Computed path: {path_nodes}")
@@ -98,18 +98,30 @@ class ProactiveRoutingControllerApp(Application):
             m_v.append(num_qubits)
 
         for qnode in path_nodes:
-            instructions = {
+            # for 2-repeater example
+            instruction_3nodes = {
                 "route": route,
-               # "swap": [1,0,1],
                 "swap": [2,0,1,2],
-                "mux": "B",      # or "S" for statistical
-                "m_v": m_v,     # Optional: to represent buffer-sapce
-                "purif": { "S,R": 1, "R,D": 1, "S,D": 1 }    # e.g., purif at all nesting levels
+                "mux": "B",
+                "m_v": m_v,
+                "purif": {}
+            }
+            
+            # for 4-repeater example
+            swap_6_doubling = [3,0,1,0,2,3]
+            swap_6_vora = [3,0,2,1,0,3]
+            swap_6_l2r = [4,0,1,2,3,4]
+            instruction_6nodes = {
+                "route": route,
+                "swap": swap_6_doubling,
+                "mux": "B",
+                "m_v": m_v, 
+                "purif": {}
             }
 
             cchannel = self.own.get_cchannel(qnode)
             classic_packet = ClassicPacket(
-                msg={"cmd": "install_path", "path_id": 0, "instructions": instructions}, src=self.own, dest=qnode)
+                msg={"cmd": "install_path", "path_id": 0, "instructions": instruction_3nodes}, src=self.own, dest=qnode)
             cchannel.send(classic_packet, next_hop=qnode)
             log.debug(f"{self.own}: send {classic_packet.msg} to {qnode}")
 

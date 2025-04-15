@@ -64,8 +64,8 @@ class QubitFSM:
     def to_release(self):
         if self.state in [QubitState.ENTANGLED, QubitState.PURIF, QubitState.PENDING, QubitState.ELIGIBLE]:
             self.state = QubitState.RELEASE
-        else:
-            print(f"Unexpected transition: <{self.state}> -> <RELEASE>")
+        #else:
+        #    print(f"Unexpected transition: <{self.state}> -> <RELEASE>")
             
     def to_eligible(self):
         if self.state == QubitState.PURIF:

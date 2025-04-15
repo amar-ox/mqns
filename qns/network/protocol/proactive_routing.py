@@ -35,9 +35,9 @@ from qns.models.epr import WernerStateEntanglement
 from qns.simulator.ts import Time
 import qns.utils.log as log
 from qns.network.protocol.fib import ForwardingInformationBase
+from qns.network import QuantumNetwork, TimingModeEnum, SignalTypeEnum
 
 import copy
-
 
 class ProactiveRouting(Application):
     """
@@ -45,8 +45,12 @@ class ProactiveRouting(Application):
     It implements the forwarding phase (i.e., entanglement generation and swapping) while the routing is done at the controller. 
     Purification will be in a sepeare process/module.
     """
-    def __init__(self):
+    def __init__(self, ps: float = 1.0):
         super().__init__()
+
+        self.ps = ps
+        self.sync_current_phase = SignalTypeEnum.INTERNAL
+
         self.net: QuantumNetwork = None
         self.own: QNode = None
         self.memories: QuantumMemory = None
@@ -54,12 +58,12 @@ class ProactiveRouting(Application):
         self.fib: ForwardingInformationBase = ForwardingInformationBase()
         self.link_layer = None
 
+        self.waiting_qubits = []        # stores the qubits waiting for the INTERNAL phase (SYNC mode)
+
         # so far we can only distinguish between classic and qubit events (not source Entity)
         self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])
         
-        self.swap_count = 0
-        
-        self._qubits_map = {}
+        self.parallel_swappings = {}
 
     def install(self, node: QNode, simulator: Simulator):
         from qns.network.protocol.link_layer import LinkLayer
@@ -84,9 +88,8 @@ class ProactiveRouting(Application):
 
     # handle forwarding instructions from the controller
     def handle_control(self, packet: RecvClassicPacket):
-        log.debug(f"{self.own.name}: received instructions from controller")
         msg = packet.packet.get()
-        log.debug(f"msg: {msg}")
+        log.debug(f"{self.own.name}: routing instructions: {msg}")
 
         path_id = msg['path_id']
         instructions = msg['instructions']
@@ -130,7 +133,7 @@ class ProactiveRouting(Application):
         next_qubits = []
         if instructions['mux'] == "B":
             if instructions["m_v"]:
-                print(f"{self.own}: Allocating qubits for buffer-space mux")
+                log.debug(f"{self.own}: Allocating qubits for buffer-space mux")
                 num_prev, num_next = self.compute_qubit_allocation(instructions['route'], instructions['m_v'], self.own.name)
                 if num_prev and prev_qmem:
                     if num_prev >= prev_qmem.free:
@@ -143,7 +146,7 @@ class ProactiveRouting(Application):
                     else:
                         raise Exception(f"Not enough qubits left for this allocation.")
             else:
-                print(f"{self.own}: Qubits allocation not provided. Allocate all qubits")
+                log.debug(f"{self.own}: Qubits allocation not provided. Allocate all qubits")
                 if prev_qmem:
                     if prev_qmem.free == prev_qmem.capacity:
                         for i in range(prev_qmem.free): prev_qubits.append(prev_qmem.allocate(path_id=path_id))
@@ -154,7 +157,7 @@ class ProactiveRouting(Application):
                         for i in range(next_qmem.free): next_qubits.append(next_qmem.allocate(path_id=path_id))
                     else:
                         raise Exception(f"Memory {next_qmem.name} has allocated qubits and cannot be used with Blocking mux.")
-        print(f"allocated qubits: prev={prev_qubits} | next={next_qubits}")
+        log.debug(f"allocated qubits: prev={prev_qubits} | next={next_qubits}")
 
         # populate FIB
         if self.fib.get_entry(path_id):
@@ -192,87 +195,159 @@ class ProactiveRouting(Application):
         path_id = msg["path_id"]
 
         if cmd == "SWAP_UPDATE":
+            if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.INTERNAL:
+                debug.log(f"{self.own}: INT phase is over -> stop swaps")
+                return
+
             fib_entry = self.fib.get_entry(path_id)
             if not fib_entry:
                 raise Exception(f"{self.own}: FIB entry not found for path {path_id}")
 
-            if msg["destination"] == self.own.name:    # destination means: the node needs to update its local qubit wrt a remote node (partner)
-                if msg["cycle"] == fib_entry["swapped_self"] + 1:     # node did not swap yet for this e2e cycle
-                    log.debug(f"{self.own}: rcvd SU cycle={msg['cycle']} and did not swap yet")
+            route = fib_entry['path_vector']
+            swap_sequence = fib_entry['swap_sequence']
+            sender_idx = route.index(msg['swapping_node'])
+            sender_rank = swap_sequence[sender_idx]
+            own_idx = route.index(self.own.name)
+            own_rank = swap_sequence[own_idx]
+
+            # destination means:
+            # - the node needs to update its local qubit wrt a remote node (partner)
+            # - this etg **side** becomes ready to purify/swap
+            if msg["destination"] == self.own.name:
+                if own_rank > sender_rank:       # this node didn't swap for sure 
                     qmem, qubit = self.get_memory_qubit(msg["epr"])
                     if qmem:
-                        qmem.read(address=qubit.addr)       # erase swapped EPR 
-                        qmem.write(qm=msg["new_epr"], address=qubit.addr)   # save new EPR with new fidelity and src/dst
-                        if self.eval_swapping_conditions(fib_entry, msg["partner"]):
-                            log.debug(f"{self.own}: qubit {qubit} go to purif")
-                            qubit.fsm.to_purif()
-                            self.purif(qmem, qubit, fib_entry, msg["partner"])
-                            
-                            # TODO[VORA]: push this SU to the other side as new dest if there is a lower, non-zero rank node
-                        #else:
-                        #    log.debug(f"# {self.own}: is swapping dest and eligibility not met")    
+                        if msg["new_epr"] is None:     # swap failed -> release qubit 
+                            qmem.read(key=qubit.addr)
+                            qubit.fsm.to_release()
+                            from qns.network.protocol.event import QubitReleasedEvent
+                            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=qmem)
+                            self._simulator.add_event(event)
+                        else:    # update old EPR with new EPR (fidelity and partner)
+                            updated = qmem.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
+                            if not updated:
+                                log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
+                            if updated and self.eval_swapping_conditions(fib_entry, msg["partner"]):
+                                # log.debug(f"{self.own}: qubit {qubit} go to purif")
+                                qubit.fsm.to_purif()
+                                self.purif(qmem, qubit, fib_entry, msg["partner"])
+                    else:      # epr decohered -> release qubit
+                        log.debug(f"{self.own}: EPR {msg['epr']} decohered during SU transmission")
+                elif own_rank == sender_rank:     # the two nodes may have swapped
+                    # log.debug(f"### {self.own}: rcvd SU from same-rank node")
+                    qmem, qubit = self.get_memory_qubit(msg["epr"])
+                    if qmem:      # there was no parallel swap
+                        # clean parallel_swappings
+                        self.parallel_swappings.pop(msg["epr"], None)
+                        if msg["new_epr"] is None:     # swap failed -> release qubit 
+                            qmem.read(key=qubit.addr)
+                            qubit.fsm.to_release()
+                            from qns.network.protocol.event import QubitReleasedEvent
+                            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=qmem)
+                            self._simulator.add_event(event)
+                        else:    # update old EPR with new EPR (fidelity and partner)
+                            updated = qmem.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
+                            if not updated:
+                                log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
+                            #if updated and self.eval_swapping_conditions(fib_entry, msg["partner"]):
+                            #    log.debug(f"{self.own}: qubit {qubit} go to purif")
+                            #    qubit.fsm.to_purif()
+                            #    self.purif(qmem, qubit, fib_entry, msg["partner"])
                     else:
-                        log.debut(f"# {self.own}: EPR qubit not found")
-                elif msg["cycle"] > fib_entry["swapped_self"]:
-                    log.debug(f"# {self.own}: desynchronized swapping cycles")
-                    return
-                else:    # cycle <= swapped_self
-                    # node is destination but swapped in the meantime
-                    log.debut(f"# {self.own}: is swapping dest but has already swapped")
-                    fib_entry = self.fib.get_entry(path_id)
-                    msg["results"][self.own] = 1
-                    # TODO[PARALLEL]: push to next neighbor as new dest
-            else:
-                msg_copy = copy.deepcopy(msg)
-                # node is not destination of this swap update: forward message
-                fib_entry = self.fib.get_entry(path_id)
-                if fib_entry["swapped_self"] >= msg["cycle"]:  # if swapped: append result
-                    msg_copy["results"][self.own] = 1
+                        if msg["epr"] in self.parallel_swappings:
+                            (shared_epr, other_epr, my_new_epr) = self.parallel_swappings[msg["epr"]]
+                            if msg["new_epr"] is None:
+                                if other_epr.dst == self.own:
+                                    destination = other_epr.src
+                                else:
+                                    destination = other_epr.dst
+                                fwd_msg = {
+                                    "cmd": "SWAP_UPDATE",
+                                    "path_id": msg['path_id'],
+                                    "swapping_node": msg['swapping_node'],
+                                    "partner": None,
+                                    "epr": my_new_epr.name,
+                                    "new_epr": None,
+                                    "destination": destination.name,
+                                    "fwd": True
+                                }
+                                self.send_swap_update(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"])
+                                self.parallel_swappings.pop(msg["epr"], None)
+                            else:    # a neighbor successfully swapped in parallel with this node
+                                new_epr = msg["new_epr"]    # is the epr from neighbor swap
+                                merged_epr = new_epr.swapping(epr=other_epr)    # merge the two swaps (phyisically already happened)
+                                if other_epr.dst == self.own:
+                                    merged_epr.src = other_epr.src
+                                    merged_epr.dst = new_epr.dst
+                                    partner = new_epr.dst.name
+                                    destination = other_epr.src
+                                else:
+                                    merged_epr.src = new_epr.src
+                                    merged_epr.dst = other_epr.dst
+                                    partner = new_epr.src.name
+                                    destination = other_epr.dst
+                                fwd_msg = {
+                                    "cmd": "SWAP_UPDATE",
+                                    "path_id": msg['path_id'],
+                                    "swapping_node": msg['swapping_node'],
+                                    "partner": partner,
+                                    "epr": my_new_epr.name,
+                                    "new_epr": merged_epr,
+                                    "destination": destination.name,
+                                    "fwd": True
+                                }
+                                self.send_swap_update(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"])
+                                self.parallel_swappings.pop(msg["epr"], None)
+                            
+                                # update parallel swappings for next potential cases:    
+                                p_idx = route.index(partner)
+                                p_rank = swap_sequence[p_idx]
+                                if own_rank == p_rank:
+                                    self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
+                        else:
+                            log.debug(f"### {self.own}: EPR {msg['epr']} decohered after swapping [parallel]")
                 else:
-                    log.debut(f"# {self.own}: not the swapping dest but has not swapped yet")
-
-                log.debug(f"{self.own}: FWD SWAP_UPDATE")
-                msg_copy["fwd"] = True
-                self.send_swap_update(dest=packet.packet.dest, msg=msg_copy, route=fib_entry["path_vector"])
-
-                """ if self.own.name == 'R1':
-                    qubits = self._qubits_map[fib_entry["swapped_self"]]
-                    prev_qmem, prev_qubit = qubits['prev']
-                    next_qmem, next_qubit = qubits['next']
-
-                    from qns.network.protocol.event import QubitReleasedEvent
-                    light_speed = 2 * 10**5 # km/s
-                    prev_t = self._simulator.tc #+ self._simulator.time(sec = 1e-6)
-                    next_t = self._simulator.tc + self._simulator.time(10 / light_speed)
-                    prev_ev = QubitReleasedEvent(link_layer=self.link_layer, qubit=prev_qubit, t=prev_t, by=prev_qmem)
-                    next_ev = QubitReleasedEvent(link_layer=self.link_layer, qubit=next_qubit, t=next_t, by=next_qmem)
-                    self._simulator.add_event(prev_ev)
-                    self._simulator.add_event(next_ev) """
-
+                    log.debug(f"### {self.own}: VERIFY -> rcvd SU from higher-rank node")
+            else:
+                # node is not destination of this SU: forward message
+                if own_rank <= sender_rank:
+                    msg_copy = copy.deepcopy(msg)
+                    log.debug(f"{self.own}: FWD SWAP_UPDATE")
+                    msg_copy["fwd"] = True
+                    self.send_swap_update(dest=packet.packet.dest, msg=msg_copy, route=fib_entry["path_vector"])
+                else:
+                    log.debug(f"### {self.own}: VERIFY -> not the swapping dest and did not swap")
 
     # handle internal events
     def handle_event(self, event: Event) -> None:
         from qns.network.protocol.event import QubitEntangledEvent
         if isinstance(event, QubitEntangledEvent):    # this event starts the lifecycle for a qubit
-            if event.qubit.pid is not None:     # expected with buffer-space / blocking
-                fib_entry = self.fib.get_entry(event.qubit.pid)
-                if fib_entry:
-                    if self.eval_swapping_conditions(fib_entry, event.neighbor.name):
-                        qchannel: QuantumChannel = self.own.get_qchannel(event.neighbor)
-                        if qchannel:
-                            # log.debug(f"{self.own}: Move qubit {event.qubit} to PURIF")
-                            event.qubit.fsm.to_purif()
-                            qmem = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
-                            self.purif(qmem, event.qubit, fib_entry, event.neighbor.name)
-                        else:
-                            raise Exception(f"No qchannel found for neighbor {event.neighbor.name}")
-                else:
-                    raise Exception(f"No FIB entry found for pid {event.qubit.pid}")
-            else:
-                log.debug("Qubit not allocated to any path. Statistical mux not supported yet.")     
+            if self.own.timing_mode == TimingModeEnum.ASYNC or self.own.timing_mode == TimingModeEnum.LSYNC:
+                self.handle_entangled_qubit(event)
+            else:           # SYNC
+                if self.sync_current_phase == SignalTypeEnum.EXTERNAL:
+                    # Accept new etg while we are in EXT phase
+                    # Assume t_coh >> t_ext: QubitEntangledEvent events should correspond to different qubits, no redundancy
+                    self.waiting_qubits.append(event)
 
-    
-    # eval qubit eligibility 
+    def handle_entangled_qubit(self, event):
+        if event.qubit.pid is not None:     # for buffer-space/blocking mux
+            fib_entry = self.fib.get_entry(event.qubit.pid)
+            if fib_entry:
+                if self.eval_swapping_conditions(fib_entry, event.neighbor.name):
+                    qchannel: QuantumChannel = self.own.get_qchannel(event.neighbor)
+                    if qchannel:
+                        event.qubit.fsm.to_purif()
+                        qmem = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
+                        self.purif(qmem, event.qubit, fib_entry, event.neighbor.name)
+                    else:
+                        raise Exception(f"No qchannel found for neighbor {event.neighbor.name}")
+            else:
+                raise Exception(f"No FIB entry found for pid {event.qubit.pid}")
+        else:        # for statistical mux
+            log.debug("Qubit not allocated to any path. Statistical mux not supported yet.")
+
+    # corresponds more to: eval qubit eligibility 
     def eval_swapping_conditions(self, fib_entry: Dict, partner: str) -> bool:
         route = fib_entry['path_vector']
         swap_sequence = fib_entry['swap_sequence']
@@ -288,7 +363,6 @@ class ProactiveRouting(Application):
 
     def purif(self, qmem: QuantumMemory, qubit: MemoryQubit, fib_entry: Dict, partner: str):
         # Will remove when purif cycle is implemented:
-        # log.debug(f"Skip purif -> OK")
         qubit.fsm.to_eligible()
         self.eligible(qmem, qubit, fib_entry)
 
@@ -302,127 +376,121 @@ class ProactiveRouting(Application):
         #           else -> return
 
     def eligible(self, qmem: QuantumMemory, qubit: MemoryQubit, fib_entry: Dict):
+        if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.INTERNAL:
+            debug.log(f"{self.own}: INT phase is over -> stop swaps")
+            return
+        
+        swap_sequence = fib_entry['swap_sequence']
         route = fib_entry['path_vector']
         own_idx = route.index(self.own.name)
         if own_idx > 0 and own_idx < len(route)-1:     # intermediate node
             (other_qmem, qubits) = self.check_eligible_qubit(qmem, fib_entry['path_id'])   # check if there is another eligible qubit
             if not other_qmem:
-                # print(f"{self.own}: no eligible qubit for now")
                 return
             else:     # do swapping
                 other_qubit, other_epr = qubits[0]     # pick up one qubit
                 this_epr = qmem.get(address=qubit.addr)[1]
 
-                log.debug(f"{self.own}: SWAP {qmem}.{qubit} x {other_qmem}.{other_qubit}")
-                new_epr = this_epr.swapping(epr=other_epr, name=uuid.uuid4().hex)
+                # order eprs and prev/next nodes
+                if this_epr.dst == self.own:
+                    prev_partner = this_epr.src
+                    prev_epr = this_epr
+                    next_partner = other_epr.dst
+                    next_epr = other_epr
+                elif this_epr.src == self.own:
+                    prev_partner = other_epr.src
+                    prev_epr = other_epr
+                    next_partner = this_epr.dst
+                    next_epr = this_epr
+                else:
+                    raise Exception(f"Unexpected: swapping EPRs {this_epr} x {other_epr}")
 
-                # increment cycle
-                self.fib.update_entry(fib_entry["path_id"], swapped_self=fib_entry["swapped_self"]+1)
-                self.fib.update_received_swaps(fib_entry["path_id"], self.own.name, 1)
+                # if elem epr -> assign ch_index
+                if not prev_epr.orig_eprs:
+                    prev_epr.ch_index = own_idx - 1
+                if not next_epr.orig_eprs:
+                    next_epr.ch_index = own_idx
 
+                new_epr = this_epr.swapping(epr=other_epr, ps=self.ps)
+                log.debug(f"{self.own}: SWAP {'SUCC' if new_epr else 'FAILED'} | {qmem}.{qubit} x {other_qmem}.{other_qubit}")
+                if new_epr:    # swapping succeeded
+                    new_epr.src = prev_partner
+                    new_epr.dst = next_partner
+                
+                    # Keep some info in case of parallel swapping with neighbors:
+                    own_rank = swap_sequence[own_idx]
+                    prev_p_idx = route.index(prev_partner.name)
+                    prev_p_rank = swap_sequence[prev_p_idx]
+                    if own_rank == prev_p_rank:
+                        # log.debug(f"===> {self.own}: potential parallel swap with prev neighbor {prev_partner.name}")
+                        self.parallel_swappings[prev_epr.name] = (prev_epr, next_epr, new_epr)
+
+                    next_p_idx = route.index(next_partner.name)
+                    next_p_rank = swap_sequence[next_p_idx]
+                    if own_rank == next_p_rank:
+                        # log.debug(f"===> {self.own}: potential parallel swap with next neighbor {next_partner.name}")
+                        self.parallel_swappings[next_epr.name] = (next_epr, prev_epr, new_epr)
+
+                # send SWAP_UPDATE to both swapping partners: 
+                prev_partner_msg = {
+                    "cmd": "SWAP_UPDATE",
+                    "path_id": fib_entry["path_id"],
+                    "swapping_node": self.own.name,
+                    "partner": next_partner.name,
+                    "epr": prev_epr.name,
+                 #   "remote_epr": next_epr.name,
+                    "new_epr": new_epr,        # None means swapping failed
+                    "destination": prev_partner.name,
+                    "fwd": False
+                }
+                self.send_swap_update(dest=prev_partner, msg=prev_partner_msg, route=fib_entry["path_vector"])
+
+                next_partner_msg = {
+                    "cmd": "SWAP_UPDATE",
+                    "path_id": fib_entry["path_id"],
+                    "swapping_node": self.own.name,
+                    "partner": prev_partner.name,
+                    "epr": next_epr.name,
+                 #   "remote_epr": prev_epr.name,
+                    "new_epr": new_epr,         # None means swapping failed
+                    "destination": next_partner.name,
+                    "fwd": False
+                }
+                self.send_swap_update(dest=next_partner, msg=next_partner_msg, route=fib_entry["path_vector"])
+                
+                # release qubits
                 qmem.read(address=qubit.addr)
                 other_qmem.read(key=other_qubit.addr)
                 qubit.fsm.to_release()
                 other_qubit.fsm.to_release()
-
-                if new_epr:    # order eprs and prev/next nodes
-                    prev_qubit = None
-                    next_qubit = None
-                    prev_qmem = None
-                    next_qmem = None
-                    if this_epr.dst == self.own:
-                        prev_partner = this_epr.src
-                        prev_epr = this_epr
-                        next_partner = other_epr.dst
-                        next_epr = other_epr
-                        
-                        prev_qubit = qubit
-                        next_qubit = other_qubit
-                        prev_qmem = qmem
-                        next_qmem = other_qmem
-                    elif this_epr.src == self.own:
-                        prev_partner = other_epr.src
-                        prev_epr = other_epr
-                        next_partner = this_epr.dst
-                        next_epr = this_epr
-                        
-                        prev_qubit = other_qubit
-                        next_qubit = qubit
-                        prev_qmem = other_qmem
-                        next_qmem = qmem
-                    else:
-                        raise Exception(f"Unexpected: swapping EPRs {this_epr} x {other_epr}")
-                    
-                    #if self.own.name == 'R2':
-                    from qns.network.protocol.event import QubitReleasedEvent
-                    #light_speed = 2 * 10**5 # km/s
-                    prev_t = self._simulator.tc # + self._simulator.time(sec = 1e-6)
-                    next_t = self._simulator.tc # + self._simulator.time(sec = 1e-6) # + 30 / light_speed)
-                    prev_ev = QubitReleasedEvent(link_layer=self.link_layer, qubit=prev_qubit, t=prev_t, by=prev_qmem)
-                    next_ev = QubitReleasedEvent(link_layer=self.link_layer, qubit=next_qubit, t=next_t, by=next_qmem)
-                    self._simulator.add_event(prev_ev)
-                    self._simulator.add_event(next_ev)
-                    #else:
-                    #    self._qubits_map[fib_entry["swapped_self"]] = { 'prev': (prev_qmem, prev_qubit), 'next': (next_qmem, next_qubit) }
-
-                    new_epr.src = prev_partner
-                    new_epr.dst = next_partner
-
-                    # send SWAP_UPDATE to both swapping partners: 
-                    prev_partner_msg = {
-                        "cmd": "SWAP_UPDATE",
-                        "path_id": fib_entry["path_id"],
-                        "swapping_node": self.own.name,
-                        "partner": next_partner.name,
-                        "epr": prev_epr.name,
-                        "new_epr": new_epr,
-                        "results": fib_entry["received_swaps"],
-                        "cycle": fib_entry["swapped_self"],
-                        "destination": prev_partner.name
-                    }
-                    prev_partner_msg["fwd"] = False
-                    self.send_swap_update(dest=prev_partner, msg=prev_partner_msg, route=fib_entry["path_vector"])
-                
-                    next_partner_msg = {
-                        "cmd": "SWAP_UPDATE",
-                        "path_id": fib_entry["path_id"],
-                        "swapping_node": self.own.name,
-                        "partner": prev_partner.name,
-                        "epr": next_epr.name,
-                        "new_epr": new_epr,
-                        "results": fib_entry["received_swaps"],
-                        "cycle": fib_entry["swapped_self"],
-                        "destination": next_partner.name
-                    }
-                    next_partner_msg["fwd"] = False
-                    self.send_swap_update(dest=next_partner, msg=next_partner_msg, route=fib_entry["path_vector"])
-                else:
-                    print("send SWAP_UPDATE failed")
+                from qns.network.protocol.event import QubitReleasedEvent
+                ev1 = QubitReleasedEvent(link_layer=self.link_layer, qubit=other_qubit, t=self._simulator.tc, by=other_qmem)
+                ev2 = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=qmem)
+                self._simulator.add_event(ev1)
+                self._simulator.add_event(ev2)
         else: # end-node
             from qns.network.protocol.event import QubitReleasedEvent
-            # log.debug(f"{self.own}: Deliver qubit to app.")
-            qmem.read(address=qubit.addr)
+            _, qm = qmem.read(address=qubit.addr)
+            log.debug(f"{self.own}: consume e2e entanglement: {qm.src.name} - {qm.dst.name}")
             qubit.fsm.to_release()
-            self.fib.update_entry(fib_entry["path_id"], swapped_self=fib_entry["swapped_self"]+1)
-            t = self._simulator.tc #+ self._simulator.time(sec=0)
-            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=t, by=qmem)
+            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=True,
+                                       t=self._simulator.tc, by=qmem)
             self._simulator.add_event(event)
 
-
-    def send_swap_update(self, dest: Node, msg: Dict, route: List[str], delay: float = 0):
+    def send_swap_update(self, dest: Node, msg: Dict, route: List[str]):
         log.debug(f"{self.own.name}: send_SU {dest} = {msg}")
         own_idx = route.index(self.own.name)        
         dest_idx = route.index(dest.name)
 
         nh = route[own_idx+1] if dest_idx > own_idx else route[own_idx-1]
         next_hop = self.own.network.get_node(nh)
-        
+
         cchannel: ClassicChannel = self.own.get_cchannel(next_hop)
         if cchannel is None:
             raise Exception(f"{self.own}: No classic channel for dest {dest}")
 
         classic_packet = ClassicPacket(msg=msg, src=self.own, dest=dest)
-        cchannel.send(classic_packet, next_hop=next_hop, delay=delay)
+        cchannel.send(classic_packet, next_hop=next_hop)
         # log.debug(f"{self.own}: send SWAP_UPDATE to {dest} via {next_hop}")
 
 
@@ -449,3 +517,14 @@ class ProactiveRouting(Application):
         prev_qubits = m_v[idx - 1] if idx > 0 else None  # Allocate from previous channel
         next_qubits = m_v[idx] if idx < len(m_v) else None  # Allocate for next channel
         return prev_qubits, next_qubits
+
+    def handle_sync_signal(self, signal_type: SignalTypeEnum):
+        log.debug(f"{self.own}:[{self.own.timing_mode}] TIMING SIGNAL <{signal_type}>")
+        if self.own.timing_mode == TimingModeEnum.SYNC:
+            self.sync_current_phase = signal_type
+            if signal_type == SignalTypeEnum.INTERNAL:
+                # handle all entangled qubits
+                log.debug(f"{self.own}: there are {len(self.waiting_qubits)} etg qubits to process")
+                for event in self.waiting_qubits:
+                    self.handle_entangled_qubit(event)
+                self.waiting_qubits = []
