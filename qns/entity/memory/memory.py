@@ -173,7 +173,7 @@ class QuantumMemory(Entity):
 
         return (qubit, data)
 
-    def write(self, qm: QuantumModel, pid: Optional[int] = None, address: Optional[int] = None, delay: float = 0) -> Optional[MemoryQubit]:
+    def write(self, qm: QuantumModel, pid: Optional[int] = None, address: Optional[int] = None, key: str = None, delay: float = 0) -> Optional[MemoryQubit]:
         """
         The API for storing a qubit to the memory
 
@@ -188,7 +188,7 @@ class QuantumMemory(Entity):
 
         idx = -1
         for i, (q, v) in enumerate(self._storage):
-            if v is None:           # Check if the slot is empty
+            if v is None and (key is None or key == q.active):           # Check if the slot is empty
                 if (pid is None or q.pid == pid) and (address is None or q.addr == address):
                     idx = i
                     break
@@ -196,17 +196,19 @@ class QuantumMemory(Entity):
             return None
 
         self._storage[idx] = (self._storage[idx][0], qm)
-        self._store_time[idx] = self._simulator.current_time
+        self._store_time[idx] = self._simulator.current_time - Time(sec=delay)
         self._usage += 1
 
         # schedule an event at T_coh to decohere the qubit
-        t = self._simulator.tc + Time(sec = 1 / self.decoherence_rate) - Time(sec=delay)    # align store time with EPR generation time at sender
+        t = self._simulator.tc - Time(sec=delay) + Time(sec = 1 / self.decoherence_rate)   # align store time with EPR generation time at sender
         event = func_to_event(t, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=qm)
         self.pending_decohere_events[qm.name] = event
         self._simulator.add_event(event)
+
+        qm.decoherence_time = t
         return self._storage[idx][0]    # return the memory qubit
 
-    def update(self, old_qm: QuantumModel, new_qm: QuantumModel) -> bool:
+    def update(self, old_qm: str, new_qm: QuantumModel) -> bool:
         """
         The API for updating a qubit with a new data without resetting coherence time
 
@@ -219,24 +221,21 @@ class QuantumMemory(Entity):
         """
         idx = self._search(key=old_qm)
         if idx == -1:
-            if old_qm.name in self.pending_decohere_events:
+            if old_qm in self.pending_decohere_events:
                 print(f"UNEXPECTED ==> decohere event not cleared")
-                old_event = self.pending_decohere_events[old_qm.name]
+                old_event = self.pending_decohere_events[old_qm]
                 old_event.cancel()
-                self.pending_decohere_events.pop(old_qm.name)
+                self.pending_decohere_events.pop(old_qm)
             return False
 
-        (qubit, old_qm) = self._storage[idx]
-
         self._storage[idx] = (self._storage[idx][0], new_qm)
-        
-        old_event = self.pending_decohere_events[old_qm.name]
+
+        old_event = self.pending_decohere_events[old_qm]
         old_event.cancel()
-        old_time = old_event.t
-        self.pending_decohere_events.pop(old_qm.name)
+        self.pending_decohere_events.pop(old_qm)
 
         # schedule an event at old T_coh to decohere the qubit
-        new_event = func_to_event(old_time, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=new_qm)
+        new_event = func_to_event(new_qm.decoherence_time, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=new_qm)
         self.pending_decohere_events[new_qm.name] = new_event
         self._simulator.add_event(new_event)
         return True
@@ -273,6 +272,13 @@ class QuantumMemory(Entity):
         for (qubit, data) in self._storage:
             if data and qubit.fsm.state == QubitState.ELIGIBLE and qubit.pid == pid:
                 qubits.append((qubit, data))
+        return qubits
+    
+    def search_path_qubits(self, pid: int = None) -> List[MemoryQubit]:
+        qubits = []
+        for (qubit, data) in self._storage:
+            if not data and qubit.pid == pid and not qubit.active:
+                qubits.append(qubit)
         return qubits
 
     def is_full(self) -> bool:
@@ -322,9 +328,10 @@ class QuantumMemory(Entity):
         # we try to read EPR (not qubit addr) to make sure we are dealing with this particular EPR:
         # - if qubit has been in swap/purify -> L3 should have released qubit and notified L2.
         # - if qubit has been re-entangled, self.read for EPR.name will not find it, so no notification.
+        qm.is_decoherenced = True
         if self.read(key=qm):
             # self.pending_decohere_events.pop(qm.name)    # already done by read()
-            log.debug(f"{self.node}: Qubit {self.name},{qubit} decohered. EPR = {qm.name}")
+            log.debug(f"{self.node}: EPR decohered -> {qm.name} {qm.src}-{qm.dst}")
             qubit.fsm.to_release()
             from qns.network.protocol.event import QubitDecoheredEvent
             t = self._simulator.tc # + self._simulator.time(sec=0)

@@ -36,17 +36,66 @@ import qns.utils.log as log
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+swapping_settings = {
+    # for 1-repeater example
+    "swap_1": [1,0,1],
+    "isolation_1": [0,0,0],
+    # for 2-repeater example
+    "swap_2_asap": [1,0,0,1],
+    "swap_2_l2r": [2,0,1,2],
+    "swap_2_r2l": [2,1,0,2], 
+    # for 3-repeater example
+    "swap_3_asap": [1,0,0,0,1],
+    "swap_3_baln": [2,0,1,0,2],
+    "swap_3_l2r": [3,0,1,2,3],
+    "swap_3_r2l": [3,2,1,0,3],
+    "swap_3_vora_uniform": [3,0,2,1,3],    # equiv. [2,0,1,0,2] ~ baln
+    "swap_3_vora_increasing": [3,0,1,2,3],
+    "swap_3_vora_decreasing": [3,2,1,0,3],
+    "swap_3_vora_mid_bottleneck": [3,1,2,0,3],   # [2,0,1,0,2]  ~ baln
+    # for 4-repeater example
+    "swap_4_asap": [1,0,0,0,0,1],
+    "swap_4_baln": [3,0,1,0,2,3],
+    "swap_4_l2r": [4,0,1,2,3,4],
+    "swap_4_r2l": [4,3,2,1,0,4],
+
+    "swap_4_vora_uniform": [4,0,3,1,2,4],    #  [3,0,2,0,1,3]
+    "swap_4_vora_increasing": [4,0,1,3,2,4],   # [3,0,1,2,0,3]
+    "swap_4_vora_decreasing": [4,3,1,2,0,4],   # [3,2,0,1,0,3]
+    "swap_4_vora_mid_bottleneck": [4,0,2,3,1,4],   # [3,0,1,2,0,3]
+    
+    "swap_4_vora_uniform2": [3,0,2,0,1,3],
+    "swap_4_vora_increasing2": [3,0,1,2,0,3],
+    "swap_4_vora_decreasing2": [3,2,0,1,0,3],
+    "swap_4_vora_mid_bottleneck2": [3,0,1,2,0,3],
+    
+    # for 5-repeater example
+    "swap_5_asap": [1,0,0,0,0,0,1],
+    "swap_5_baln": [3,0,1,0,2,0,3],     # need to specify exact doubling  => the one used in paper
+    "swap_5_baln2": [3,0,2,0,1,0,3],
+    "swap_5_l2r": [5,0,1,2,3,4,5],
+    "swap_5_r2l": [5,4,3,2,1,0,5],
+    "swap_5_vora_uniform": [5,0,3,1,4,2,5],      # [3,0,1,0,2,0,3]  ~ baln
+    "swap_5_vora_increasing": [5,0,3,1,4,2,5],      # [3,0,1,0,2,0,3] ~ baln
+    "swap_5_vora_decreasing": [5,2,4,1,3,0,5],      # [3,0,2,0,1,0,3] ~ baln2
+    "swap_5_vora_mid_bottleneck": [5,0,4,2,3,1,5]    # [3,0,2,0,1,0,3] ~ baln2
+}
 
 class ProactiveRoutingControllerApp(Application):
-    def __init__(self):
+    def __init__(self, swapping:str):
         super().__init__()
         self.net: QuantumNetwork = None           # contains QN physical topology and classical topology 
         self.own: Controller = None               # controller node
+        
+        if swapping not in swapping_settings:
+            raise Exception(f"{self.own}: Swapping {swapping} not configured")
+
+        self.swapping = swapping
 
         self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])       # E2E etg. requests sent from end-nodes to the controller 
 
-        self.server = HTTPServer(('', 8080), self.RequestHandler)
-        self.RequestHandler.test = self.test  # Pass test method to handler
+        # self.server = HTTPServer(('', 8080), self.RequestHandler)
+        # self.RequestHandler.test = self.test  # Pass test method to handler
 
     class RequestHandler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -85,9 +134,12 @@ class ProactiveRoutingControllerApp(Application):
 
         route_result = self.net.query_route(src, dst)
         path_nodes = route_result[0][2]
-        print(f"{self.own}: Computed path: {path_nodes}")
+        log.debug(f"{self.own}: Computed path: {path_nodes}")
         
         route = [n.name for n in path_nodes]
+        
+        if len(route) != len(swapping_settings[self.swapping]):
+            raise Exception(f"{self.own}: Swapping {swapping} does not correspond to computed route: {route}")
         
         # for buffer-space mux -> get memory capacities per channel
         m_v = []
@@ -98,30 +150,17 @@ class ProactiveRoutingControllerApp(Application):
             m_v.append(num_qubits)
 
         for qnode in path_nodes:
-            # for 2-repeater example
-            instruction_3nodes = {
+            instructions = {
                 "route": route,
-                "swap": [2,0,1,2],
+                "swap": swapping_settings[self.swapping],
                 "mux": "B",
                 "m_v": m_v,
-                "purif": {}
-            }
-            
-            # for 4-repeater example
-            swap_6_doubling = [3,0,1,0,2,3]
-            swap_6_vora = [3,0,2,1,0,3]
-            swap_6_l2r = [4,0,1,2,3,4]
-            instruction_6nodes = {
-                "route": route,
-                "swap": swap_6_doubling,
-                "mux": "B",
-                "m_v": m_v, 
                 "purif": {}
             }
 
             cchannel = self.own.get_cchannel(qnode)
             classic_packet = ClassicPacket(
-                msg={"cmd": "install_path", "path_id": 0, "instructions": instruction_3nodes}, src=self.own, dest=qnode)
+                msg={"cmd": "install_path", "path_id": 0, "instructions": instructions}, src=self.own, dest=qnode)
             cchannel.send(classic_packet, next_hop=qnode)
             log.debug(f"{self.own}: send {classic_packet.msg} to {qnode}")
 

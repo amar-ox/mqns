@@ -127,5 +127,6 @@ class BaseEntanglement(object):
             f"is_decoherenced={self.is_decoherenced}, "
             f"src={self.src}, dst={self.dst}, "
             f"ch_index={self.ch_index}, "
-            f"orig_eprs={[e.name if hasattr(e, 'name') else repr(e) for e in self.orig_eprs]})")
+            f"orig_eprs={[e.name if hasattr(e, 'name') else repr(e) for e in self.orig_eprs]}), "
+            f"decoherence_time={self.decoherence_time})")
 

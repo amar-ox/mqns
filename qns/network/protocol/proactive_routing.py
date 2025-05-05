@@ -64,6 +64,8 @@ class ProactiveRouting(Application):
         self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])
         
         self.parallel_swappings = {}
+        
+        self.e2e_count = 0
 
     def install(self, node: QNode, simulator: Simulator):
         from qns.network.protocol.link_layer import LinkLayer
@@ -217,7 +219,8 @@ class ProactiveRouting(Application):
                 if own_rank > sender_rank:       # this node didn't swap for sure 
                     qmem, qubit = self.get_memory_qubit(msg["epr"])
                     if qmem:
-                        if msg["new_epr"] is None:     # swap failed -> release qubit 
+                        # swap failed or oldest pair decohered -> release qubit 
+                        if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
                             qmem.read(key=qubit.addr)
                             qubit.fsm.to_release()
                             from qns.network.protocol.event import QubitReleasedEvent
@@ -232,14 +235,14 @@ class ProactiveRouting(Application):
                                 qubit.fsm.to_purif()
                                 self.purif(qmem, qubit, fib_entry, msg["partner"])
                     else:      # epr decohered -> release qubit
-                        log.debug(f"{self.own}: EPR {msg['epr']} decohered during SU transmission")
+                        log.debug(f"{self.own}: EPR {msg['epr']} decohered during SU transmissions")
                 elif own_rank == sender_rank:     # the two nodes may have swapped
-                    # log.debug(f"### {self.own}: rcvd SU from same-rank node")
+                    # log.debug(f"### {self.own}: rcvd SU from same-rank node {msg['new_epr']}")
                     qmem, qubit = self.get_memory_qubit(msg["epr"])
                     if qmem:      # there was no parallel swap
                         # clean parallel_swappings
                         self.parallel_swappings.pop(msg["epr"], None)
-                        if msg["new_epr"] is None:     # swap failed -> release qubit 
+                        if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
                             qmem.read(key=qubit.addr)
                             qubit.fsm.to_release()
                             from qns.network.protocol.event import QubitReleasedEvent
@@ -249,41 +252,42 @@ class ProactiveRouting(Application):
                             updated = qmem.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
                             if not updated:
                                 log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
-                            #if updated and self.eval_swapping_conditions(fib_entry, msg["partner"]):
-                            #    log.debug(f"{self.own}: qubit {qubit} go to purif")
-                            #    qubit.fsm.to_purif()
-                            #    self.purif(qmem, qubit, fib_entry, msg["partner"])
                     else:
                         if msg["epr"] in self.parallel_swappings:
                             (shared_epr, other_epr, my_new_epr) = self.parallel_swappings[msg["epr"]]
-                            if msg["new_epr"] is None:
+                            if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
                                 if other_epr.dst == self.own:
                                     destination = other_epr.src
+                                    partner = shared_epr.dst
                                 else:
                                     destination = other_epr.dst
+                                    partner = shared_epr.src
                                 fwd_msg = {
                                     "cmd": "SWAP_UPDATE",
                                     "path_id": msg['path_id'],
                                     "swapping_node": msg['swapping_node'],
-                                    "partner": None,
+                                    "partner": partner.name,
                                     "epr": my_new_epr.name,
                                     "new_epr": None,
                                     "destination": destination.name,
                                     "fwd": True
                                 }
-                                self.send_swap_update(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"])
+                                # log.debug(f"{self.own}: FWD SU with delay")
+                                self.send_swap_update(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"], delay=True)
                                 self.parallel_swappings.pop(msg["epr"], None)
                             else:    # a neighbor successfully swapped in parallel with this node
                                 new_epr = msg["new_epr"]    # is the epr from neighbor swap
                                 merged_epr = new_epr.swapping(epr=other_epr)    # merge the two swaps (phyisically already happened)
                                 if other_epr.dst == self.own:
-                                    merged_epr.src = other_epr.src
-                                    merged_epr.dst = new_epr.dst
+                                    if merged_epr is not None:
+                                        merged_epr.src = other_epr.src
+                                        merged_epr.dst = new_epr.dst
                                     partner = new_epr.dst.name
                                     destination = other_epr.src
                                 else:
-                                    merged_epr.src = new_epr.src
-                                    merged_epr.dst = other_epr.dst
+                                    if merged_epr is not None:
+                                        merged_epr.src = new_epr.src
+                                        merged_epr.dst = other_epr.dst
                                     partner = new_epr.src.name
                                     destination = other_epr.dst
                                 fwd_msg = {
@@ -296,15 +300,17 @@ class ProactiveRouting(Application):
                                     "destination": destination.name,
                                     "fwd": True
                                 }
-                                self.send_swap_update(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"])
+                                # log.debug(f"{self.own}: FWD SU with delay")
+                                self.send_swap_update(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"], delay=True)
                                 self.parallel_swappings.pop(msg["epr"], None)
                             
-                                # update parallel swappings for next potential cases:    
+                                # update parallel swappings for next potential cases:
                                 p_idx = route.index(partner)
                                 p_rank = swap_sequence[p_idx]
-                                if own_rank == p_rank:
+                                if (own_rank == p_rank) and (merged_epr is not None):
                                     self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
                         else:
+                            # pass
                             log.debug(f"### {self.own}: EPR {msg['epr']} decohered after swapping [parallel]")
                 else:
                     log.debug(f"### {self.own}: VERIFY -> rcvd SU from higher-rank node")
@@ -320,15 +326,25 @@ class ProactiveRouting(Application):
 
     # handle internal events
     def handle_event(self, event: Event) -> None:
-        from qns.network.protocol.event import QubitEntangledEvent
+        from qns.network.protocol.event import QubitEntangledEvent, EndToEndEntanglementEvent
         if isinstance(event, QubitEntangledEvent):    # this event starts the lifecycle for a qubit
             if self.own.timing_mode == TimingModeEnum.ASYNC or self.own.timing_mode == TimingModeEnum.LSYNC:
                 self.handle_entangled_qubit(event)
             else:           # SYNC
                 if self.sync_current_phase == SignalTypeEnum.EXTERNAL:
                     # Accept new etg while we are in EXT phase
-                    # Assume t_coh >> t_ext: QubitEntangledEvent events should correspond to different qubits, no redundancy
+                    # Assume t_coh > t_ext: QubitEntangledEvent events should correspond to different qubits, no redundancy
                     self.waiting_qubits.append(event)
+        """ elif isinstance(event, EndToEndEntanglementEvent):
+            qmem, qubit = self.get_memory_qubit(event.epr)
+            if qmem:
+                qmem.read(address=qubit.addr)
+                log.debug(f"{self.own}: consume e2e entanglement")
+                from qns.network.protocol.event import QubitReleasedEvent
+                qubit.fsm.to_release()
+                event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=True,
+                                       t=self._simulator.tc, by=qmem)
+                self._simulator.add_event(event) """
 
     def handle_entangled_qubit(self, event):
         if event.qubit.pid is not None:     # for buffer-space/blocking mux
@@ -347,7 +363,7 @@ class ProactiveRouting(Application):
         else:        # for statistical mux
             log.debug("Qubit not allocated to any path. Statistical mux not supported yet.")
 
-    # corresponds more to: eval qubit eligibility 
+    # corresponds more to: eval qubit eligibility
     def eval_swapping_conditions(self, fib_entry: Dict, partner: str) -> bool:
         route = fib_entry['path_vector']
         swap_sequence = fib_entry['swap_sequence']
@@ -366,9 +382,18 @@ class ProactiveRouting(Application):
         qubit.fsm.to_eligible()
         self.eligible(qmem, qubit, fib_entry)
 
+        # consume right away:
+        """ _, qm = qmem.read(address=qubit.addr)
+        qubit.fsm.to_release()
+        log.debug(f"{self.own}: consume entanglement: <{qubit.addr}> {qm.src.name} - {qm.dst.name}")
+        from qns.network.protocol.event import QubitReleasedEvent
+        event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=self.own.name=='S',
+                                   t=self._simulator.tc, by=qmem)
+        self._simulator.add_event(event) """
+
         # TODO:
         # get partner's rank: if strictly higher -> i am init purif
-        # To init purif: 
+        # To init purif:
         #   - get purif_scheme for the segment (own-partner)
         #   - if num_rounds (or condition) is None/satified: return ELIGIBLE for this qubit
         #   - else: check if available EPRs (same path_id and same partner)
@@ -379,7 +404,7 @@ class ProactiveRouting(Application):
         if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.INTERNAL:
             debug.log(f"{self.own}: INT phase is over -> stop swaps")
             return
-        
+
         swap_sequence = fib_entry['swap_sequence']
         route = fib_entry['path_vector']
         own_idx = route.index(self.own.name)
@@ -388,8 +413,25 @@ class ProactiveRouting(Application):
             if not other_qmem:
                 return
             else:     # do swapping
-                other_qubit, other_epr = qubits[0]     # pick up one qubit
+                # check if there are different partners in eligible eprs:
+                #src_dst_pairs = {
+                #    (epr.src.name, epr.dst.name)
+                #    for _, epr in qubits
+                #}
+                #has_different_src_dst = len(src_dst_pairs) > 1
+                #if has_different_src_dst:     
+                #    log.debug(f"{self.own}: different partners on eligible qubits -> {has_different_src_dst}")
+                #    log.debug(f"{self.own}: {src_dst_pairs}")
+                #    import random
+                #    other_qubit, other_epr = random.choice(qubits)    # pick up random qubit
+                #else:       
+                other_qubit, other_epr = qubits[0]     # pick up one qubit  -> TODO: quasi-local
+
                 this_epr = qmem.get(address=qubit.addr)[1]
+
+                # select highest or closet age epr:
+                # other_qubit, other_epr = max(qubits, key=lambda pair: pair[1].decoherence_time)
+                # other_qubit, other_epr = min(qubits, key=lambda pair: abs(pair[1].decoherence_time - this_epr.decoherence_time))
 
                 # order eprs and prev/next nodes
                 if this_epr.dst == self.own:
@@ -397,11 +439,21 @@ class ProactiveRouting(Application):
                     prev_epr = this_epr
                     next_partner = other_epr.dst
                     next_epr = other_epr
+                    
+                    prev_qubit = qubit
+                    next_qubit = other_qubit
+                    prev_qmem = qmem
+                    next_qmem = other_qmem
                 elif this_epr.src == self.own:
                     prev_partner = other_epr.src
                     prev_epr = other_epr
                     next_partner = this_epr.dst
                     next_epr = this_epr
+                    
+                    prev_qubit = other_qubit
+                    next_qubit = qubit
+                    prev_qmem = other_qmem
+                    next_qmem = qmem
                 else:
                     raise Exception(f"Unexpected: swapping EPRs {this_epr} x {other_epr}")
 
@@ -416,7 +468,7 @@ class ProactiveRouting(Application):
                 if new_epr:    # swapping succeeded
                     new_epr.src = prev_partner
                     new_epr.dst = next_partner
-                
+
                     # Keep some info in case of parallel swapping with neighbors:
                     own_rank = swap_sequence[own_idx]
                     prev_p_idx = route.index(prev_partner.name)
@@ -431,14 +483,13 @@ class ProactiveRouting(Application):
                         # log.debug(f"===> {self.own}: potential parallel swap with next neighbor {next_partner.name}")
                         self.parallel_swappings[next_epr.name] = (next_epr, prev_epr, new_epr)
 
-                # send SWAP_UPDATE to both swapping partners: 
+                # send SWAP_UPDATE to both swapping partners:
                 prev_partner_msg = {
                     "cmd": "SWAP_UPDATE",
                     "path_id": fib_entry["path_id"],
                     "swapping_node": self.own.name,
                     "partner": next_partner.name,
                     "epr": prev_epr.name,
-                 #   "remote_epr": next_epr.name,
                     "new_epr": new_epr,        # None means swapping failed
                     "destination": prev_partner.name,
                     "fwd": False
@@ -451,33 +502,51 @@ class ProactiveRouting(Application):
                     "swapping_node": self.own.name,
                     "partner": prev_partner.name,
                     "epr": next_epr.name,
-                 #   "remote_epr": prev_epr.name,
                     "new_epr": new_epr,         # None means swapping failed
                     "destination": next_partner.name,
                     "fwd": False
                 }
                 self.send_swap_update(dest=next_partner, msg=next_partner_msg, route=fib_entry["path_vector"])
-                
+
                 # release qubits
                 qmem.read(address=qubit.addr)
                 other_qmem.read(key=other_qubit.addr)
                 qubit.fsm.to_release()
                 other_qubit.fsm.to_release()
                 from qns.network.protocol.event import QubitReleasedEvent
-                ev1 = QubitReleasedEvent(link_layer=self.link_layer, qubit=other_qubit, t=self._simulator.tc, by=other_qmem)
-                ev2 = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=qmem)
+                ev1 = QubitReleasedEvent(link_layer=self.link_layer, qubit=prev_qubit, t=self._simulator.tc, by=prev_qmem)
+                ev2 = QubitReleasedEvent(link_layer=self.link_layer, qubit=next_qubit, t=self._simulator.tc + Time(sec=1e-6), by=next_qmem)
                 self._simulator.add_event(ev1)
                 self._simulator.add_event(ev2)
         else: # end-node
-            from qns.network.protocol.event import QubitReleasedEvent
             _, qm = qmem.read(address=qubit.addr)
-            log.debug(f"{self.own}: consume e2e entanglement: {qm.src.name} - {qm.dst.name}")
             qubit.fsm.to_release()
-            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=True,
+            log.debug(f"{self.own}: consume e2e entanglement: {qm.src.name} - {qm.dst.name}")
+            self.e2e_count+=1
+            from qns.network.protocol.event import QubitReleasedEvent
+            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=self.own.name=='S',
                                        t=self._simulator.tc, by=qmem)
             self._simulator.add_event(event)
+            """ _, qm = qmem.get(address=qubit.addr)
+            qm.rcvd+=1          # to track if both endnodes received last EPR results
+            if qm.rcvd == 2:
+                qmem.read(address=qubit.addr)
+                log.debug(f"{self.own}: consume e2e entanglement: {qm.src.name} - {qm.dst.name}")
+                from qns.network.protocol.event import QubitReleasedEvent, EndToEndEntanglementEvent
+                qubit.fsm.to_release()
+                event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=True,
+                                       t=self._simulator.tc, by=qmem)
 
-    def send_swap_update(self, dest: Node, msg: Dict, route: List[str]):
+                partner = qm.dst if qm.src == self.own else qm.src
+                nl_apps = partner.get_apps(self.__class__)
+                if nl_apps:
+                    partner_net_layer = nl_apps[0]
+                event2 = EndToEndEntanglementEvent(net_layer=partner_net_layer, epr=qm.name,
+                                                   t=self._simulator.tc, by=qmem)
+                self._simulator.add_event(event)
+                self._simulator.add_event(event2) """
+
+    def send_swap_update(self, dest: Node, msg: Dict, route: List[str], delay: bool = False):
         log.debug(f"{self.own.name}: send_SU {dest} = {msg}")
         own_idx = route.index(self.own.name)        
         dest_idx = route.index(dest.name)
@@ -490,7 +559,10 @@ class ProactiveRouting(Application):
             raise Exception(f"{self.own}: No classic channel for dest {dest}")
 
         classic_packet = ClassicPacket(msg=msg, src=self.own, dest=dest)
-        cchannel.send(classic_packet, next_hop=next_hop)
+        if delay:
+            cchannel.send(classic_packet, next_hop=next_hop, delay=cchannel.delay_model.calculate())
+        else:
+            cchannel.send(classic_packet, next_hop=next_hop)
         # log.debug(f"{self.own}: send SWAP_UPDATE to {dest} via {next_hop}")
 
 

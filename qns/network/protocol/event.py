@@ -88,3 +88,18 @@ class QubitEntangledEvent(Event):
 
     def invoke(self) -> None:
         self.net_layer.handle_event(self)
+        
+        
+class EndToEndEntanglementEvent(Event):
+    """
+    ``EndToEndEntanglementEvent`` is the event that notifies NetworkLayer about e2e entangled qubit
+    """
+    def __init__(self, net_layer: ProactiveRouting, epr: str,
+                 t: Optional[Time] = None, name: Optional[str] = None,
+                 by: Optional[Any] = None):
+        super().__init__(t=t, name=name, by=by)
+        self.net_layer = net_layer
+        self.epr = epr
+
+    def invoke(self) -> None:
+        self.net_layer.handle_event(self)

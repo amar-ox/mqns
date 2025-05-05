@@ -100,10 +100,12 @@ class Simulator(object):
         Run the simulate
         '''
         log.debug("simulation started.")
+        
+        self._running = True
 
         trs = time.time()
         event = self.event_pool.next_event()
-        while event is not None:
+        while event is not None and self._running:
             if not event.is_canceled:
                 event.invoke()
                 monitor_list = self.watch_event.get(event.__class__, [])
@@ -122,12 +124,12 @@ class Simulator(object):
             log.debug(f"runtime {tre - trs}, {self.total_events} events,\
                 sim_time {self.te.sec - self.ts.sec}, x{(self.te.sec - self.ts.sec)/(tre-trs)}")
 
-
     def stop(self) -> None:
         '''
-        Stop the continuous simulation loop
+        Stop the simulation loop
         '''
         self._running = False
+
 
     def run_continuous(self) -> None:
         '''

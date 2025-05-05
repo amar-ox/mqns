@@ -49,16 +49,21 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         self.dst = None
         self.ch_index = -1
         self.orig_eprs = []
+        
+        self.decoherence_time = None
+        self.rcvd = 0
+        self.key = None
 
     def __deepcopy__(self, memo):
-        new_obj = WernerStateEntanglement(self.fidelity, self.name)
+        """ new_obj = WernerStateEntanglement(self.fidelity, self.name)
         new_obj.is_decoherenced = self.is_decoherenced
         new_obj.src = self.src
         new_obj.dst = self.dst
         new_obj.ch_index = self.ch_index
         new_obj.orig_eprs = self.orig_eprs
-        # new_obj.orig_eprs = copy.deepcopy(self.orig_eprs, memo)
-        return new_obj
+        new_obj.decoherence_time = self.decoherence_time
+        new_obj.rcvd = self.rcvd """
+        return self
 
     @property
     def fidelity(self) -> float:
@@ -81,7 +86,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         ne = WernerStateEntanglement()
         if self.is_decoherenced or epr.is_decoherenced:
             return None
-        
+
         r = get_rand()
         if r >= ps:              # swap failed
             epr.is_decoherenced = True
@@ -93,6 +98,11 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         
         eprs_name_list = [e.name for e in ne.orig_eprs]
         ne.name = hash('-'.join(eprs_name_list))
+        
+        # set decoherence time to the shorter among the two pairs
+        ne.decoherence_time = self.decoherence_time
+        if epr.decoherence_time < self.decoherence_time:
+            ne.decoherence_time = epr.decoherence_time
         return ne
 
     def distillation(self, epr: "WernerStateEntanglement", name: Optional[str] = None):
@@ -176,10 +186,10 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
             if name not in merged:
                 merged[name] = epr
 
-        # Add elementary eprs
-        if self.ch_index > -1:       
+        # Add elementary eprs     
+        if self.ch_index > -1 and self.name not in merged:
             merged['self'] = self
-        if epr.ch_index > -1:
+        if epr.ch_index > -1 and epr.name not in merged:
             merged['epr'] = epr
 
         # Sort the result by epr.index

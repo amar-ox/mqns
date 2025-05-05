@@ -85,7 +85,8 @@ class MemoryQubit():
         self.addr = addr
         self.fsm = QubitFSM()
         self.pid = None
-        
+        self.active = None
+
     def allocate(self, pid: int) -> None:
         self.pid = pid
         
@@ -94,5 +95,5 @@ class MemoryQubit():
 
     def __repr__(self) -> str:
         if self.addr is not None:
-            return f"<memory qubit {self.addr}, pid={self.pid}>"
+            return f"<memory qubit {self.addr}, pid={self.pid}, active={self.active}>"
         return super().__repr__()
