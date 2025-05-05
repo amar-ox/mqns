@@ -143,11 +143,10 @@ class ProactiveRoutingControllerApp(Application):
         
         # for buffer-space mux -> get memory capacities per channel
         m_v = []
+        src_capacity = self.net.get_node(path_nodes[0].name).memory.capacity
         for i in range(len(path_nodes) - 1):
             channel_name = f"q_{path_nodes[i].name},{path_nodes[i+1].name}"
-            qmemory = next(qmem for qmem in self.net.get_node(path_nodes[i].name).memories if qmem.name == channel_name)
-            num_qubits = qmemory.capacity
-            m_v.append(num_qubits)
+            m_v.append(src_capacity)
 
         for qnode in path_nodes:
             instructions = {

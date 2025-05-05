@@ -19,7 +19,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-log.logger.setLevel(logging.CRITICAL)
+log.logger.setLevel(logging.DEBUG)
 
 SEED_BASE = 100
 
@@ -45,6 +45,7 @@ def generate_topology(t_coherence):
             "name": "S",
             "memory": {
                 "decoherence_rate": 1 / t_coherence,
+                "capacity": 1,
             },
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity), ProactiveRouting()]
         },
@@ -52,6 +53,7 @@ def generate_topology(t_coherence):
             "name": "R",
             "memory": {
                 "decoherence_rate": 1 / t_coherence,
+                "capacity": 2,
             },
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity), ProactiveRouting(ps=p_swap)]
         },
@@ -59,6 +61,7 @@ def generate_topology(t_coherence):
             "name": "D",
             "memory": {
                 "decoherence_rate": 1 / t_coherence,
+                "capacity": 1,
             },
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity), ProactiveRouting()]
         }
@@ -82,7 +85,7 @@ def generate_topology(t_coherence):
 
 def run_simulation(t_coherence, seed):
     json_topology = generate_topology(t_coherence)
-    
+
     set_seed(seed)
     s = Simulator(0, sim_duration + 5e-06, accuracy=1000000)
     log.install(s)
@@ -96,7 +99,7 @@ def run_simulation(t_coherence, seed):
     net.install(s)
 
     s.run()
-    
+
     #### get stats
     total_etg = 0
     total_decohered = 0
@@ -117,8 +120,7 @@ results = {
 }
 
 t_cohere_values = [2e-3, 5e-3, 1e-2, 2e-2, 3e-2, 4e-2, 8e-2, 1e-1]
-# t_cohere_values = [1e-1]
-N_RUNS = 10
+N_RUNS = 5
 for t_cohere in t_cohere_values:
     rates = []
     for i in range(N_RUNS):

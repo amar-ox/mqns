@@ -46,6 +46,12 @@ class CustomTopology(Topology):
             qn = QNode(node['name'])
             for app in node['apps']:
                 qn.add_apps(app)
+            
+            # Assign a new memory
+            memory_args = node['memory'] # copy.deepcopy(next( for node in self.topo['qnodes'] if node['name'] == qn.name))
+            m = QuantumMemory(name=qn.name, node=qn, **memory_args)
+            qn.set_memory(m)
+
             qnl.append(qn)
 
         # Create quantum channels and assign memories with proper capacity
@@ -58,11 +64,9 @@ class CustomTopology(Topology):
                     # Attach quantum channel to nodes
                     qn.add_qchannel(link)
 
-                    # Assign a new memory with channel capacity for each end-node
-                    memory_args = copy.deepcopy(next(node['memory'] for node in self.topo['qnodes'] if node['name'] == qn.name))
-                    memory_args['capacity'] = ch['capacity']       # Set memory capacity to channel capacity
-                    m = QuantumMemory(name=link.name, node=qn, **memory_args)
-                    qn.add_memory(m)
+                    for _ in range(ch['capacity']):
+                        if qn.memory.assign(link) == -1:
+                            raise RuntimeError("Not enough qubits to assignment")
 
         if "controller" in self.topo:
             self.controller = Controller(name=self.topo['controller']['name'], apps=self.topo['controller']['apps'])

@@ -53,7 +53,7 @@ class ProactiveRouting(Application):
 
         self.net: QuantumNetwork = None
         self.own: QNode = None
-        self.memories: QuantumMemory = None
+        self.memory: QuantumMemory = None
         
         self.fib: ForwardingInformationBase = ForwardingInformationBase()
         self.link_layer = None
@@ -71,7 +71,7 @@ class ProactiveRouting(Application):
         from qns.network.protocol.link_layer import LinkLayer
         super().install(node, simulator)
         self.own: QNode = self._node
-        self.memories: List[QuantumMemory] = self.own.memories
+        self.memory: QuantumMemory = self.own.memory
         self.net = self.own.network
         ll_apps = self.own.get_apps(LinkLayer)
         if ll_apps:
@@ -109,15 +109,11 @@ class ProactiveRouting(Application):
             raise Exception(f"Node {self.own.name} not found in route vector {instructions['route']}")
 
         # use prev and next node to get corresponding channels
-        # use channel names to get corresponding memories
         prev_qchannel = None
-        prev_qmem = None
         if pn:
             prev_neighbor = self.net.get_node(pn)
             prev_qchannel: QuantumChannel = self.own.get_qchannel(prev_neighbor)
-            if prev_qchannel:
-                prev_qmem = next(qmem for qmem in self.memories if qmem.name == prev_qchannel.name)
-            else:
+            if not prev_qchannel:
                 raise Exception(f"Qchannel not found for neighbor {prev_neighbor}")
 
         next_qchannel = None
@@ -125,45 +121,32 @@ class ProactiveRouting(Application):
         if nn:
             next_neighbor = self.own.network.get_node(nn)
             next_qchannel: QuantumChannel = self.own.get_qchannel(next_neighbor)
-            if next_qchannel:
-                next_qmem = next(qmem for qmem in self.memories if qmem.name == next_qchannel.name)
-            else:
+            if not next_qchannel:
                 raise Exception(f"Qchannel not found for neighbor {next_neighbor}")
 
         # use mux info to allocate qubits in each memory, keep qubit addresses
         prev_qubits = []
         next_qubits = []
-        if instructions['mux'] == "B":
-            if instructions["m_v"]:
-                log.debug(f"{self.own}: Allocating qubits for buffer-space mux")
-                num_prev, num_next = self.compute_qubit_allocation(instructions['route'], instructions['m_v'], self.own.name)
-                if num_prev and prev_qmem:
-                    if num_prev >= prev_qmem.free:
-                        for i in range(num_prev): prev_qubits.append(prev_qmem.allocate(path_id=path_id))
-                    else:
-                        raise Exception(f"Not enough qubits left for this allocation.")
-                if num_next and next_qmem:
-                    if num_next >= next_qmem.free:
-                        for i in range(num_next): next_qubits.append(next_qmem.allocate(path_id=path_id))
-                    else:
-                        raise Exception(f"Not enough qubits left for this allocation.")
-            else:
-                log.debug(f"{self.own}: Qubits allocation not provided. Allocate all qubits")
-                if prev_qmem:
-                    if prev_qmem.free == prev_qmem.capacity:
-                        for i in range(prev_qmem.free): prev_qubits.append(prev_qmem.allocate(path_id=path_id))
-                    else:
-                        raise Exception(f"Memory {prev_qmem.name} has allocated qubits and cannot be used with Blocking mux.")
-                if next_qmem:
-                    if next_qmem.free == next_qmem.capacity:
-                        for i in range(next_qmem.free): next_qubits.append(next_qmem.allocate(path_id=path_id))
-                    else:
-                        raise Exception(f"Memory {next_qmem.name} has allocated qubits and cannot be used with Blocking mux.")
+
+        if instructions["m_v"]:
+            log.debug(f"{self.own}: Allocating qubits for buffer-space mux")
+            num_prev, num_next = self.compute_qubit_allocation(instructions['route'], instructions['m_v'], self.own.name)
+            if num_prev:
+                if num_prev <= self.memory.free:
+                    for i in range(num_prev): prev_qubits.append(self.memory.allocate(path_id=path_id))
+                else:
+                    raise Exception(f"Not enough qubits left for prev allocation.")
+            if num_next:
+                if num_next <= self.memory.free:
+                    for i in range(num_next): next_qubits.append(self.memory.allocate(path_id=path_id))
+                else:
+                    raise Exception(f"Not enough qubits left for next allocation.")
+
         log.debug(f"allocated qubits: prev={prev_qubits} | next={next_qubits}")
 
         # populate FIB
         if self.fib.get_entry(path_id):
-            self.fib.delete_entry(path_id)        
+            self.fib.delete_entry(path_id)
         self.fib.add_entry(path_id=path_id, path_vector=instructions['route'], swap_sequence=instructions['swap'], 
                            purification_scheme=instructions['purif'], qubit_addresses=[])
 
@@ -217,39 +200,39 @@ class ProactiveRouting(Application):
             # - this etg **side** becomes ready to purify/swap
             if msg["destination"] == self.own.name:
                 if own_rank > sender_rank:       # this node didn't swap for sure 
-                    qmem, qubit = self.get_memory_qubit(msg["epr"])
-                    if qmem:
+                    qubit = self.get_memory_qubit(msg["epr"])
+                    if qubit:
                         # swap failed or oldest pair decohered -> release qubit 
                         if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
-                            qmem.read(key=qubit.addr)
+                            self.memory.read(key=qubit.addr)
                             qubit.fsm.to_release()
                             from qns.network.protocol.event import QubitReleasedEvent
-                            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=qmem)
+                            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=self)
                             self._simulator.add_event(event)
                         else:    # update old EPR with new EPR (fidelity and partner)
-                            updated = qmem.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
+                            updated = self.memory.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
                             if not updated:
                                 log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
                             if updated and self.eval_swapping_conditions(fib_entry, msg["partner"]):
                                 # log.debug(f"{self.own}: qubit {qubit} go to purif")
                                 qubit.fsm.to_purif()
-                                self.purif(qmem, qubit, fib_entry, msg["partner"])
+                                self.purif(qubit, fib_entry, msg["partner"])
                     else:      # epr decohered -> release qubit
                         log.debug(f"{self.own}: EPR {msg['epr']} decohered during SU transmissions")
                 elif own_rank == sender_rank:     # the two nodes may have swapped
                     # log.debug(f"### {self.own}: rcvd SU from same-rank node {msg['new_epr']}")
-                    qmem, qubit = self.get_memory_qubit(msg["epr"])
-                    if qmem:      # there was no parallel swap
+                    qubit = self.get_memory_qubit(msg["epr"])
+                    if qubit:      # there was no parallel swap
                         # clean parallel_swappings
                         self.parallel_swappings.pop(msg["epr"], None)
                         if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
-                            qmem.read(key=qubit.addr)
+                            self.memory.read(key=qubit.addr)
                             qubit.fsm.to_release()
                             from qns.network.protocol.event import QubitReleasedEvent
-                            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=qmem)
+                            event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=self)
                             self._simulator.add_event(event)
                         else:    # update old EPR with new EPR (fidelity and partner)
-                            updated = qmem.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
+                            updated = self.memory.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
                             if not updated:
                                 log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
                     else:
@@ -326,7 +309,7 @@ class ProactiveRouting(Application):
 
     # handle internal events
     def handle_event(self, event: Event) -> None:
-        from qns.network.protocol.event import QubitEntangledEvent, EndToEndEntanglementEvent
+        from qns.network.protocol.event import QubitEntangledEvent
         if isinstance(event, QubitEntangledEvent):    # this event starts the lifecycle for a qubit
             if self.own.timing_mode == TimingModeEnum.ASYNC or self.own.timing_mode == TimingModeEnum.LSYNC:
                 self.handle_entangled_qubit(event)
@@ -335,16 +318,6 @@ class ProactiveRouting(Application):
                     # Accept new etg while we are in EXT phase
                     # Assume t_coh > t_ext: QubitEntangledEvent events should correspond to different qubits, no redundancy
                     self.waiting_qubits.append(event)
-        """ elif isinstance(event, EndToEndEntanglementEvent):
-            qmem, qubit = self.get_memory_qubit(event.epr)
-            if qmem:
-                qmem.read(address=qubit.addr)
-                log.debug(f"{self.own}: consume e2e entanglement")
-                from qns.network.protocol.event import QubitReleasedEvent
-                qubit.fsm.to_release()
-                event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=True,
-                                       t=self._simulator.tc, by=qmem)
-                self._simulator.add_event(event) """
 
     def handle_entangled_qubit(self, event):
         if event.qubit.pid is not None:     # for buffer-space/blocking mux
@@ -354,8 +327,7 @@ class ProactiveRouting(Application):
                     qchannel: QuantumChannel = self.own.get_qchannel(event.neighbor)
                     if qchannel:
                         event.qubit.fsm.to_purif()
-                        qmem = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
-                        self.purif(qmem, event.qubit, fib_entry, event.neighbor.name)
+                        self.purif(event.qubit, fib_entry, event.neighbor.name)
                     else:
                         raise Exception(f"No qchannel found for neighbor {event.neighbor.name}")
             else:
@@ -377,10 +349,10 @@ class ProactiveRouting(Application):
             return True
         return False
 
-    def purif(self, qmem: QuantumMemory, qubit: MemoryQubit, fib_entry: Dict, partner: str):
+    def purif(self, qubit: MemoryQubit, fib_entry: Dict, partner: str):
         # Will remove when purif cycle is implemented:
         qubit.fsm.to_eligible()
-        self.eligible(qmem, qubit, fib_entry)
+        self.eligible(qubit, fib_entry)
 
         # consume right away:
         """ _, qm = qmem.read(address=qubit.addr)
@@ -400,7 +372,7 @@ class ProactiveRouting(Application):
         #           if enough pairs -> enter purif cycle (passive slightly behind active in transitions)
         #           else -> return
 
-    def eligible(self, qmem: QuantumMemory, qubit: MemoryQubit, fib_entry: Dict):
+    def eligible(self, qubit: MemoryQubit, fib_entry: Dict):
         if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.INTERNAL:
             debug.log(f"{self.own}: INT phase is over -> stop swaps")
             return
@@ -409,29 +381,10 @@ class ProactiveRouting(Application):
         route = fib_entry['path_vector']
         own_idx = route.index(self.own.name)
         if own_idx > 0 and own_idx < len(route)-1:     # intermediate node
-            (other_qmem, qubits) = self.check_eligible_qubit(qmem, fib_entry['path_id'])   # check if there is another eligible qubit
-            if not other_qmem:
-                return
-            else:     # do swapping
-                # check if there are different partners in eligible eprs:
-                #src_dst_pairs = {
-                #    (epr.src.name, epr.dst.name)
-                #    for _, epr in qubits
-                #}
-                #has_different_src_dst = len(src_dst_pairs) > 1
-                #if has_different_src_dst:     
-                #    log.debug(f"{self.own}: different partners on eligible qubits -> {has_different_src_dst}")
-                #    log.debug(f"{self.own}: {src_dst_pairs}")
-                #    import random
-                #    other_qubit, other_epr = random.choice(qubits)    # pick up random qubit
-                #else:       
+            qubits = self.check_eligible_qubit(qchannel=qubit.qchannel, path_id=fib_entry['path_id'])   # check if there is another eligible qubit
+            if qubits:      # do swapping
                 other_qubit, other_epr = qubits[0]     # pick up one qubit  -> TODO: quasi-local
-
-                this_epr = qmem.get(address=qubit.addr)[1]
-
-                # select highest or closet age epr:
-                # other_qubit, other_epr = max(qubits, key=lambda pair: pair[1].decoherence_time)
-                # other_qubit, other_epr = min(qubits, key=lambda pair: abs(pair[1].decoherence_time - this_epr.decoherence_time))
+                this_epr = self.memory.get(address=qubit.addr)[1]
 
                 # order eprs and prev/next nodes
                 if this_epr.dst == self.own:
@@ -442,8 +395,6 @@ class ProactiveRouting(Application):
                     
                     prev_qubit = qubit
                     next_qubit = other_qubit
-                    prev_qmem = qmem
-                    next_qmem = other_qmem
                 elif this_epr.src == self.own:
                     prev_partner = other_epr.src
                     prev_epr = other_epr
@@ -452,8 +403,6 @@ class ProactiveRouting(Application):
                     
                     prev_qubit = other_qubit
                     next_qubit = qubit
-                    prev_qmem = other_qmem
-                    next_qmem = qmem
                 else:
                     raise Exception(f"Unexpected: swapping EPRs {this_epr} x {other_epr}")
 
@@ -464,7 +413,7 @@ class ProactiveRouting(Application):
                     next_epr.ch_index = own_idx
 
                 new_epr = this_epr.swapping(epr=other_epr, ps=self.ps)
-                log.debug(f"{self.own}: SWAP {'SUCC' if new_epr else 'FAILED'} | {qmem}.{qubit} x {other_qmem}.{other_qubit}")
+                log.debug(f"{self.own}: SWAP {'SUCC' if new_epr else 'FAILED'} | {qubit} x {other_qubit}")
                 if new_epr:    # swapping succeeded
                     new_epr.src = prev_partner
                     new_epr.dst = next_partner
@@ -509,42 +458,24 @@ class ProactiveRouting(Application):
                 self.send_swap_update(dest=next_partner, msg=next_partner_msg, route=fib_entry["path_vector"])
 
                 # release qubits
-                qmem.read(address=qubit.addr)
-                other_qmem.read(key=other_qubit.addr)
+                self.memory.read(address=qubit.addr)
+                self.memory.read(key=other_qubit.addr)
                 qubit.fsm.to_release()
                 other_qubit.fsm.to_release()
                 from qns.network.protocol.event import QubitReleasedEvent
-                ev1 = QubitReleasedEvent(link_layer=self.link_layer, qubit=prev_qubit, t=self._simulator.tc, by=prev_qmem)
-                ev2 = QubitReleasedEvent(link_layer=self.link_layer, qubit=next_qubit, t=self._simulator.tc + Time(sec=1e-6), by=next_qmem)
+                ev1 = QubitReleasedEvent(link_layer=self.link_layer, qubit=prev_qubit, t=self._simulator.tc, by=self)
+                ev2 = QubitReleasedEvent(link_layer=self.link_layer, qubit=next_qubit, t=self._simulator.tc + Time(sec=1e-6), by=self)
                 self._simulator.add_event(ev1)
                 self._simulator.add_event(ev2)
         else: # end-node
-            _, qm = qmem.read(address=qubit.addr)
+            _, qm = self.memory.read(address=qubit.addr)
             qubit.fsm.to_release()
             log.debug(f"{self.own}: consume e2e entanglement: {qm.src.name} - {qm.dst.name}")
             self.e2e_count+=1
             from qns.network.protocol.event import QubitReleasedEvent
             event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=self.own.name=='S',
-                                       t=self._simulator.tc, by=qmem)
+                                       t=self._simulator.tc, by=self)
             self._simulator.add_event(event)
-            """ _, qm = qmem.get(address=qubit.addr)
-            qm.rcvd+=1          # to track if both endnodes received last EPR results
-            if qm.rcvd == 2:
-                qmem.read(address=qubit.addr)
-                log.debug(f"{self.own}: consume e2e entanglement: {qm.src.name} - {qm.dst.name}")
-                from qns.network.protocol.event import QubitReleasedEvent, EndToEndEntanglementEvent
-                qubit.fsm.to_release()
-                event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, e2e=True,
-                                       t=self._simulator.tc, by=qmem)
-
-                partner = qm.dst if qm.src == self.own else qm.src
-                nl_apps = partner.get_apps(self.__class__)
-                if nl_apps:
-                    partner_net_layer = nl_apps[0]
-                event2 = EndToEndEntanglementEvent(net_layer=partner_net_layer, epr=qm.name,
-                                                   t=self._simulator.tc, by=qmem)
-                self._simulator.add_event(event)
-                self._simulator.add_event(event2) """
 
     def send_swap_update(self, dest: Node, msg: Dict, route: List[str], delay: bool = False):
         log.debug(f"{self.own.name}: send_SU {dest} = {msg}")
@@ -566,21 +497,15 @@ class ProactiveRouting(Application):
         # log.debug(f"{self.own}: send SWAP_UPDATE to {dest} via {next_hop}")
 
 
-    def check_eligible_qubit(self, qmem: QuantumMemory, path_id: int = None):
+    def check_eligible_qubit(self, qchannel: QuantumChannel, path_id: int = None):
         # assume isolated paths -> a path_id uses only left and right qmem
-        for qm in self.memories:
-            if qm.name != qmem.name:
-                qubits = qm.search_eligible_qubits(pid=path_id)
-                if qubits:
-                    return qm, qubits
-        return None, None
+        return self.memory.search_eligible_qubits(qchannel=qchannel.name, pid=path_id)
     
     def get_memory_qubit(self, epr_name: str):
-        for qm in self.memories:
-            res = qm.get(key=epr_name)
-            if res is not None:
-                return qm, res[0]
-        return None, None
+        res = self.memory.get(key=epr_name)
+        if res is not None:
+            return res[0]
+        return None
 
     def compute_qubit_allocation(self, path, m_v, node):
         if node not in path:

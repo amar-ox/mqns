@@ -20,6 +20,7 @@ from enum import Enum, auto
 
 
 
+
 class UnexpectedTransitionException(Exception):
     """
     The exception that the FSM transition is incorrect
@@ -84,6 +85,7 @@ class MemoryQubit():
         """
         self.addr = addr
         self.fsm = QubitFSM()
+        self.qchannel = None
         self.pid = None
         self.active = None
 
@@ -93,7 +95,13 @@ class MemoryQubit():
     def deallocate(self) -> None:
         self.pid = None
 
+    def assign(self, ch) -> None:
+        self.qchannel = ch
+
+    def unassign(self) -> None:
+        self.qchannel = None
+
     def __repr__(self) -> str:
         if self.addr is not None:
-            return f"<memory qubit {self.addr}, pid={self.pid}, active={self.active}>"
+            return f"<memory qubit {self.addr}, cg={self.qchannel}, pid={self.pid}, active={self.active}>"
         return super().__repr__()

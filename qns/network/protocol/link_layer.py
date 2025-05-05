@@ -120,7 +120,7 @@ class LinkLayer(Application):
         from qns.network.protocol.proactive_routing import ProactiveRouting
         super().install(node, simulator)
         self.own: QNode = self._node
-        self.memories: List[QuantumMemory] = self.own.memories
+        self.memory: QuantumMemory = self.own.memory
         nl_apps = self.own.get_apps(ProactiveRouting)
         if nl_apps:
             self.net_layer = nl_apps[0]
@@ -138,21 +138,23 @@ class LinkLayer(Application):
 
     def handle_active_channel(self, qchannel: QuantumChannel, next_hop: QNode):
         # use qchannel name to get memory
-        qchannel_memory = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
-        for i, (qubit, data) in enumerate(qchannel_memory._storage):
+        # qchannel_memory = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
+        qubits = self.memory.get_channel_qubits(qchannel.name)
+        log.debug(f"{self.own}: {qchannel.name} has assigned qubits: {qubits}")
+        for i, (qb, data) in enumerate(qubits):
+            # qb, data = qubit
             if data is None:
                 # TODO: attempt_rate inculudes: min(Fiber frequency, count rate 60 MHz)
                 t = self._simulator.tc + Time(sec = i * 1 / self.attempt_rate)
                 event = func_to_event(t, self.start_negociation, by=self, 
-                                      next_hop=next_hop, qchannel=qchannel, qmemory=qchannel_memory,
-                                      address=qubit.addr, path_id=qubit.pid)
+                                      next_hop=next_hop, qchannel=qchannel,
+                                      address=qb.addr, path_id=qb.pid)
                 self._simulator.add_event(event)
             else:
                 log.debug(f"{self.own}: --> PROBLEM {data}")
 
     def start_negociation(self, next_hop: Node, qchannel: QuantumChannel,
-                          qmemory: QuantumMemory, address: int, 
-                          path_id: Optional[int] = None):
+                          address: int, path_id: Optional[int] = None):
         key = next_hop.name
         if path_id is not None:
             key = key+'_'+str(path_id)
@@ -163,56 +165,31 @@ class LinkLayer(Application):
             return
 
         log.debug(f"{self.own}: init negociation for {key}")
-        self.pending_negoc[key] = (qchannel, next_hop, qmemory, address)
+        self.pending_negoc[key] = (qchannel, next_hop, address)
         cchannel: ClassicChannel = self.own.get_cchannel(next_hop)
         if cchannel is None:
             raise Exception(f"{self.own}: No classic channel for dest {dest}")
         classic_packet = ClassicPacket(msg={"cmd": "epr_init", "path_id": path_id, "key": key}, src=self.own, dest=next_hop)
         cchannel.send(classic_packet, next_hop=next_hop)
 
-        # address is given when generating for a specific qubit -> e.g., retry after decoherence
-    def generate_entanglement_BKP(self, qchannel: QuantumChannel, next_hop: Node, 
-                              qmemory: QuantumMemory, address: int, first=True):
-
-        if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.EXTERNAL:
-            log.debug(f"{self.own}: EXT phase is over -> stop attempts")
-            return
-
-        if qchannel.name not in self.active_channels:
-            log.debug(f"{self.own}: Qchannel not active")
-            return
-
-        epr = self.generate_epr(next_hop)
-        local_qubit = qmemory.writex(qm=epr, address=address)      # first attempt there is no address
-        log.debug(f"{self.own}: [first attempt:{first}] {epr}")
-        if not local_qubit:
-            raise Exception(f"{self.own}: (sender) Attempt EPR -> memory full")
-            return
-        # if half-EPR stored, flag it with path id (if any) to keep consistence with neighbor
-        epr.path_id = local_qubit.pid      # if Statistical mux -> pid = None
-
-        # send the entanglement (equiv. to attempt pair generation with next-hop)
-        qchannel.send(epr, next_hop)
-
-    # uncomment this to use sampling
     def generate_entanglement(self, qchannel: QuantumChannel, next_hop: Node, 
-                              qmemory: QuantumMemory, address: int, key: str):
+                              address: int, key: str):
         if qchannel.name not in self.active_channels:
             log.debug(f"{self.own}: Qchannel not active")
             return
 
-        t_mem = 1 / qmemory.decoherence_rate
+        t_mem = 1 / self.memory.decoherence_rate
         if qchannel.length >= (2 * light_speed * t_mem):
             raise Exception("Qchannel too long for entanglement attempt.")
 
         succ_attempt_time, attempts = skip_ahead_entanglement(qchannel.length, alpha=0.2, eta_d=0.95, eta_s=0.95)
         t_event = self._simulator.tc + Time(sec = succ_attempt_time)
         event = func_to_event(t_event, self.do_successful_attempt, by=self, qchannel=qchannel, 
-                              next_hop=next_hop, qmemory=qmemory, address=address, attempts=attempts, key=key)
+                              next_hop=next_hop, address=address, attempts=attempts, key=key)
         self._simulator.add_event(event)
 
     def do_successful_attempt(self, qchannel: QuantumChannel, next_hop: Node, 
-                              qmemory: QuantumMemory, address, attempts: int, key: str):
+                              address, attempts: int, key: str):
         epr = self.generate_epr(next_hop)
         epr.attempts = attempts
         epr.key = key
@@ -221,8 +198,8 @@ class LinkLayer(Application):
         #local_qubit = qmemory.write(qm=epr, address=address, delay=qchannel.delay_model.calculate())   # qubit init at 2tau
         
         # if 3-6 tau -> we are at 5tau
-        local_qubit = qmemory.write(qm=epr, address=address, delay=3*qchannel.delay_model.calculate())   # qubit init at 2tau
-        
+        local_qubit = self.memory.write(qm=epr, address=address, delay=3*qchannel.delay_model.calculate())   # qubit init at 2tau
+
         if not local_qubit:
             raise Exception(f"### UNEXPECTED -> {self.own}: (sender) Do succ EPR -> memory full, qubit ({address})")
             return
@@ -246,22 +223,14 @@ class LinkLayer(Application):
             raise Exception("No such classic channel")
 
         epr: WernerStateEntanglement = packet.qubit
-        """ if epr.is_decoherenced:    # herald for lost photon
-            classic_packet = ClassicPacket(
-                msg={"cmd": "epr_failed", "path_id": epr.path_id, "epr_id": epr.name}, src=self.own, dest=from_node)
-            cchannel.send(classic_packet, next_hop=from_node)
-            return """
 
         log.debug(f"{self.own}: recv half-EPR {epr.name} from {from_node} | reservation key {epr.key}")
-
-        # store epr in a qubit
-        qmemory = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
 
         # if 3-4 tau -> we are at 4tau
         # local_qubit = qmemory.write(qm=epr, pid=epr.path_id, delay=2*qchannel.delay_model.calculate())   # qubit init at 2tau
 
         # if 3-6 tau -> we are at 6tau
-        local_qubit = qmemory.write(qm=epr, pid=epr.path_id, key=epr.key, delay=4*qchannel.delay_model.calculate())   # qubit init at 2tau
+        local_qubit = self.memory.write(qm=epr, pid=epr.path_id, key=epr.key, delay=4*qchannel.delay_model.calculate())   # qubit init at 2tau
 
         if local_qubit is None:
             raise Exception(f"{self.own}: Failed to store rcvd EPR due to full memory")
@@ -287,23 +256,12 @@ class LinkLayer(Application):
         qchannel: QuantumChannel = self.own.get_qchannel(from_node)
         if qchannel is None:
             raise Exception("No such quantum channel")
-        
-        qmemory = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
+
         # ignore if qchannel not active anymore
         if qchannel.name not in self.active_channels:
             log.debug(f"{self.own}: Qchannel not active")
             (qubit, _) = qmemory.read(epr_id)    # this will free up the qubit of this epr
             return
-
-        """ if cmd == "epr_succeeded":    # new epr created
-            res = qmemory.get(epr_id)
-            #if res:
-            log.debug(f"{self.own}: epr_succeeded {epr_id} stored in {res[0].addr}")
-            self.notify_entangled_qubit(neighbor=from_node, qubit=res[0])
-        elif cmd == "epr_failed":
-            res = qmemory.read(epr_id)    # this will free up the qubit of this epr
-            #if res:
-            # self.generate_entanglement(qchannel=qchannel, next_hop=from_node, qmemory=qmemory, address=res[0].addr, first=False) """
 
     def generate_epr(self, dst: QNode) -> QuantumModel:
         epr = WernerStateEntanglement(fidelity=self.init_fidelity, name=uuid.uuid4().hex)
@@ -341,43 +299,41 @@ class LinkLayer(Application):
         elif isinstance(event, QubitDecoheredEvent):
             self.decoh_count+=1
             # check if this node is the EPR initiator of the qchannel associated with the memory of this qubit
-            if event.by.name in self.active_channels:
-                if self.own.timing_mode == TimingModeEnum.LSYNC:
-                    log.debug(f"{self.own}: UNEXPECTED -> t_slot too short")
-                if self.own.timing_mode == TimingModeEnum.SYNC:
-                    log.debug(f"{self.own}: UNEXPECTED -> (t_ext + t_int) too short")
-                qchannel, next_hop = self.active_channels[event.by.name]
-                # self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, qmemory=event.by, address=event.qubit.addr)
-                self.start_negociation(next_hop=next_hop, qchannel=qchannel,
-                                       qmemory=event.by, address=event.qubit.addr, path_id=event.qubit.pid)
+            if event.qubit.qchannel.name:
+                if event.qubit.qchannel.name in self.active_channels:
+                    if self.own.timing_mode == TimingModeEnum.LSYNC:
+                        log.debug(f"{self.own}: UNEXPECTED -> t_slot too short")
+                    if self.own.timing_mode == TimingModeEnum.SYNC:
+                        log.debug(f"{self.own}: UNEXPECTED -> (t_ext + t_int) too short")
+                    qchannel, next_hop = self.active_channels[event.qubit.qchannel.name]
+                    self.start_negociation(next_hop=next_hop, qchannel=qchannel,
+                                           address=event.qubit.addr, path_id=event.qubit.pid)
+                else:
+                    event.qubit.active = None
+                    self.check_pending_epr_init()
             else:
-                event.qubit.active = None
-                self.check_pending_epr_init(event.by)
+                log.debug("TODO")
         elif isinstance(event, QubitReleasedEvent):
             # check if this node is the EPR initiator of the qchannel associated with the memory of this qubit
-            if event.by.name in self.active_channels:
-                qchannel, next_hop = self.active_channels[event.by.name]
-                if self.own.timing_mode == TimingModeEnum.ASYNC:
-                    # self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, qmemory=event.by, address=event.qubit.addr)
-                    self.start_negociation(next_hop=next_hop, qchannel=qchannel,
-                                           qmemory=event.by, address=event.qubit.addr, path_id=event.qubit.pid)
-                elif self.own.timing_mode == TimingModeEnum.LSYNC:    # LSYNC
-                    entry = (qchannel, next_hop, event.by, event.qubit.addr)
-                    self.waiting_qubits.add(entry)
+            if event.qubit.qchannel.name:
+                if event.qubit.qchannel.name in self.active_channels:
+                    qchannel, next_hop = self.active_channels[event.qubit.qchannel.name]
+                    if self.own.timing_mode == TimingModeEnum.ASYNC:
+                        # self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, qmemory=event.by, address=event.qubit.addr)
+                        self.start_negociation(next_hop=next_hop, qchannel=qchannel,
+                                               address=event.qubit.addr, path_id=event.qubit.pid)
+                    elif self.own.timing_mode == TimingModeEnum.LSYNC:    # LSYNC
+                        entry = (qchannel, next_hop, event.qubit.qchannel.name, event.qubit.addr)
+                        self.waiting_qubits.add(entry)
+                else:
+                    event.qubit.active = None
+                    self.check_pending_epr_init()
             else:
-                event.qubit.active = None
-                self.check_pending_epr_init(event.by)
+                log.debug("TODO")
 
     def handle_sync_signal(self, signal_type: SignalTypeEnum):
         log.debug(f"{self.own}:[{self.own.timing_mode}] TIMING SIGNAL <{signal_type}>")
         if self.own.timing_mode == TimingModeEnum.LSYNC and signal_type == SignalTypeEnum.EXTERNAL_START:
-            #for channel_name, (qchannel, next_hop) in self.waiting_channels.items():
-            #    self.handle_active_channel(qchannel, next_hop)
-            #for qchannel, next_hop, qmemory, address in self.waiting_qubits:
-            #    self.generate_entanglementz(qchannel=qchannel,next_hop=next_hop, qmemory=qmemory,address=address)
-            #self.waiting_channels = {}
-            #self.waiting_qubits = set()
-
             # clear all qubits and retry all active_channels until INTERNAL signal
             for qmem in self.memories:
                 qmem.clear()
@@ -401,14 +357,13 @@ class LinkLayer(Application):
         qchannel: QuantumChannel = self.own.get_qchannel(from_node)
         if qchannel is None:
             raise Exception("No such quantum channel")
-        qmemory = next(qmem for qmem in self.memories if qmem.name == qchannel.name)
 
         cmd = msg["cmd"]
         path_id = msg["path_id"]
         key = msg["key"]
         if cmd == 'epr_init':
             log.debug(f"{self.own}: rcvd epr_init {key}")
-            avail_qubits = qmemory.search_path_qubits(path_id)
+            avail_qubits = self.memory.search_path_qubits(path_id)
             if avail_qubits:
                 log.debug(f"{self.own}: direct found available qubit for {key}")
                 avail_qubits[0].active = key
@@ -417,22 +372,22 @@ class LinkLayer(Application):
                 cchannel.send(classic_packet, next_hop=from_node)
             else:
                 log.debug(f"{self.own}: didn't find available qubit for {key}")
-                self.fifo_epr_init[qmemory.name].append((key, path_id, cchannel, from_node))
+                self.fifo_epr_init.append((key, path_id, cchannel, from_node))
         elif cmd == 'epr_ok':
             log.debug(f"{self.own}: returned qubit available with {key}")
-            (qchannel, next_hop, qmemory, address) = self.pending_negoc[key]
-            self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, qmemory=qmemory, address=address, key=key)
+            (qchannel, next_hop, address) = self.pending_negoc[key]
+            self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, address=address, key=key)
             self.pending_negoc.pop(key, None)
         
-    def check_pending_epr_init(self, qmemory):
-        if qmemory.name in self.fifo_epr_init and self.fifo_epr_init[qmemory.name]:
-            (key, path_id, cchannel, from_node) = self.fifo_epr_init[qmemory.name][0]
+    def check_pending_epr_init(self):
+        if self.fifo_epr_init:
+            (key, path_id, cchannel, from_node) = self.fifo_epr_init[0]
             log.debug(f"{self.own}: handle pending negoc {key}")
-            avail_qubits = qmemory.search_path_qubits(path_id)
+            avail_qubits = self.memory.search_path_qubits(path_id)
             if avail_qubits:
                 log.debug(f"{self.own}: found available qubit for {key}")
                 avail_qubits[0].active = key
                 classic_packet = ClassicPacket(msg={"cmd": 'epr_ok', "path_id": path_id, "key": key}, 
                                                src=self.own, dest=from_node)
                 cchannel.send(classic_packet, next_hop=from_node)
-                self.fifo_epr_init[qmemory.name].popleft()
+                self.fifo_epr_init.popleft()

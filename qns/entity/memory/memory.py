@@ -254,6 +254,9 @@ class QuantumMemory(Entity):
         self.pending_decohere_events = {}
 
     def allocate(self, path_id: int) -> int:
+        """ 
+        Allocate a qubit to a path
+        """
         for (qubit,_) in self._storage:
             if qubit.pid is None:
                 qubit.allocate(path_id) 
@@ -261,16 +264,19 @@ class QuantumMemory(Entity):
         return -1
 
     def deallocate(self, address: int) -> bool:
+        """ 
+        De-allocate a qubit from any path
+        """
         for (qubit,_) in self._storage:
             if qubit.addr == address:
                 qubit.deallocate()    
                 return True
         return False
-    
-    def search_eligible_qubits(self, pid: int = None) -> List[Tuple[MemoryQubit, QuantumModel]]:
+
+    def search_eligible_qubits(self, qchannel: str, pid: int = None) -> List[Tuple[MemoryQubit, QuantumModel]]:
         qubits = []
         for (qubit, data) in self._storage:
-            if data and qubit.fsm.state == QubitState.ELIGIBLE and qubit.pid == pid:
+            if data and qubit.fsm.state == QubitState.ELIGIBLE and qubit.pid == pid and qubit.qchannel.name != qchannel:
                 qubits.append((qubit, data))
         return qubits
     
@@ -279,6 +285,34 @@ class QuantumMemory(Entity):
         for (qubit, data) in self._storage:
             if not data and qubit.pid == pid and not qubit.active:
                 qubits.append(qubit)
+        return qubits
+    
+    # for dynamic capacity allocation
+    def assign(self, ch) -> int:
+        """ 
+        Assign a qubit to a particular quantum channel
+        """
+        for (qubit,_) in self._storage:
+            if qubit.qchannel is None:
+                qubit.assign(ch) 
+                return qubit.addr
+        return -1
+
+    def unassign(self, address: int) -> bool:
+        """ 
+        Unassign a qubit from any quantum channel
+        """
+        for (qubit,_) in self._storage:
+            if qubit.addr == address:
+                qubit.unassign()
+                return True
+        return False
+    
+    def get_channel_qubits(self, ch_name: str) -> List[MemoryQubit]:
+        qubits = []
+        for (qubit, data) in self._storage:
+            if qubit.qchannel and qubit.qchannel.name == ch_name:
+                qubits.append((qubit, data))
         return qubits
 
     def is_full(self) -> bool:

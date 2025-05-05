@@ -35,27 +35,28 @@ class QNode(Node):
         """
         super().__init__(name=name, apps=apps)
         self.qchannels = []
-        self.memories = []
+        self.memory = None
         self.operators = []
         self.qroute_table = []
 
     def install(self, simulator: Simulator) -> None:
         super().install(simulator)
         # initiate sub-entities
+
+        from qns.entity import QuantumMemory
+        assert (isinstance(self.memory, QuantumMemory))
+        self.memory.install(simulator)
+        
         for qchannel in self.qchannels:
             from qns.entity import QuantumChannel
             assert (isinstance(qchannel, QuantumChannel))
             qchannel.install(simulator)
-        for memory in self.memories:
-            from qns.entity import QuantumMemory
-            assert (isinstance(memory, QuantumMemory))
-            memory.install(simulator)
         for operator in self.operators:
             from qns.entity import QuantumOperator
             assert (isinstance(operator, QuantumOperator))
             operator.install(simulator)
 
-    def add_memory(self, memory):
+    def set_memory(self, memory):
         """
         Add a quantum memory in this QNode
 
@@ -63,20 +64,13 @@ class QNode(Node):
             memory (Memory): the quantum memory
         """
         memory.node = self
-        self.memories.append(memory)
+        self.memory = memory
 
-    def get_memory(self, memory: Union[str, int]):
+    def get_memory(self):
         """
-        Get the memory by index (in memories) or its name
-
-        Args:
-            memory (Union[str, int]): the index or name of the memory
+        Get the memory
         """
-        if isinstance(memory, str):
-            for m in self.memories:
-                if m.name == memory:
-                    return m
-        return self.memories[memory]
+        return self.memory
 
     def add_operator(self, operator):
         """
