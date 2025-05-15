@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
 #    Copyright (C) 2024-2025 Amar Abane
-#    NIST
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -18,14 +18,8 @@
 from qns.entity.node.qnode import QNode
 from enum import Enum, auto
 
+import qns.utils.log as log
 
-
-
-class UnexpectedTransitionException(Exception):
-    """
-    The exception that the FSM transition is incorrect
-    """
-    pass
 
 class QubitState(Enum):
     ENTANGLED = auto()
@@ -42,7 +36,7 @@ class QubitFSM:
         if self.state == QubitState.RELEASE:
             self.state = QubitState.ENTANGLED
         else:
-            print(f"Unexpected transition: <{self.state}> -> <ENTANGLED>")
+            log.debug(f"Unexpected transition: <{self.state}> -> <ENTANGLED>")
 
     def to_purif(self):
         if self.state == QubitState.ENTANGLED:    # swapping conditions met -> go to first purif (if any)
@@ -50,28 +44,28 @@ class QubitFSM:
         elif self.state == QubitState.PENDING:    # pending purif succ -> go to next purif (if any)
             self.state = QubitState.PURIF
         else:
-            print(f"Unexpected transition: <{self.state}> -> <PURIF>")
+            log.debug(f"Unexpected transition: <{self.state}> -> <PURIF>")
     
     def to_pending(self):
         if self.state == QubitState.PURIF:
             self.state = QubitState.PENDING
         else:
-            print(f"Unexpected transition: <{self.state}> -> <PENDING>")
+            log.debug(f"Unexpected transition: <{self.state}> -> <PENDING>")
 
     def to_release(self):
         if self.state in [QubitState.ENTANGLED, QubitState.PURIF, QubitState.PENDING, QubitState.ELIGIBLE]:
             self.state = QubitState.RELEASE
-        #else:
-        #    print(f"Unexpected transition: <{self.state}> -> <RELEASE>")
+        else:
+            log.debug(f"Unexpected transition: <{self.state}> -> <RELEASE>")
             
     def to_eligible(self):
         if self.state == QubitState.PURIF:
             self.state = QubitState.ELIGIBLE
         else:
-            print(f"Unexpected transition: <{self.state}> -> <ELIGIBLE>")
+            log.debug(f"Unexpected transition: <{self.state}> -> <ELIGIBLE>")
             
     def __repr__(self) -> str:
-        return f"state={self.state}"
+        return f"{self.state}"
 
 class MemoryQubit():
     """
@@ -83,17 +77,17 @@ class MemoryQubit():
             addr (int): address of this qubit in memory
         """
         self.addr = addr
-        self.fsm = QubitFSM()
-        self.qchannel = None
-        self.pid = None
-        self.active = None
-        self.purif_rounds = 0
+        self.fsm = QubitFSM()           # state of the qubit according to the FSM
+        self.qchannel = None            # qchannel to which qubit is assigned to (currnetly only at topology creation time)
+        self.path_id = None             # Optional path ID to which qubit is allocated
+        self.active: str = None         # Reservation key if qubit is reserved for entanglement, None otherwise 
+        self.purif_rounds = 0           # Number of purification rounds currently completed by the EPR stored on this qubit 
 
-    def allocate(self, pid: int) -> None:
-        self.pid = pid
+    def allocate(self, path_id: int) -> None:
+        self.path_id = path_id
         
     def deallocate(self) -> None:
-        self.pid = None
+        self.path_id = None
 
     def assign(self, ch) -> None:
         self.qchannel = ch
@@ -103,5 +97,5 @@ class MemoryQubit():
 
     def __repr__(self) -> str:
         if self.addr is not None:
-            return f"<memory qubit {self.addr}, ch={self.qchannel}, pid={self.pid}, active={self.active}, pr={self.purif_rounds}, {self.fsm}>"
+            return f"<memory qubit {self.addr}, ch={self.qchannel}, path_id={self.path_id}, active={self.active}, purif_rounds={self.purif_rounds}, state={self.fsm}>"
         return super().__repr__()

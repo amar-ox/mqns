@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
 #    Copyright (C) 2024-2025 Amar Abane
-#    National Institute of Standards and Technology, NIST.
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -35,160 +35,239 @@ import qns.utils.log as log
 
 import numpy as np
 
-light_speed = 2 * 10**5 # km/s
-
-def simulate_total_time_until_success(p, round_duration):
-    total_time = 0
-    total_rounds = 0
-    success = False
-    while not success:
-        if np.random.rand() < np.sqrt(p):  # first round success
-            total_rounds+=1
-            total_time += round_duration
-            if np.random.rand() < np.sqrt(p):  # second round success
-                total_rounds+=1
-                total_time += round_duration
-                success = True
-            else:
-                total_rounds+=1
-                total_time += round_duration
-        else:
-            total_rounds+=1
-            total_time += round_duration
-    return total_time, total_rounds
 
 
 class LinkLayer(Application):
     """
-    LinkLayer runs at the link layer of QNodes (routers) and receives instructions from the network layer.
-    It implements the EPR generation over individual qchannels.
+    This is the network function reponsible for creating elementary entanglements over qchannels. 
+    It equips a QNode and is activated from the forwarding function (e.g., ProactiveForwarder).
     """
     def __init__(self, 
-                 attempt_rate: int = 1e6,         # attempt_rate ~ min(fiber frequency, count rate)
-                 alpha_db_per_km: float = 0.2, 
-                 eta_d: float = 1.0, eta_s: float = 1.0, 
-                 frequency: int = 80e6,
-                 init_fidelity: int = 0.99):
+                 attempt_rate: int = 1e6,           # should be min(fiber frequency, detector count rate)
+                 alpha_db_per_km: float = 0.2,      # attenuation rate per km of fiber
+                 eta_d: float = 1.0,                # detector efficiency 
+                 eta_s: float = 1.0,                # source efficiency    
+                 frequency: int = 80e6,             # source frequency
+                 init_fidelity: int = 0.99,         # fidelity of created pairs
+                 light_speed_kms = 2 * 10**5):      # speed of light in fiber
+        from qns.network.protocol.proactive_forwarder import ProactiveForwarder
         super().__init__()
-        self.sync_current_phase = SignalTypeEnum.EXTERNAL
 
         self.alpha_db_per_km = alpha_db_per_km
         self.eta_s = eta_s
         self.eta_d = eta_d
         self.frequency = frequency
         self.init_fidelity = init_fidelity
-        self.attempt_rate = attempt_rate     # ~ source rate (i.e., qchannel)
+        self.attempt_rate = attempt_rate
+        self.light_speed_kms = light_speed_kms
 
-        self.own: QNode = None
-        self.memory: QuantumMemory = None
-        self.net_layer = None
+        self.own: QNode = None                          # Quantum node this LinkLayer equips
+        self.memory: QuantumMemory = None               # Quantum memory of the node
+        self.forwarder: ProactiveForwarder = None         # Forwarder function of the node
+
+        self.active_channels = {}                   # stores the qchannels activated by the forwarding function at path installation
         
-        self.active_channels = {}       # stores the qchannels that are part of an installed path
-        self.waiting_channels = {}      # stores the qchannels that have all their qubits waiting for the next EXTERNAL phase (LSYNC mode)
-        self.waiting_qubits = set()        # stores the qubits waiting for the next EXTERNAL phase (LSYNC mode)
+        self.pending_init_reservation = {}          # stores reservation requests sent by this node
+        self.fifo_reservation_req = []              # stores received reservations requests awaiting for qubits
+        
+        self.etg_count = 0                          # counts number of generated entanglements
+        self.decoh_count = 0                        # counts number of decohered qubits never swapped
 
-        # so far we can only distinguish between classic and qubit events (not source Entity)
+        self.sync_current_phase = SignalTypeEnum.EXTERNAL      # for SYNC and LSYNC timing modes
+        self.waiting_channels = {}                  # In LSYNC mode: stores the qchannels that have all their qubits waiting for the next EXTERNAL phase
+        self.waiting_qubits = set()                 # In LSYNC mode: stores the qubits waiting for the next EXTERNAL phase
+
+        # handlers for extenral events
         self.add_handler(self.RecvQubitHandler, [RecvQubitPacket])
         self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])
-        
-        self.pending_negoc = {}
-        self.fifo_epr_init = []
-        
-        self.etg_count = 0
-        self.decoh_count = 0
+
 
     def install(self, node: QNode, simulator: Simulator):
-        from qns.network.protocol.proactive_routing import ProactiveRouting
+        from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+        
         super().install(node, simulator)
         self.own: QNode = self._node
         self.memory: QuantumMemory = self.own.memory
-        nl_apps = self.own.get_apps(ProactiveRouting)
-        if nl_apps:
-            self.net_layer = nl_apps[0]
+        fwd_fns = self.own.get_apps(ProactiveForwarder)
+        if fwd_fns:
+            self.forwarder = fwd_fns[0]
         else:
-            raise Exception("No NetworkLayer protocol found")
+            raise Exception("No forwarder found")
 
     def RecvQubitHandler(self, node: QNode, event: Event):
-        self.handle_distribution(event)
+        self.receive_quit(event)
 
     def RecvClassicPacketHandler(self, node: Node, event: Event):
-        if event.packet.get()["cmd"] in ["epr_succeeded", "epr_failed"]:
-            self.handle_signaling(event)
-        elif event.packet.get()["cmd"] in ["epr_init", "epr_ok", "epr_nok"]:
-            self.handle_negociation(event)
+        if event.packet.get()["cmd"] in ["RESERVE_QUBIT", "RESERVE_QUBIT_OK"]:
+            self.handle_reservation(event)
 
     def handle_active_channel(self, qchannel: QuantumChannel, next_hop: QNode):
-        # use qchannel name to get memory
-        qubits = self.memory.get_channel_qubits(qchannel.name)
+        """
+        This method starts EPR generation over the given quantum channel and the specified next-hop. 
+        It performs qubit reservation, and for each available qubit, an EPR creation event is scheduled 
+        with a staggered delay based on EPR generation samping.
+
+        Args:
+            qchannel (QuantumChannel): The quantum channel over which entanglement is to be attempted.
+            next_hop (QNode): The neighboring node with which to initiate the negotiation.
+
+        Raises:
+            Exception: If a qubit assigned to the channel is unexpectedly already associated 
+                   with a `QuantumModel`, indicating a logic error or memory mismanagement.
+
+        Notes:
+            - Qubits assigned to memory are retrieved using the channel's name.
+            - Qubit reservations are spaced out in time using a fixed `attempt_rate`.
+        """
+        qubits = self.memory.get_channel_qubits(ch_name=qchannel.name)
         log.debug(f"{self.own}: {qchannel.name} has assigned qubits: {qubits}")
         for i, (qb, data) in enumerate(qubits):
             if data is None:
                 t = self._simulator.tc + Time(sec = i * 1 / self.attempt_rate)
-                event = func_to_event(t, self.start_negociation, by=self, 
+                event = func_to_event(t, self.start_reservation, by=self, 
                                       next_hop=next_hop, qchannel=qchannel,
-                                      qubit=qb, path_id=qb.pid)
+                                      qubit=qb, path_id=qb.path_id)
                 self._simulator.add_event(event)
             else:
                 raise Exception(f"{self.own}: --> PROBLEM {data}")
 
-    def start_negociation(self, next_hop: Node, qchannel: QuantumChannel,
+
+    def start_reservation(self, next_hop: Node, qchannel: QuantumChannel,
                           qubit: MemoryQubit, path_id: Optional[int] = None):
+        """
+        This method starts the exchange with neighbor node for reserving a qubit for entanglement 
+        generation over a specified quantum channel. It performs the following steps:
+
+        - Constructs a reservation `key` using the current node, next hop, optional path ID, and qubit address.
+        - Verifies that a reservation has not already been initiated for this key.
+        - Marks the qubit as active using the reservation key.
+        - Stores reservation metadata in `pending_init_reservation`.
+        - Retrieves the classical channel to the next hop.
+        - Sends a classical message to the next hop to request qubit reservation.
+
+        Args:
+            next_hop (Node): The neighboring node with which the reservation is to be made.
+            qchannel (QuantumChannel): The quantum channel used for entanglement.
+            qubit (MemoryQubit): The memory qubit to reserve.
+            path_id (Optional[int]): Optional identifier for the entanglement path.
+
+        Raises:
+            Exception: If a reservation has already been initiated for the same key,
+                   or if no classical channel to the destination node is found.
+
+        Notes:
+            - The `key` uniquely identifies the reservation context.
+            - The reservation is communicated via a classical message using the `RESERVE_QUBIT` command.
+        """
+
         key = self.own.name +'_'+ next_hop.name
         if path_id is not None:
             key = key+'_'+str(path_id)
         key = key+'_'+str(qubit.addr)
 
-        if key in self.pending_negoc:
-            raise Exception(f"{self.own}: negociation already init for {key}")
+        if key in self.pending_init_reservation:
+            raise Exception(f"{self.own}: reservation already started for {key}")
             return
 
-        log.debug(f"{self.own}: init negociation for {key}")
+        log.debug(f"{self.own}: start reservation with key={key}")
         qubit.active = key
-        self.pending_negoc[key] = (qchannel, next_hop, qubit.addr)
+        self.pending_init_reservation[key] = (qchannel, next_hop, qubit.addr)
         cchannel: ClassicChannel = self.own.get_cchannel(next_hop)
         if cchannel is None:
             raise Exception(f"{self.own}: No classic channel for dest {dest}")
-        classic_packet = ClassicPacket(msg={"cmd": "epr_init", "path_id": path_id, "key": key}, src=self.own, dest=next_hop)
+        classic_packet = ClassicPacket(msg={"cmd": "RESERVE_QUBIT", "path_id": path_id, "key": key}, src=self.own, dest=next_hop)
         cchannel.send(classic_packet, next_hop=next_hop)
+
 
     def generate_entanglement(self, qchannel: QuantumChannel, next_hop: Node, 
                               address: int, key: str):
+        """
+        Schedule a successful entanglement attempt using skip-ahead sampling. 
+        A `do_successful_attempt` event is scheduled to handle the result of this attempt.
+
+        It performs the following checks and steps:
+            - Verifies that the quantum channel is currently active.
+            - Ensures the memory's decoherence time is sufficient for the channel length.
+            - Computes the time of the next successful attempt and number of skipped trials.
+            - Schedules a successful entanglement event at the computed time.
+
+        Args:
+            qchannel (QuantumChannel): The quantum channel over which entanglement is to be generated.
+            next_hop (Node): The neighboring node with which the entanglement is attempted.
+            address (int): The address of the memory qubit used for this attempt.
+            key (str): A unique identifier for this entanglement reservation/attempt.
+
+        Raises:
+            Exception:
+                - If the quantum channel is not currently marked as active.
+                - If the channel is too long for successful entanglement before decoherence.
+        """
         if qchannel.name not in self.active_channels:
             raise Exception(f"{self.own}: Qchannel not active")
             return
 
         t_mem = 1 / self.memory.decoherence_rate
-        if qchannel.length >= (2 * light_speed * t_mem):
+        if qchannel.length >= (2 * self.light_speed_kms * t_mem):
             raise Exception("Qchannel too long for entanglement attempt.")
 
-        succ_attempt_time, attempts = self.skip_ahead_entanglement(qchannel.length)
+        succ_attempt_time, attempts = self._skip_ahead_entanglement(qchannel.length)
         t_event = self._simulator.tc + Time(sec = succ_attempt_time)
         event = func_to_event(t_event, self.do_successful_attempt, by=self, qchannel=qchannel, 
                               next_hop=next_hop, address=address, attempts=attempts, key=key)
         self._simulator.add_event(event)
 
+
     def do_successful_attempt(self, qchannel: QuantumChannel, next_hop: Node, 
                               address, attempts: int, key: str):
-        epr = self.generate_epr(next_hop)
+        """
+        This method is invoked after a scheduled successful entanglement attempt. It:
+            - Generates a new EPR pair between the current node and the next hop.
+            - Stores the EPR locally at the specified memory address, accounting for the qubit initialization time.
+            - Sends the remote half of the EPR over the quantum channel to the next hop.
+            - Notifies the forwarder accounting for the protocol delay.
+
+        Args:
+            qchannel (QuantumChannel): The quantum channel used for transmission.
+            next_hop (Node): The neighboring node with which entanglement is established.
+            address (int): The memory address at which to store the local half of the EPR.
+            attempts (int): The number of entanglement attempts before this success.
+            key (str): An identifier of the qubit reservation for the neighbor node's qubit.
+
+        Notes:
+            - The quantum channel is assumed to have no photon loss in this step since it executes only the sucessful attempt.
+        """
+        
+        epr = WernerStateEntanglement(fidelity=self.init_fidelity, name=uuid.uuid4().hex)
+        epr.src = self.own
+        epr.dst = next_hop
         epr.attempts = attempts
         epr.key = key
 
-        # if 3-4 tau -> we are at 3tau
-        #local_qubit = qmemory.write(qm=epr, address=address, delay=qchannel.delay_model.calculate())   # qubit init at 2tau
-        
-        # if 3-6 tau -> we are at 5tau
         local_qubit = self.memory.write(qm=epr, address=address, delay=3*qchannel.delay_model.calculate())   # qubit init at 2tau
 
         if not local_qubit:
             raise Exception(f"{self.own}: (sender) Do succ EPR -> memory full, key ({key})")
 
-        epr.path_id = local_qubit.pid
-        qchannel.send(epr, next_hop)    # no drop (deterministic)
+        epr.path_id = local_qubit.path_id
+        qchannel.send(epr, next_hop)    # no drop
         self.etg_count+=1
         self.notify_entangled_qubit(neighbor=next_hop, qubit=local_qubit, delay=qchannel.delay_model.calculate())   # wait 1tau to notify
 
-    # handle half-EPR arriving from a neighbor
-    def handle_distribution(self, packet: RecvQubitPacket):
+    def receive_quit(self, packet: RecvQubitPacket):
+        """
+        This method is called when a quantum channel delivers an entangled qubit (half of an EPR pair)
+        to the local node. It performs the following:
+
+            - Extracts the `WernerStateEntanglement` (the received qubit) from the packet.
+            - Attempts to store the received qubit in memory accounting for qubit initialization time.
+            - Notifies the forwarder that a qubit has been successfully entangled.
+
+        Args:
+            packet (RecvQubitPacket): The packet containing the received qubit.
+
+        Notes:
+            - In `SYNC` timing mode, the node must be in the `EXTERNAL` signal phase to accept entangled qubits.
+        """
         if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.EXTERNAL:
             log.debug(f"{self.own}: EXT phase is over -> stop attempts")
             return
@@ -197,68 +276,40 @@ class LinkLayer(Application):
         from_node: Node = qchannel.node_list[0] \
             if qchannel.node_list[1] == self.own else qchannel.node_list[1]
 
-        cchannel: ClassicChannel = self.own.get_cchannel(from_node)
-        if cchannel is None:
-            raise Exception("No such classic channel")
-
         epr: WernerStateEntanglement = packet.qubit
 
         log.debug(f"{self.own}: recv half-EPR {epr.name} from {from_node} | reservation key {epr.key}")
 
-        # if 3-4 tau -> we are at 4tau
-        # local_qubit = qmemory.write(qm=epr, pid=epr.path_id, delay=2*qchannel.delay_model.calculate())   # qubit init at 2tau
-
         # if 3-6 tau -> we are at 6tau
-        local_qubit = self.memory.write(qm=epr, pid=epr.path_id, key=epr.key, delay=4*qchannel.delay_model.calculate())   # qubit init at 2tau
+        local_qubit = self.memory.write(qm=epr, path_id=epr.path_id, key=epr.key, delay=4*qchannel.delay_model.calculate())   # qubit init at 2tau
 
         if local_qubit is None:
             raise Exception(f"{self.own}: Failed to store rcvd EPR due to full memory")
 
         self.notify_entangled_qubit(neighbor=from_node, qubit=local_qubit)
 
-    # handle classical message from neighbors
-    def handle_signaling(self, packet: RecvClassicPacket):
-        if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.EXTERNAL:
-            log.debug(f"{self.own}: EXT phase is over -> stop attempts")
-            return
-
-        msg = packet.packet.get()
-        cchannel = packet.cchannel
-        from_node: QNode = cchannel.node_list[0] \
-            if cchannel.node_list[1] == self.own else cchannel.node_list[1]
-
-        cmd = msg["cmd"]
-        path_id = msg["path_id"]
-        epr_id = msg["epr_id"]
-        
-        qchannel: QuantumChannel = self.own.get_qchannel(from_node)
-        if qchannel is None:
-            raise Exception("No such quantum channel")
-
-        # ignore if qchannel not active anymore
-        if qchannel.name not in self.active_channels:
-            log.debug(f"{self.own}: Qchannel not active anymore")
-            (qubit, _) = qmemory.read(epr_id)    # this will free up the qubit of this epr
-            return
-
-    def generate_epr(self, dst: QNode) -> QuantumModel:
-        epr = WernerStateEntanglement(fidelity=self.init_fidelity, name=uuid.uuid4().hex)
-        epr.src = self.own
-        epr.dst = dst
-        return epr
-
     def notify_entangled_qubit(self, neighbor: QNode, qubit: MemoryQubit, delay: float = 0):
+        """
+        Schedule an event to notify the forwarder about a new entangled qubit
+        """
         from qns.network.protocol.event import QubitEntangledEvent
         qubit.fsm.to_entangled()
         t = self._simulator.tc + self._simulator.time(sec=delay)
-        event = QubitEntangledEvent(net_layer=self.net_layer, neighbor=neighbor, qubit=qubit, t=t, by=self)
+        event = QubitEntangledEvent(forwarder=self.forwarder, neighbor=neighbor, qubit=qubit, t=t, by=self)
         self._simulator.add_event(event)
     
-    # handle internal events
+
     def handle_event(self, event: Event) -> None:
-        from qns.network.protocol.event import LinkLayerManageActiveChannels, TypeEnum, \
+        """
+        Handles the following external events:
+            - `ManageActiveChannels` from the forwarder to start/stop generating EPRs over a given qchannel.
+            - `QubitDecoheredEvent` from memory informing that an entangled qubit has decohered and can be re-entangled.
+            - `QubitReleasedEvent` from the forwarder informing that an entangled qubit has released and can be re-entangled.
+        """
+
+        from qns.network.protocol.event import ManageActiveChannels, TypeEnum, \
             QubitDecoheredEvent, QubitReleasedEvent
-        if isinstance(event, LinkLayerManageActiveChannels):
+        if isinstance(event, ManageActiveChannels):
             log.debug(f"{self.own}: start qchannel with {event.next_hop}")
             qchannel: QuantumChannel = self.own.get_qchannel(event.next_hop)
             if qchannel is None:
@@ -284,11 +335,11 @@ class LinkLayer(Application):
                     if self.own.timing_mode == TimingModeEnum.SYNC:
                         raise Exception(f"{self.own}: UNEXPECTED -> (t_ext + t_int) too short")
                     qchannel, next_hop = self.active_channels[event.qubit.qchannel.name]
-                    self.start_negociation(next_hop=next_hop, qchannel=qchannel,
-                                           qubit=event.qubit, path_id=event.qubit.pid)
+                    self.start_reservation(next_hop=next_hop, qchannel=qchannel,
+                                           qubit=event.qubit, path_id=event.qubit.path_id)
                 else:
                     event.qubit.active = None
-                    self.check_pending_epr_init()
+                    self.check_reservation_req()
             else:
                 raise Exception("TODO")
         elif isinstance(event, QubitReleasedEvent):
@@ -297,18 +348,101 @@ class LinkLayer(Application):
                 if event.qubit.qchannel.name in self.active_channels:     # i.e., this node is primary
                     qchannel, next_hop = self.active_channels[event.qubit.qchannel.name]
                     if self.own.timing_mode == TimingModeEnum.ASYNC:
-                        self.start_negociation(next_hop=next_hop, qchannel=qchannel,
-                                               qubit=event.qubit, path_id=event.qubit.pid)
+                        self.start_reservation(next_hop=next_hop, qchannel=qchannel,
+                                               qubit=event.qubit, path_id=event.qubit.path_id)
                     elif self.own.timing_mode == TimingModeEnum.LSYNC:    # LSYNC
                         entry = (qchannel, next_hop, event.qubit.qchannel.name, event.qubit.addr)
                         self.waiting_qubits.add(entry)
                 else:
                     event.qubit.active = None
-                    self.check_pending_epr_init()
+                    self.check_reservation_req()
             else:
                 raise Exception("TODO")
 
+
+    def handle_reservation(self, packet: RecvClassicPacket):
+        """
+        Handle classical control messages related to qubit reservation.
+    
+        1. `RESERVE_QUBIT`: Sent by the initiating node to request a memory qubit reservation.
+            - If an available memory qubit is found, it is reserved (marked active using the given key).
+            - A `RESERVE_QUBIT_OK` response is sent back to confirm the reservation.
+            - If no available qubit is found, the request is enqueued for future retry (FIFO).
+
+        2. `RESERVE_QUBIT_OK` - Received as a response to a reservation request.
+            - Triggers the entanglement generation process using the reserved memory qubit.
+
+        Args:
+            packet (RecvClassicPacket): The packet containing the control message and associated classical channel.
+
+        Raises:
+            Exception: If no corresponding quantum channel exists between the current node and the sender.
+
+        Notes:
+            - The `key` uniquely identifies a reservation and is used to properly store the generated EPR.
+            - This method is used everytime an initialor node wants to generate a new entanglement.
+            - FIFO buffering allows for deferred reservation attempts when memory is temporarily unavailable.
+        """
+
+        msg = packet.packet.get()
+        cchannel = packet.cchannel
+        from_node: QNode = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
+        qchannel: QuantumChannel = self.own.get_qchannel(from_node)
+        if qchannel is None:
+            raise Exception("No such quantum channel")
+
+        cmd = msg["cmd"]
+        path_id = msg["path_id"]
+        key = msg["key"]
+        if cmd == 'RESERVE_QUBIT':
+            log.debug(f"{self.own}: rcvd RESERVE_QUBIT {key}")
+            avail_qubits = self.memory.search_available_qubits(path_id=path_id)
+            if avail_qubits:
+                log.debug(f"{self.own}: direct found available qubit for {key}")
+                avail_qubits[0].active = key
+                classic_packet = ClassicPacket(msg={"cmd": 'RESERVE_QUBIT_OK', "path_id": path_id, "key": key}, 
+                                               src=self.own, dest=from_node)
+                cchannel.send(classic_packet, next_hop=from_node)
+            else:
+                log.debug(f"{self.own}: didn't find available qubit for {key}")
+                self.fifo_reservation_req.append((key, path_id, cchannel, from_node))
+        elif cmd == 'RESERVE_QUBIT_OK':
+            log.debug(f"{self.own}: returned qubit available with {key}")
+            (qchannel, next_hop, address) = self.pending_init_reservation[key]
+            self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, address=address, key=key)
+            self.pending_init_reservation.pop(key, None)
+
+    def check_reservation_req(self):
+        """
+        This method handles reservation requests that were previously deferred due to a lack
+        of available memory qubits. It checks the front of the FIFO queue and attempts to 
+        fulfill the reservation:
+            - If a free memory qubit is found that matches the requested path ID, it is marked as active.
+            - A `RESERVE_QUBIT_OK` classical message is sent to the requesting node to confirm the allocation.
+            - The request is then removed from the queue.
+
+        Notes:
+            - Only the first (oldest) request in the FIFO is processed per call.
+            - This method is triggered when a qubit is released or decohered.
+        """
+
+        if self.fifo_reservation_req:
+            (key, path_id, cchannel, from_node) = self.fifo_reservation_req[0]
+            log.debug(f"{self.own}: handle pending negoc {key}")
+            avail_qubits = self.memory.search_available_qubits(path_id=path_id)
+            if avail_qubits:
+                log.debug(f"{self.own}: found available qubit for {key}")
+                avail_qubits[0].active = key
+                classic_packet = ClassicPacket(msg={"cmd": 'RESERVE_QUBIT_OK', "path_id": path_id, "key": key}, 
+                                               src=self.own, dest=from_node)
+                cchannel.send(classic_packet, next_hop=from_node)
+                self.fifo_reservation_req.pop(0)
+    
+
     def handle_sync_signal(self, signal_type: SignalTypeEnum):
+        """
+        Handles timing synchronization signals for SYNC and LSYNC modes (not very reliable at this time).
+        """
         log.debug(f"{self.own}:[{self.own.timing_mode}] TIMING SIGNAL <{signal_type}>")
         if self.own.timing_mode == TimingModeEnum.LSYNC and signal_type == SignalTypeEnum.EXTERNAL_START:
             # clear all qubits and retry all active_channels until INTERNAL signal
@@ -322,63 +456,21 @@ class LinkLayer(Application):
                 self.memory.clear()
                 for channel_name, (qchannel, next_hop) in self.active_channels.items():
                     self.handle_active_channel(qchannel, next_hop)
-
-    def handle_negociation(self, packet: RecvClassicPacket):
-        msg = packet.packet.get()
-        cchannel = packet.cchannel
-        from_node: QNode = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
-        qchannel: QuantumChannel = self.own.get_qchannel(from_node)
-        if qchannel is None:
-            raise Exception("No such quantum channel")
-
-        cmd = msg["cmd"]
-        path_id = msg["path_id"]
-        key = msg["key"]
-        if cmd == 'epr_init':
-            log.debug(f"{self.own}: rcvd epr_init {key}")
-            avail_qubits = self.memory.search_path_qubits(path_id)
-            if avail_qubits:
-                log.debug(f"{self.own}: direct found available qubit for {key}")
-                avail_qubits[0].active = key
-                classic_packet = ClassicPacket(msg={"cmd": 'epr_ok', "path_id": path_id, "key": key}, 
-                                               src=self.own, dest=from_node)
-                cchannel.send(classic_packet, next_hop=from_node)
-            else:
-                log.debug(f"{self.own}: didn't find available qubit for {key}")
-                self.fifo_epr_init.append((key, path_id, cchannel, from_node))
-        elif cmd == 'epr_ok':
-            log.debug(f"{self.own}: returned qubit available with {key}")
-            (qchannel, next_hop, address) = self.pending_negoc[key]
-            self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, address=address, key=key)
-            self.pending_negoc.pop(key, None)
-        
-    def check_pending_epr_init(self):
-        if self.fifo_epr_init:
-            (key, path_id, cchannel, from_node) = self.fifo_epr_init[0]
-            log.debug(f"{self.own}: handle pending negoc {key}")
-            avail_qubits = self.memory.search_path_qubits(path_id)
-            if avail_qubits:
-                log.debug(f"{self.own}: found available qubit for {key}")
-                avail_qubits[0].active = key
-                classic_packet = ClassicPacket(msg={"cmd": 'epr_ok', "path_id": path_id, "key": key}, 
-                                               src=self.own, dest=from_node)
-                cchannel.send(classic_packet, next_hop=from_node)
-                self.fifo_epr_init.pop(0)
-                
-                
-    def loss_based_success_prob(self, link_length_km):
+                    
+            
+    def _loss_based_success_prob(self, link_length_km):
         """Compute success probability from fiber loss model for heralded entanglement."""
         p_bsa = 0.5
         p_fiber = 10 ** (-self.alpha_db_per_km * link_length_km / 10)
         p = p_bsa * (self.eta_s**2) * (self.eta_d**2) * p_fiber
         return p
 
-    def skip_ahead_entanglement(self, link_length_km: float):
+    def _skip_ahead_entanglement(self, link_length_km: float):
         reset_time = 1 / self.frequency
-        tau = link_length_km / light_speed
+        tau = link_length_km / self.light_speed_kms
 
         # probability assumes that each attempt has always 2-rounds
-        p = self.loss_based_success_prob(link_length_km)
+        p = self._loss_based_success_prob(link_length_km)
         k = np.random.geometric(p)     # k-th attempt will succeed
 
         attempt_duration = max(4.5*tau, reset_time)

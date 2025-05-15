@@ -1,3 +1,21 @@
+#    SimQN: a discrete-event simulator for the quantum networks
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
@@ -9,7 +27,7 @@ from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork, TimingModeEnum
 import qns.utils.log as log
 from qns.utils.rnd import set_seed
-from qns.network.protocol.proactive_routing import ProactiveRouting
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
 from qns.network.topology.customtopo import CustomTopology
@@ -86,7 +104,7 @@ def generate_topology(number_of_routers, distance_proportion, swapping_config, t
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency),
-                       ProactiveRouting()]}]
+                       ProactiveForwarder()]}]
     for i in range(1, number_of_routers + 1):
         nodes.append({
             "name": f"R{i}",
@@ -94,13 +112,13 @@ def generate_topology(number_of_routers, distance_proportion, swapping_config, t
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                alpha_db_per_km=fiber_alpha,
                                eta_d=eta_d, eta_s=eta_s,
-                               frequency=frequency), ProactiveRouting(ps=p_swap)]
+                               frequency=frequency), ProactiveForwarder(ps=p_swap)]
         })
     nodes.append({"name": "D", "memory": {"decoherence_rate": 1 / t_coherence, "capacity": channel_qubits},
                   "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                      alpha_db_per_km=fiber_alpha,
                                      eta_d=eta_d, eta_s=eta_s,
-                                     frequency=frequency), ProactiveRouting()]})
+                                     frequency=frequency), ProactiveForwarder()]})
 
     # Compute distances
     distances = compute_distances_distribution(total_distance, number_of_routers, distance_proportion)
@@ -179,7 +197,7 @@ def run_simulation(number_of_routers, distance_proportion, swapping_config, tota
         ll_app = node.get_apps(LinkLayer)[0]
         # total_etg+=ll_app.etg_count
         total_decohered+=ll_app.decoh_count
-    e2e_count = net.get_node("S").get_apps(ProactiveRouting)[0].e2e_count 
+    e2e_count = net.get_node("S").get_apps(ProactiveForwarder)[0].e2e_count 
 
     return e2e_count / sim_run, total_decohered / e2e_count if e2e_count > 0 else 0
 

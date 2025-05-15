@@ -41,23 +41,9 @@ class SignalTypeEnum(Enum):
     ROUTING = auto()            # used by SYNC to set the phase
     APP = auto()                # used by SYNC to set the phase
 
-""" class SyncSignal(Event):
-    # ``SyncSignal`` is the event that signals a synchronization phase (internal, external, route, app)
-    def __init__(self, nodes: List[Node], phase: PhaseEnum,
-                 t: Optional[Time] = None, name: Optional[str] = None,
-                 by: Optional[Any] = None):
-        super().__init__(t=t, name=name, by=by)
-        self.nodes = nodes
-        self.phase = phase
-
-    def invoke(self) -> None:
-        for node in self.nodes:
-            node.handle_event(self) """
-
-
 class QuantumNetwork(object):
     """
-    QuantumNetwork includes several quantum nodes, channels and a special topology
+    QuantumNetwork includes quantum nodes, quantum and classical channels, arraned in a given topology
     """
 
     def __init__(self, topo: Optional[Topology] = None, route: Optional[RouteImpl] = None,
@@ -67,8 +53,8 @@ class QuantumNetwork(object):
                  t_slot:float = 0, t_ext:float = 0, t_int:float = 0):
         """
         Args:
-            topo: a `Topology` class. If topo is not None, a special quantum topology is built.
-            route: the route implement. If route is None, the dijkstra algorithm will be used.
+            topo: a `Topology` class.
+            route: the routing implement. If route is None, the dijkstra algorithm will be used.
             classic_topo (ClassicTopo): a `ClassicTopo` enum class.
             name: name of the network.
         """

@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Lutong Chen, Jian Li, Kaiping Xue
-#    University of Science and Technology of China, USTC.
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -28,16 +28,9 @@ from qns.simulator.event import Event, func_to_event
 import qns.utils.log as log
 
 
-class OutOfMemoryException(Exception):
-    """
-    The exception that the memory is full
-    """
-    pass
-
-
 class QuantumMemory(Entity):
     """
-    Quantum memory stores qubits or entangled pairs.
+    Quantum memory stores qubits or entangled pairs
 
     It has two modes:
         Synchronous mode, users can use the ``read`` and ``write`` function to operate the memory directly without delay
@@ -48,7 +41,7 @@ class QuantumMemory(Entity):
                  store_error_model_args: dict = {}, delay: Union[float, DelayModel] = 0):
         """
         Args:
-            name (str): its name
+            name (str): memory name
             node (QNode): the quantum node that equips this memory
             capacity (int): the capacity of this quantum memory. 0 represents unlimited.
             delay (Union[float,DelayModel]): the read and write delay in second, or a ``DelayModel``
@@ -74,8 +67,8 @@ class QuantumMemory(Entity):
         self.store_error_model_args = store_error_model_args
         
         self.link_layer = None
-        
-        self.pending_decohere_events = {}
+
+        self.pending_decohere_events = {}        # map of future qubit decoherence events
 
 
     def install(self, simulator: Simulator) -> None:
@@ -87,17 +80,36 @@ class QuantumMemory(Entity):
         else:
             raise Exception("No LinkLayer protocol found")
 
-    def _search(self, key: Optional[Union[QuantumModel, str, int]] = None, address: Optional[int] = None) -> int:
+
+    def _search(self, key: Optional[Union[QuantumModel, str]] = None, 
+                address: Optional[int] = None) -> int:
+        """
+        This method searches through the internal storage for a matching qubit based on either
+        its memory address or a key related to the stored EPR.
+
+        Args:
+            key (Optional[Union[QuantumModel, str, int]]): Identifier for the qubit.
+                - If a `QuantumModel`, it matches against the stored EPR instances.
+                - If a str, it matches against the stored EPR names.
+            address (Optional[int]): The memory address of the qubit to locate.
+
+        Returns:
+            int: The index of the matching qubit in the storage list.
+                Returns -1 if no matching entry is found.
+
+        Notes:
+            - Address, when provided, has precedence over key if both are provided.
+        """
         index = -1
         if address is not None:
             for idx, (qubit, _) in enumerate(self._storage):
                 if qubit.addr == address:
                     return idx
-        elif isinstance(key, int):
-            if self.capacity == 0 and key >= 0 and key < self._usage:
-                index = key
-            elif key >= 0 and key < self.capacity and self._storage[key][1] is not None:
-                index = key
+        #elif isinstance(key, int):
+        #    if self.capacity == 0 and key >= 0 and key < self._usage:
+        #        index = key
+        #    elif key >= 0 and key < self.capacity and self._storage[key][1] is not None:
+        #        index = key
         elif isinstance(key, QuantumModel):
             for idx, (_, data) in enumerate(self._storage):
                 if data is None:
@@ -112,44 +124,46 @@ class QuantumMemory(Entity):
                     return idx
         return index
 
-    def get(self, key: Optional[Union[QuantumModel, str, int]] = None, address: Optional[int] = None) -> Tuple[MemoryQubit, Optional[QuantumModel]]:
+    def get(self, key: Optional[Union[QuantumModel, str]] = None, 
+            address: Optional[int] = None) -> Tuple[MemoryQubit, Optional[QuantumModel]]:
         """
-        get a qubit from the memory but without removing it from the memory
+        Retrieve a qubit from memory without removing it.
 
         Args:
-            key (Union[QuantumModel, str, int]): the key. It can be a QuantumModel object,
-                its name or the index number.
+            key (Optional[Union[QuantumModel, str, int]]): Identifier for the qubit.
+                - If a `QuantumModel`, it matches against the stored EPR instances.
+                - If a str, it matches against the stored EPR names.
+            address (Optional[int]): The memory address of the qubit to locate.
+
+        Returns:
+            Tuple[MemoryQubit, Optional[QuantumModel]]: 
+                - The `MemoryQubit` metadata objeect of the specified location.
+                - The associated `QuantumModel`.
+                - None if qubit not found.
         """
+
         idx = self._search(key=key, address=address)
         if idx != -1:
             return self._storage[idx]
         else:
             return None
 
-    def get_store_time(self, key: Optional[Union[QuantumModel, str, int]] = None, address: Optional[int] = None) -> Optional[Time]:
-        """
-        get the store time of a qubit from the memory
-
-        Args:
-            key (Union[QuantumModel, str, int]): the key. It can be a QuantumModel object,
-                its name or the index number.
-        """
-        try:
-            idx = self._search(key, address)
-            if idx != -1:
-                return self._store_time[idx]
-            else:
-                return None
-        except IndexError:
-            return None
-
-    def read(self, key: Optional[Union[QuantumModel, str, int]] = None, address: Optional[int] = None) -> Tuple[MemoryQubit, Optional[QuantumModel]]:
+    def read(self, key: Optional[Union[QuantumModel, str]] = None, 
+             address: Optional[int] = None) -> Tuple[MemoryQubit, Optional[QuantumModel]]:
         """
         Destructive reading of a qubit from the memory
 
         Args:
-            key (Union[QuantumModel, str]): the key. It can be a QuantumModel object,
-                its name or the index number.
+            key (Optional[Union[QuantumModel, str, int]]): Identifier for the qubit.
+                - If a `QuantumModel`, it matches against the stored EPR instances.
+                - If a str, it matches against the stored EPR names.
+            address (Optional[int]): The memory address of the qubit to locate.
+
+        Returns:
+            Tuple[MemoryQubit, Optional[QuantumModel]]: 
+                - The `MemoryQubit` metadata objeect of the specified location.
+                - The associated `QuantumModel`.
+                - None if qubit not found.
         """
         idx = self._search(key=key, address=address)
         if idx == -1:
@@ -173,15 +187,30 @@ class QuantumMemory(Entity):
 
         return (qubit, data)
 
-    def write(self, qm: QuantumModel, pid: Optional[int] = None, address: Optional[int] = None, key: str = None, delay: float = 0) -> Optional[MemoryQubit]:
+    def write(self, qm: QuantumModel, path_id: Optional[int] = None, 
+              address: Optional[int] = None, key: str = None, delay: float = 0) -> Optional[MemoryQubit]:
         """
-        The API for storing a qubit to the memory
+        Store a quantum model (e.g., a qubit or an entangled pair) in memory.
+
+        This method finds an available memory slot that satisfies optional constraints and
+        stores the provided `QuantumModel`. If successful, it schedules a decoherence event
+        based on the memory's decoherence rate and returns the corresponding `MemoryQubit`.
 
         Args:
-            qm (QuantumModel): the `QuantumModel`, could be a qubit or an entangled pair
+            qm (QuantumModel): The quantum model to store (e.g., an entangled pair).
+            path_id (Optional[int]): Optional path ID to match against the memory qubit.
+            address (Optional[int]): Optional qubit address to match.
+            key (str, optional): Optional tag to match against the `active` field of the memory qubit (obtained from reservation).
+            delay (float): Optional delay (in seconds) used to adjust the qubit's store time 
+                with prior operations (e.g., EPR generation). This delay is subtracted when 
+                setting the store and decoherence times.
 
         Returns:
-            bool: whether the qubit is stored successfully
+            Optional[MemoryQubit]: The `MemoryQubit` object into which the quantum model was stored, 
+                or `None` if storage was unsuccessful (e.g., memory full or no matching slot found).
+
+        Notes:
+            - The decoherence time is calculated as 1 / `decoherence_rate` after the adjusted current time. 
         """
         if self.is_full():
             return None
@@ -189,9 +218,10 @@ class QuantumMemory(Entity):
         idx = -1
         for i, (q, v) in enumerate(self._storage):
             if v is None and (key is None or key == q.active):           # Check if the slot is empty
-                if (pid is None or q.pid == pid) and (address is None or q.addr == address):
+                if (path_id is None or q.path_id == path_id) and (address is None or q.addr == address):
                     idx = i
                     break
+
         if idx == -1:
             return None
 
@@ -210,14 +240,26 @@ class QuantumMemory(Entity):
 
     def update(self, old_qm: str, new_qm: QuantumModel) -> bool:
         """
-        The API for updating a qubit with a new data without resetting coherence time
+        Update the data of a stored qubit without resetting its coherence time.
+
+        This method replaces an existing quantum model in memory with a new one,
+        preserving the original decoherence schedule. The old decoherence event is
+        canceled and replaced with a new event for the updated model, but at the 
+        same decoherence time.
 
         Args:
-            old_qm (QuantumModel): the `QuantumModel` to update, could be a qubit or an entangled pair
-            new_qm (QuantumModel): the `QuantumModel` to store, could be a qubit or an entangled pair
+            old_qm (str): The name of the existing `QuantumModel` to be replaced.
+            new_qm (QuantumModel): The new `QuantumModel` instance to store in its place.
 
         Returns:
-            bool: whether the qubit is updated successfully. Returns False if old_qm does not exist anymore.
+            bool: True if the update was successful, False if `old_qm` was not found
+                (e.g., already decohered or removed).
+
+        Notes:
+            - If `old_qm` is not found in memory but a pending decoherence event still exists,
+            that event is canceled and removed to avoid inconsistency.
+            - This method does not modify the coherence time or reschedule it—only updates
+            the stored quantum model while maintaining timing integrity.
         """
         idx = self._search(key=old_qm)
         if idx == -1:
@@ -255,52 +297,214 @@ class QuantumMemory(Entity):
 
     def allocate(self, path_id: int) -> int:
         """ 
-        Allocate a qubit to a path
+        Allocate an unused memory qubit to a given path ID.
+
+        This method searches for the first available memory qubit that has not yet been allocated
+        (i.e., `path_id` is None), assigns it the provided `path_id`, and returns its address.
+
+        Args:
+            path_id (int): The identifier of the entanglement path 
+                       to which the memory qubit will be assigned.
+
+        Returns:
+            int: The address of the allocated memory qubit, or -1 if no unallocated qubit is available.
         """
         for (qubit,_) in self._storage:
-            if qubit.pid is None:
+            if qubit.path_id is None:
                 qubit.allocate(path_id) 
                 return qubit.addr
         return -1
 
     def deallocate(self, address: int) -> bool:
         """ 
-        De-allocate a qubit from any path
+        Deallocate a memory qubit from any assigned path.
+
+        This method finds the memory qubit with the given address and clears its
+        path assignment (i.e., resets its `path_id` to None). It does not modify the 
+        quantum state or remove the qubit from memory.
+
+        Args:
+            address (int): The address of the memory qubit to be deallocated.
+
+        Returns:
+            bool: True if the qubit was found and deallocated successfully, 
+                False if no qubit with the specified address exists.
         """
         for (qubit,_) in self._storage:
             if qubit.addr == address:
-                qubit.deallocate()    
+                qubit.deallocate()
                 return True
         return False
+    
+    def search_available_qubits(self, path_id: Optional[int] = None) -> List[MemoryQubit]:
+        """
+        Search for available (unoccupied and inactive) memory qubits, optionally filtered by path ID.
 
-    def search_eligible_qubits(self, qchannel: str, pid: int = None) -> List[Tuple[MemoryQubit, QuantumModel]]:
+        This method returns all memory qubits that:
+            - Are currently unoccupied (i.e., no associated `QuantumModel`),
+            - Are not active (i.e., not in use/reserved for operations),
+            - (Optionally) are assigned to the specified path ID.
+
+        Args:
+            path_id (Optional[int]): The path ID to filter qubits by. If None, any path ID is accepted.
+
+        Returns:
+            List[MemoryQubit]: A list of available memory qubits satisfying the criteria.
+                           Returns an empty list if no such qubits are found.
+        """
+        qubits = []
+        for qubit, data in self._storage:
+            if data is not None:
+                continue
+            if qubit.active:
+                continue
+            if path_id is not None and qubit.path_id != path_id:
+                continue
+            qubits.append(qubit)
+        return qubits
+
+    def search_eligible_qubits(self, qchannel: Optional[str] = None, path_id: Optional[int] = None) -> List[Tuple[MemoryQubit, QuantumModel]]:
+        """
+        Search for memory qubits that are eligible for use.
+
+        This method scans the memory for qubits that:
+            - Are marked as `ELIGIBLE`,
+            - (Optionally) belong to the specified path ID (`path_id`),
+            - (Optionally) are not associated with the specified quantum channel (`qchannel`).
+
+        Args:
+            qchannel (Optional[str]): The name of the quantum channel to exclude. If None, no exclusion is applied.
+            path_id (Optional[int]): The path ID the qubit must be assigned to. If None, any path ID is accepted.
+
+        Returns:
+            List[Tuple[MemoryQubit, QuantumModel]]: 
+                A list of tuples containing eligible memory qubits and their associated `QuantumModel` instances.
+                The list is empty if no matching qubits are found.
+        """
+        qubits = []
+        for qubit, data in self._storage:
+            if data is None:
+                continue
+            if qubit.fsm.state != QubitState.ELIGIBLE:
+                continue
+            if path_id is not None and qubit.path_id != path_id:
+                continue
+            if qchannel is not None and qubit.qchannel.name == qchannel:
+                continue
+            qubits.append((qubit, data))
+        return qubits
+
+    def search_purif_qubits(self, curr_qubit_addr: int, partner: str, 
+                            qchannel: str, path_id: Optional[int] = None, 
+                            purif_rounds: int = 0) -> List[Tuple[MemoryQubit, QuantumModel]]:
+        """
+        Search for memory qubits eligible for purification with a given qubit.
+
+        This method searches for qubits in the `PURIF` state that:
+            - Are not the current qubit (by address),
+            - Belong to the same quantum channel,
+            - Are entangled with the specified partner node (either as source or destination),
+            - Have completed the specified number of purification rounds,
+            - (Optionally) belong to the same path ID if `path_id` is specified. This enforces recurrence purification protocols, which require
+        both qubits to have undergone the same number of purification rounds.
+
+        Args:
+            curr_qubit_addr (int): The address of the current qubit to avoid pairing with itself.
+            partner (str): The name of the entanglement partner node (as `src.name` or `dst.name`).
+            qchannel (str): The name of the quantum channel used by the current qubit for entanglement.
+            path_id (Optional[int]): The path ID that eligible qubits must match. If None, any path ID is accepted.
+            purif_rounds (int): The number of purification rounds the eligible qubit must have undergone.
+
+        Returns:
+            List[Tuple[MemoryQubit, QuantumModel]]: 
+                A list of eligible qubits (along with their associated quantum models) that match the criteria.
+        """
+        qubits = []
+        for qubit, data in self._storage:
+            if qubit.addr == curr_qubit_addr:
+                continue
+            if data is None or qubit.fsm.state != QubitState.PURIF:
+                continue
+            if path_id is not None and qubit.path_id != path_id:
+                continue
+            if qubit.qchannel.name != qchannel:
+                continue
+            if data.src.name != partner and data.dst.name != partner:
+                continue
+            if qubit.purif_rounds != purif_rounds:
+                continue
+            qubits.append((qubit, data))
+        return qubits
+
+    def get_channel_qubits(self, ch_name: str) -> List[Tuple[MemoryQubit, QuantumModel]]:
+        """
+        Retrieve all memory qubits associated with a specific quantum channel.
+
+        This method returns all memory qubits that are linked to the given quantum channel name,
+        regardless of their state or usage.
+
+        Args:
+            ch_name (str): The name of the quantum channel to filter qubits by.
+
+        Returns:
+            List[Tuple[MemoryQubit, QuantumModel]]: A list of memory qubits (along with their associated `QuantumModel`s) 
+                           that are bound to the specified quantum channel.
+        """
         qubits = []
         for (qubit, data) in self._storage:
-            if data and qubit.fsm.state == QubitState.ELIGIBLE and qubit.pid == pid and qubit.qchannel.name != qchannel:
+            if qubit.qchannel and qubit.qchannel.name == ch_name:
                 qubits.append((qubit, data))
         return qubits
 
-    def search_path_qubits(self, pid: int = None) -> List[MemoryQubit]:
-        qubits = []
-        for (qubit, data) in self._storage:
-            if not data and qubit.pid == pid and not qubit.active:
-                qubits.append(qubit)
-        return qubits
     
-    def search_purif_qubits(self, curr_qubit_addr: int, partner: str, qchannel: str, pid: int = None, purif_rounds: int = 0) -> List[Tuple[MemoryQubit, QuantumModel]]:
-        # recurrence purif -> pairs must be of equal rounds
-        # log.debug(f"partner={partner}, qchannel={qchannel}, pid={pid}, purif_rounds={purif_rounds}")
-        qubits = []
-        for (qubit, data) in self._storage:
-            #if data:
-                # log.debug(f"----- {qubit} | {data.src.name}-{data.dst.name}")
-            if qubit.addr != curr_qubit_addr and data and qubit.fsm.state == QubitState.PURIF and qubit.pid == pid \
-                and qubit.qchannel.name == qchannel and (data.src.name == partner or data.dst.name == partner) \
-                and qubit.purif_rounds == purif_rounds:
-                qubits.append((qubit, data))
-        return qubits
+    def decohere_qubit(self, qubit: MemoryQubit, qm: QuantumModel):
+        """
+        This method is called when a qubit reaches the end of its coherence time.
+        It marks the associated `QuantumModel` as decohered and performs the following:
+
+        - Checks whether the EPR pair still exists in memory via `self.read(key=qm)`.
+            This ensures that the qubit hasn't already been released (e.g., due to swap or purification).
+        - If the EPR is still present:
+            - Marks the `MemoryQubit` to `RELEASE`.
+            - Creates and schedules a `QubitDecoheredEvent` to inform the link layer of the event.
+
+        Args:
+            qubit (MemoryQubit): The memory qubit that has decohered.
+            qm (QuantumModel): The quantum model associated with the qubit.
+
+        Notes:
+            - If the qubit was already released (e.g., swap, purify),
+            this method safely ignores it by failing the `self.read(key=qm)` check.
+            - If the qubit was re-entangled, the `read()` will not find the original EPR, 
+            so no event is raised again.
+        """
+        qm.is_decoherenced = True
+        if self.read(key=qm):
+            log.debug(f"{self.node}: EPR decohered -> {qm.name} {qm.src}-{qm.dst}")
+            qubit.fsm.to_release()
+            from qns.network.protocol.event import QubitDecoheredEvent
+            t = self._simulator.tc # + self._simulator.time(sec=0)
+            event = QubitDecoheredEvent(link_layer=self.link_layer, qubit=qubit, t=t, by=self)
+            self._simulator.add_event(event)
+
+    def cout_unallocated_qubits(self) -> int:
+        """
+        return the number of qubits not allocated to any path ID
+        """
+        free = self.capacity
+        for (qubit,_) in self._storage:
+            if qubit.path_id:
+                free-=1
+        return free
+
+    def is_full(self) -> bool:
+        """
+        check whether the memory is full
+        """
+        return self.capacity > 0 and self._usage >= self.capacity
     
-    # for dynamic capacity allocation
+
+    # For channel qubit allocation at topology creation time
     def assign(self, ch) -> int:
         """ 
         Assign a qubit to a particular quantum channel
@@ -321,36 +525,34 @@ class QuantumMemory(Entity):
                 return True
         return False
     
-    def get_channel_qubits(self, ch_name: str) -> List[MemoryQubit]:
-        qubits = []
-        for (qubit, data) in self._storage:
-            if qubit.qchannel and qubit.qchannel.name == ch_name:
-                qubits.append((qubit, data))
-        return qubits
 
-    def is_full(self) -> bool:
-        """
-        check whether the memory is full
-        """
-        return self.capacity > 0 and self._usage >= self.capacity
+    def __repr__(self) -> str:
+        if self.name is not None:
+            return "<memory "+self.name+">"
+        return super().__repr__()
 
-    @property
-    def count(self) -> int:
+    # Not used
+    def get_store_time(self, key: Optional[Union[QuantumModel, str]] = None, address: Optional[int] = None) -> Optional[Time]:
         """
-        return the current memory usage
+        Get the time at which the current EPR has been stored in a qubit.
+
+        Args:
+            key (Optional[Union[QuantumModel, str, int]]): Identifier for the qubit.
+                - If a `QuantumModel`, it matches against the stored EPR instances.
+                - If a str, it matches against the stored EPR names.
+            address (Optional[int]): The memory address of the qubit to locate.
+        
+        Returns:
+            Optional[Time]: store time of the EPR
         """
-        return self._usage
-    
-    @property
-    def free(self) -> int:
-        """
-        return the number of non-allocated memory qubits
-        """
-        free = self.capacity
-        for (qubit,_) in self._storage:
-            if qubit.pid:
-                free-=1
-        return free
+        try:
+            idx = self._search(key, address)
+            if idx != -1:
+                return self._store_time[idx]
+            else:
+                return None
+        except IndexError:
+            return None
 
     def handle(self, event: Event) -> None:
         from qns.entity.memory.event import MemoryReadRequestEvent, MemoryReadResponseEvent, \
@@ -369,24 +571,3 @@ class QuantumMemory(Entity):
             t = self._simulator.tc + self._simulator.time(sec=self.delay_model.calculate())
             response = MemoryWriteResponseEvent(node=self.node, result=result, request=event, t=t, by=self)
             self._simulator.add_event(response)
-
-
-    def decohere_qubit(self, qubit: MemoryQubit, qm: QuantumModel):
-        # we try to read EPR (not qubit addr) to make sure we are dealing with this particular EPR:
-        # - if qubit has been in swap/purify -> L3 should have released qubit and notified L2.
-        # - if qubit has been re-entangled, self.read for EPR.name will not find it, so no notification.
-        qm.is_decoherenced = True
-        if self.read(key=qm):
-            # self.pending_decohere_events.pop(qm.name)    # already done by read()
-            log.debug(f"{self.node}: EPR decohered -> {qm.name} {qm.src}-{qm.dst}")
-            qubit.fsm.to_release()
-            from qns.network.protocol.event import QubitDecoheredEvent
-            t = self._simulator.tc # + self._simulator.time(sec=0)
-            event = QubitDecoheredEvent(link_layer=self.link_layer, qubit=qubit, t=t, by=self)
-            self._simulator.add_event(event)
-
-
-    def __repr__(self) -> str:
-        if self.name is not None:
-            return "<memory "+self.name+">"
-        return super().__repr__()

@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
 #    Copyright (C) 2024-2025 Amar Abane
-#    National Institute of Standards and Technology, NIST.
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by

@@ -1,3 +1,21 @@
+#    SimQN: a discrete-event simulator for the quantum networks
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import logging
 
 from qns.network.route.dijkstra import DijkstraRouteAlgorithm
@@ -5,7 +23,7 @@ from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork, TimingModeEnum
 import qns.utils.log as log
 from qns.utils.rnd import set_seed
-from qns.network.protocol.proactive_routing import ProactiveRouting
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
 from qns.network.topology.customtopo import CustomTopology
@@ -44,7 +62,18 @@ swapping_config = "swap_1"
 ch_1 = 32
 ch_2 = 18
 
-def generate_topology(t_coherence):
+
+def generate_topology(t_coherence: float) -> dict:
+    """
+    Defines the topology with globally declared simulation parameters.
+    
+    Args:
+        key (float): memory coherence time in seconds.
+
+    Returns:
+        dict: the topology definition to be used to build the quantum network.
+    """
+
     return {
     "qnodes": [
         {
@@ -56,18 +85,18 @@ def generate_topology(t_coherence):
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
-                                 frequency=frequency), ProactiveRouting()]
+                                 frequency=frequency), ProactiveForwarder()]
         },
         {
             "name": "R",
             "memory": {
                 "decoherence_rate": 1 / t_coherence,
-                "capacity": channel_qubits*2,
+                "capacity": channel_qubits * 2,
             },
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
-                                 frequency=frequency), ProactiveRouting(ps=p_swap)]
+                                 frequency=frequency), ProactiveForwarder(ps=p_swap)]
         },
         {
             "name": "D",
@@ -78,7 +107,7 @@ def generate_topology(t_coherence):
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
-                                 frequency=frequency), ProactiveRouting()]
+                                 frequency=frequency), ProactiveForwarder()]
         }
     ],
     "qchannels": [
@@ -99,6 +128,30 @@ def generate_topology(t_coherence):
     }
 
 def run_simulation(t_coherence, seed):
+    """
+    Run a simulation with a given coherence time and seed.
+
+    This function sets up and executes a simulation using:
+      - A generated topology based on the specified qubit coherence time,
+      - A quantum network with Dijkstra-based routing algorithm, and asynchronous timing mode,
+      - A seeded random number generator.
+
+    After simulation, it gathers statistics including:
+      - Total number of successful entanglement generations,
+      - Total number of decohered qubits,
+      - End-to-end entanglement rate between source node "S" and destination node "D".
+
+    Args:
+        t_coherence (float): Qubit coherence time (in seconds), used to define memory decoherence rate.
+        seed (int): Seed for the random number generator.
+
+    Returns:
+        Tuple[float, float]:
+            - `e2e_rate`: End-to-end entanglement generation rate (entangled pairs per second).
+            - `decoherence_ratio`: Fraction of entangled qubits that decohered before use 
+            over the number of e2e entanglements generated.
+    """
+
     json_topology = generate_topology(t_coherence)
 
     set_seed(seed)
@@ -123,11 +176,13 @@ def run_simulation(t_coherence, seed):
         total_etg+=ll_app.etg_count
         total_decohered+=ll_app.decoh_count
     
-    e2e_rate = net.get_node("S").get_apps(ProactiveRouting)[0].e2e_count / sim_duration
+    e2e_rate = net.get_node("S").get_apps(ProactiveForwarder)[0].e2e_count / sim_duration
 
     return e2e_rate, total_decohered / total_etg if total_etg > 0 else 0
 
 
+
+########################### Main #########################
 results = {
     "T_cohere": [],
     "Mean Rate": [],

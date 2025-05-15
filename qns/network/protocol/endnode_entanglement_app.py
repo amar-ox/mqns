@@ -81,7 +81,7 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
     def RecvClassicPacketHandler(self, node: QNode, event: Event):
         self.handle_reponse(event)
     
-    def RecvNewPair(self, app: ProactiveRouting, event: Event):
+    def RecvNewPair(self, app: ProactiveForwarder, event: Event):
         self.handle_pair(event)
 
     def submit_request(self):      # send request to the controller

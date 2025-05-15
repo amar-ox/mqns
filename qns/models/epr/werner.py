@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Lutong Chen, Jian Li, Kaiping Xue
-#    University of Science and Technology of China, USTC.
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ def hash(s1: str) -> str:
 
 class WernerStateEntanglement(BaseEntanglement, QuantumModel):
     """
-    `WernerStateEntanglement` is a pair of entangled qubits in Werner State with a hidden-variable.
+    A pair of entangled qubits in Werner State with a hidden-variable
     """
     def __init__(self, fidelity: float = 1, name: Optional[str] = None):
         """
@@ -45,24 +45,17 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         self.w = (fidelity * 4 - 1) / 3
         self.name = name
         self.is_decoherenced = False
-        self.src = None
-        self.dst = None
-        self.ch_index = -1
-        self.orig_eprs = []
+        self.src = None              # src node 
+        self.dst = None              # dst node
+        self.ch_index = -1           # index of this EPR along the path
+        self.orig_eprs = []          # Elementary EPRs from which this EPR is created via swapping
         
         self.decoherence_time = None
-        self.rcvd = 0
-        self.key = None
+        
+        self.rcvd = 0                # to know when both end-nodes are aware of the EPR
+        self.key = None              # to store the EPR in the right negociated qubit at the dst node
 
     def __deepcopy__(self, memo):
-        """ new_obj = WernerStateEntanglement(self.fidelity, self.name)
-        new_obj.is_decoherenced = self.is_decoherenced
-        new_obj.src = self.src
-        new_obj.dst = self.dst
-        new_obj.ch_index = self.ch_index
-        new_obj.orig_eprs = self.orig_eprs
-        new_obj.decoherence_time = self.decoherence_time
-        new_obj.rcvd = self.rcvd """
         return self
 
     @property
@@ -73,13 +66,15 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
     def fidelity(self, fidelity: float = 1):
         self.w = (fidelity * 4 - 1) / 3
 
+
     def swapping(self, epr: "WernerStateEntanglement", name: Optional[str] = None, ps: float = 1) -> "WernerStateEntanglement":
         """
         Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
         Args:
             epr (WernerEntanglement): another entanglement
-            name (str): the name of the new entanglement
+            name (str): the name of the new entanglement, a hash of the elementary origin EPR names
+            ps (float): probability of successful swapping
         Returns:
             the new distributed entanglement
         """
@@ -94,7 +89,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
             return None
 
         ne.w = self.w * epr.w
-        ne.orig_eprs = self.merge_orig_eprs(epr)
+        ne.orig_eprs = self._merge_orig_eprs(epr)
         
         eprs_name_list = [e.name for e in ne.orig_eprs]
         ne.name = hash('-'.join(eprs_name_list))
@@ -103,7 +98,16 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         ne.decoherence_time = min(self.decoherence_time, epr.decoherence_time)
         return ne
 
-    def purify_self(self, epr: "WernerStateEntanglement") -> bool:
+    def purify(self, epr: "WernerStateEntanglement") -> bool:
+        """
+        Use `self` and `epr` to perfrom distillation and update this entanglement
+        Using Bennett 96 protocol and estimate lower bound
+
+        Args:
+            epr (WernerEntanglement): another entanglement
+        Returns:
+            whether purification succeeded
+        """
         if self.is_decoherenced or epr.is_decoherenced:
             self.is_decoherenced = True
             self.fidelity = 0
@@ -121,8 +125,8 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
 
     def distillation(self, epr: "WernerStateEntanglement", name: Optional[str] = None) -> "WernerStateEntanglement":
         """
-        Use `self` and `epr` to perfrom distillation and distribute a new entanglement.
-        Using Bennett 96 protocol and estimate lower bound.
+        Use `self` and `epr` to perfrom distillation and distribute a new entanglement
+        Using Bennett 96 protocol and estimate lower bound
 
         Args:
             epr (WernerEntanglement): another entanglement
@@ -130,7 +134,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         Returns:
             the new distributed entanglement
         """
-        """ ne = WernerStateEntanglement()
+        ne = WernerStateEntanglement()
         if self.is_decoherenced or epr.is_decoherenced:
             ne.is_decoherenced = True
             ne.fidelity = 0
@@ -145,27 +149,28 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
             return
         ne.fidelity = (fmin ** 2 + (1 - fmin) ** 2 / 9) /\
                       (fmin ** 2 + 5 / 9 * (1 - fmin) ** 2 + 2 / 3 * fmin * (1 - fmin))
-        return ne """
+        return ne
 
     def store_error_model(self, t: float, decoherence_rate: Optional[float], **kwargs):
         """
-        The default error model for storing this entangled pair in a quantum memory.
+        The default error model for storing this entangled pair in a quantum memory
         The default behavior is: w = w*e^{-decoherence_rate*t}, default a = 0
 
         Args:
-            t: the time stored in a quantum memory. The unit it second.
-            decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time.
+            t: the time stored in a quantum memory. The unit it second
+            decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time
             kwargs: other parameters
         """
         self.w = self.w * np.exp(-decoherence_rate * t)
 
     def transfer_error_model(self, length: float, decoherence_rate: Optional[float] = 0, **kwargs):
         """
-        The default error model for transmitting this entanglement.
+        The default error model for transmitting this entanglement
         The success possibility of transmitting is: w = w* e^{decoherence_rate * length}
 
         Args:
             length (float): the length of the channel
+            decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time
             kwargs: other parameters
         """
         self.w = self.w * np.exp(-decoherence_rate * length)
@@ -189,7 +194,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         return [q0, q1]
     
     
-    def merge_orig_eprs(self, epr):
+    def _merge_orig_eprs(self, epr):
         # Helper: get a dict of name -> epr from an object's orig_epr list
         def epr_dict(obj):
             return { e.name: e for e in obj.orig_eprs }

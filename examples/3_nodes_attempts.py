@@ -1,3 +1,21 @@
+#    SimQN: a discrete-event simulator for the quantum networks
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import logging
 
 from qns.network.route.dijkstra import DijkstraRouteAlgorithm
@@ -5,7 +23,7 @@ from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork, TimingModeEnum
 import qns.utils.log as log
 from qns.utils.rnd import set_seed
-from qns.network.protocol.proactive_routing import ProactiveRouting
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
 from qns.network.topology.customtopo import CustomTopology
@@ -41,7 +59,7 @@ p_swap = 0.5
 
 
 # 3-nodes topology
-swapping_config = "isolation_1"
+swapping_config = "isolation_1"      # NOTE: This requires to disable swapping in the Forwarder module to work
 ch_1 = 32
 ch_2 = 18
 
@@ -59,7 +77,7 @@ def generate_topology(channel_qubits):
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
-                                 frequency=frequency), ProactiveRouting()]
+                                 frequency=frequency), ProactiveForwarder()]
         },
         {
             "name": "R",
@@ -70,7 +88,7 @@ def generate_topology(channel_qubits):
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
-                                 frequency=frequency), ProactiveRouting(ps=p_swap)]
+                                 frequency=frequency), ProactiveForwarder(ps=p_swap)]
         },
         {
             "name": "D",
@@ -81,7 +99,7 @@ def generate_topology(channel_qubits):
             "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
-                                 frequency=frequency), ProactiveRouting()]
+                                 frequency=frequency), ProactiveForwarder()]
         }
     ],
     "qchannels": [

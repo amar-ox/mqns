@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Amar Abane
-#    National Institute of Standards and Technology, NIST.
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -39,9 +39,9 @@ from qns.network import QuantumNetwork, TimingModeEnum, SignalTypeEnum
 
 import copy
 
-class ProactiveRouting(Application):
+class ProactiveForwarder(Application):
     """
-    ProactiveRouting runs at the network layer of QNodes (routers) and receives instructions from the controller
+    ProactiveForwarder runs at the network layer of QNodes (routers) and receives instructions from the controller
     It implements the forwarding phase (i.e., entanglement generation and swapping) while the routing is done at the controller. 
     Purification will be in a sepeare process/module.
     """
@@ -133,15 +133,15 @@ class ProactiveRouting(Application):
             log.debug(f"{self.own}: Allocating qubits for buffer-space mux")
             num_prev, num_next = self.compute_qubit_allocation(instructions['route'], instructions['m_v'], self.own.name)
             if num_prev:
-                if num_prev <= self.memory.free:
+                if num_prev <= self.memory.cout_unallocated_qubits():
                     for i in range(num_prev): prev_qubits.append(self.memory.allocate(path_id=path_id))
                 else:
-                    raise Exception(f"Not enough qubits left for prev allocation.")
+                    raise Exception(f"Not enough qubits left for left allocation.")
             if num_next:
-                if num_next <= self.memory.free:
+                if num_next <= self.memory.cout_unallocated_qubits():
                     for i in range(num_next): next_qubits.append(self.memory.allocate(path_id=path_id))
                 else:
-                    raise Exception(f"Not enough qubits left for next allocation.")
+                    raise Exception(f"Not enough qubits left for right allocation.")
 
         log.debug(f"allocated qubits: prev={prev_qubits} | next={next_qubits}")
 
@@ -153,9 +153,9 @@ class ProactiveRouting(Application):
 
         # call LINK LAYER to start generating EPRs on next channels: this will trigger "new_epr" events
         if next_neighbor:
-            from qns.network.protocol.event import LinkLayerManageActiveChannels, TypeEnum
+            from qns.network.protocol.event import ManageActiveChannels, TypeEnum
             t = self._simulator.tc #+ self._simulator.time(sec=0)   # simulate comm. time between L3 and L2
-            ll_request = LinkLayerManageActiveChannels(link_layer=self.link_layer, next_hop=next_neighbor, 
+            ll_request = ManageActiveChannels(link_layer=self.link_layer, next_hop=next_neighbor, 
                                                        type=TypeEnum.ADD, t=t, by=self)
             self._simulator.add_event(ll_request)
             # log.debug(f"{self.own.name}: calling link layer to generate eprs for path {path_id} with next hop {next_neighbor}")
@@ -210,7 +210,7 @@ class ProactiveRouting(Application):
                 if qubit:
                     # swap failed or oldest pair decohered -> release qubit 
                     if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
-                        self.memory.read(key=qubit.addr)
+                        self.memory.read(address=qubit.addr)
                         qubit.fsm.to_release()
                         from qns.network.protocol.event import QubitReleasedEvent
                         event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=self)
@@ -233,7 +233,7 @@ class ProactiveRouting(Application):
                     # clean parallel_swappings
                     self.parallel_swappings.pop(msg["epr"], None)
                     if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= self._simulator.tc:
-                        self.memory.read(key=qubit.addr)
+                        self.memory.read(address=qubit.addr)
                         qubit.fsm.to_release()
                         from qns.network.protocol.event import QubitReleasedEvent
                         event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=self._simulator.tc, by=self)
@@ -328,8 +328,8 @@ class ProactiveRouting(Application):
                     self.waiting_qubits.append(event)
 
     def handle_entangled_qubit(self, event):
-        if event.qubit.pid is not None:     # for buffer-space/blocking mux
-            fib_entry = self.fib.get_entry(event.qubit.pid)
+        if event.qubit.path_id is not None:     # for buffer-space/blocking mux
+            fib_entry = self.fib.get_entry(event.qubit.path_id)
             if fib_entry:
                 if self.eval_swapping_conditions(fib_entry, event.neighbor.name):
                     qchannel: QuantumChannel = self.own.get_qchannel(event.neighbor)
@@ -339,7 +339,7 @@ class ProactiveRouting(Application):
                     else:
                         raise Exception(f"No qchannel found for neighbor {event.neighbor.name}")
             else:
-                raise Exception(f"No FIB entry found for pid {event.qubit.pid}")
+                raise Exception(f"No FIB entry found for path_id {event.qubit.path_id}")
         else:        # for statistical mux
             log.debug("Qubit not allocated to any path. Statistical mux not supported yet.")
 
@@ -358,10 +358,7 @@ class ProactiveRouting(Application):
         return False
 
     def purif(self, qubit: MemoryQubit, fib_entry: Dict, partner: QNode):
-        # Will remove when purif cycle is implemented:
-        #qubit.fsm.to_eligible()
-        #self.eligible(qubit, fib_entry)
-
+        # TODO: make this controllable
         # for isolated links -> consume immediatly:
         """ _, qm = self.memory.read(address=qubit.addr)
         qubit.fsm.to_release()
@@ -472,7 +469,7 @@ class ProactiveRouting(Application):
                 "destination": msg['purif_node']
             }
 
-            if epr.purify_self(meas_epr):       # purif succ
+            if epr.purify(meas_epr):       # purif succ
                 resp_msg['result'] = True
                 self.send_msg(dest=dest, msg=resp_msg, route=fib_entry["path_vector"])
             else:    # purif failed
@@ -612,7 +609,7 @@ class ProactiveRouting(Application):
 
                 # release qubits
                 self.memory.read(address=qubit.addr)
-                self.memory.read(key=other_qubit.addr)
+                self.memory.read(address=other_qubit.addr)
                 qubit.fsm.to_release()
                 other_qubit.fsm.to_release()
                 from qns.network.protocol.event import QubitReleasedEvent
@@ -654,7 +651,7 @@ class ProactiveRouting(Application):
 
     def check_eligible_qubit(self, qchannel: QuantumChannel, path_id: int = None):
         # assume isolated paths -> a path_id uses only left and right qmem
-        return self.memory.search_eligible_qubits(qchannel=qchannel.name, pid=path_id)
+        return self.memory.search_eligible_qubits(qchannel=qchannel.name, path_id=path_id)
     
     def get_memory_qubit(self, epr_name: str):
         res = self.memory.get(key=epr_name)

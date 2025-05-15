@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Lutong Chen, Jian Li, Kaiping Xue
-#    University of Science and Technology of China, USTC.
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -21,16 +21,16 @@ from qns.entity.node.qnode import QNode
 from qns.simulator.event import Event
 from qns.simulator.ts import Time
 from qns.network.protocol.link_layer import LinkLayer
-from qns.network.protocol.proactive_routing import ProactiveRouting
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.entity.memory.memory_qubit import MemoryQubit
 
 class TypeEnum(Enum):
     ADD = auto()
     REMOVE = auto()
 
-class LinkLayerManageActiveChannels(Event):
+class ManageActiveChannels(Event):
     """
-    ``LinkLayerManageActiveChannels`` is the event that request to start EPR generation over a qchannel
+    ``ManageActiveChannels`` is the event sent by the forwarder to request to start generating EPRs over a qchannel
     """
     def __init__(self, link_layer: LinkLayer, next_hop: QNode, type: TypeEnum, 
                  t: Optional[Time] = None, name: Optional[str] = None, by: Optional[Any] = None):
@@ -78,28 +78,13 @@ class QubitEntangledEvent(Event):
     """
     ``QubitEntangledEvent`` is the event that notifies NetworkLayer about new entangled qubit from LinkLayer
     """
-    def __init__(self, net_layer: ProactiveRouting, neighbor: QNode, qubit: MemoryQubit, 
+    def __init__(self, forwarder: ProactiveForwarder, neighbor: QNode, qubit: MemoryQubit, 
                  t: Optional[Time] = None, name: Optional[str] = None,
                  by: Optional[Any] = None):
         super().__init__(t=t, name=name, by=by)
-        self.net_layer = net_layer
+        self.forwarder = forwarder
         self.neighbor = neighbor
         self.qubit = qubit
 
     def invoke(self) -> None:
-        self.net_layer.handle_event(self)
-        
-        
-class EndToEndEntanglementEvent(Event):
-    """
-    ``EndToEndEntanglementEvent`` is the event that notifies NetworkLayer about e2e entangled qubit
-    """
-    def __init__(self, net_layer: ProactiveRouting, epr: str,
-                 t: Optional[Time] = None, name: Optional[str] = None,
-                 by: Optional[Any] = None):
-        super().__init__(t=t, name=name, by=by)
-        self.net_layer = net_layer
-        self.epr = epr
-
-    def invoke(self) -> None:
-        self.net_layer.handle_event(self)
+        self.forwarder.handle_event(self)

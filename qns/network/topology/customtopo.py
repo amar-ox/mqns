@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Lutong Chen, Jian Li, Kaiping Xue
-#    University of Science and Technology of China, USTC.
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@ class CustomTopology(Topology):
                 qn.add_apps(app)
             
             # Assign a new memory
-            memory_args = node['memory'] # copy.deepcopy(next( for node in self.topo['qnodes'] if node['name'] == qn.name))
+            memory_args = node['memory']
             m = QuantumMemory(name=qn.name, node=qn, **memory_args)
             qn.set_memory(m)
 
