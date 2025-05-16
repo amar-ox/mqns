@@ -152,6 +152,7 @@ class QuantumMemory(Entity):
                 - If a `QuantumModel`, it matches against the stored EPR instances.
                 - If a str, it matches against the stored EPR names.
             address (Optional[int]): The memory address of the qubit to locate.
+            destructive: (bool): Whether to delete the EPR after reading (default True). 
 
         Returns:
             Tuple[MemoryQubit, Optional[QuantumModel]]: 
