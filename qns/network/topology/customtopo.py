@@ -15,31 +15,24 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.app import Application
 from qns.entity.qchannel.qchannel import QuantumChannel
 from qns.entity.cchannel.cchannel import ClassicChannel
 from qns.entity.node.qnode import QNode
 from qns.entity.node.controller import Controller
-from typing import Dict, List, Optional, Tuple
 from qns.network.topology import Topology
 from qns.entity.memory.memory import QuantumMemory
-
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
-import itertools
-import copy
 
 class CustomTopology(Topology):
     """
     TopologyCreator processed the topology dict.
     """
-    def __init__(self, topo: Dict = {}):
+    def __init__(self, topo: dict = {}):
         super().__init__(0)
         self.topo = topo
 
-    def build(self) -> Tuple[List[QNode], List[QuantumChannel]]:
-        qnl: List[QNode] = []
-        qcl: List[QuantumChannel] = []
+    def build(self) -> tuple[list[QNode], list[QuantumChannel]]:
+        qnl: list[QNode] = []
+        qcl: list[QuantumChannel] = []
 
         # Create quantum nodes
         for node in self.topo['qnodes']:
@@ -75,7 +68,7 @@ class CustomTopology(Topology):
         return qnl, qcl
     
     def add_cchannels(self):
-        ccl: List[ClassicChannel] = []
+        ccl: list[ClassicChannel] = []
         for ch in self.topo['cchannels']:
             link = ClassicChannel(name=f"c_{ch['node1']},{ch['node2']}", **ch['parameters'])
             ccl.append(link)

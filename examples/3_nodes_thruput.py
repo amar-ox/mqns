@@ -28,10 +28,6 @@ from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
 from qns.network.topology.customtopo import CustomTopology
 
-from qns.entity.monitor import Monitor
-from qns.entity.qchannel import RecvQubitPacket
-from qns.network.protocol.event import QubitReleasedEvent
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt

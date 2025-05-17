@@ -15,7 +15,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Optional, List
 from qns.models.epr.entanglement import BaseEntanglement
 from qns.models.core.backend import QuantumModel
 from qns.models.qubit.qubit import Qubit, QState
@@ -34,7 +33,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
     """
     A pair of entangled qubits in Werner State with a hidden-variable
     """
-    def __init__(self, fidelity: float = 1, name: Optional[str] = None):
+    def __init__(self, fidelity: float = 1, name: str | None = None):
         """
         generate an entanglement with certain fidelity
 
@@ -68,7 +67,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         self.w = (fidelity * 4 - 1) / 3
 
 
-    def swapping(self, epr: "WernerStateEntanglement", name: Optional[str] = None, ps: float = 1) -> "WernerStateEntanglement":
+    def swapping(self, epr: "WernerStateEntanglement", ps: float = 1) -> "WernerStateEntanglement":
         """
         Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
@@ -126,7 +125,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
                       (fmin ** 2 + 5 / 9 * (1 - fmin) ** 2 + 2 / 3 * fmin * (1 - fmin))
         return True
 
-    def store_error_model(self, t: float, decoherence_rate: Optional[float], **kwargs):
+    def store_error_model(self, t: float, decoherence_rate: float| None, **kwargs):
         """
         The default error model for storing this entangled pair in a quantum memory
         The default behavior is: w = w*e^{-decoherence_rate*t}, default a = 0
@@ -138,7 +137,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         """
         self.w = self.w * np.exp(-decoherence_rate * t)
 
-    def transfer_error_model(self, length: float, decoherence_rate: Optional[float] = 0, **kwargs):
+    def transfer_error_model(self, length: float, decoherence_rate: float| None = 0, **kwargs):
         """
         The default error model for transmitting this entanglement
         The success possibility of transmitting is: w = w* e^{decoherence_rate * length}
@@ -150,7 +149,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         """
         self.w = self.w * np.exp(-decoherence_rate * length)
 
-    def to_qubits(self) -> List[Qubit]:
+    def to_qubits(self) -> list[Qubit]:
         if self.is_decoherenced:
             q0 = Qubit(state=QUBIT_STATE_P, name="q0")
             q1 = Qubit(state=QUBIT_STATE_P, name="q1")

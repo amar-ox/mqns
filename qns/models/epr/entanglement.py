@@ -15,7 +15,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List, Optional
 import numpy as np
 
 from qns.entity.node.qnode import QNode
@@ -28,7 +27,7 @@ class BaseEntanglement(object):
     """
     This is the base entanglement model
     """
-    def __init__(self, fidelity: float = 1, name: Optional[str] = None):
+    def __init__(self, fidelity: float = 1, name: str | None = None):
         """
         generate an entanglement with certain fidelity
 
@@ -48,7 +47,7 @@ class BaseEntanglement(object):
         self.is_decoherenced = value
         
 
-    def swapping(self, epr: "BaseEntanglement", name: Optional[str] = None, ps: float = 1) -> "BaseEntanglement":
+    def swapping(self, epr: "BaseEntanglement", name: str | None = None, ps: float = 1) -> "BaseEntanglement":
         """
         Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
@@ -70,7 +69,7 @@ class BaseEntanglement(object):
         """
         raise NotImplementedError
 
-    def to_qubits(self) -> List[Qubit]:
+    def to_qubits(self) -> list[Qubit]:
         """
         Transport the entanglement into a pair of qubits based on the fidelity.
         Suppose the first qubit is [1/sqrt(2), 1/sqrt(2)].H

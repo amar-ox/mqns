@@ -15,9 +15,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.qnode import QNode
 from enum import Enum, auto
-
 import qns.utils.log as log
 
 

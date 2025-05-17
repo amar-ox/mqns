@@ -15,7 +15,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List, Optional, Union, Tuple
+
 from qns.models.delay.constdelay import ConstantDelayModel
 from qns.models.delay.delay import DelayModel
 from qns.simulator.simulator import Simulator
@@ -37,8 +37,8 @@ class QuantumMemory(Entity):
         Asynchronous mode, users can use events to operate memories asynchronously
     """
     def __init__(self, name: str = None, node: QNode = None,
-                 capacity: int = 0, decoherence_rate: Optional[float] = 0,
-                 store_error_model_args: dict = {}, delay: Union[float, DelayModel] = 0):
+                 capacity: int = 0, decoherence_rate: float | None = 0,
+                 store_error_model_args: dict = {}, delay: float | DelayModel = 0):
         """
         Args:
             name (str): memory name
@@ -54,7 +54,7 @@ class QuantumMemory(Entity):
         self.delay_model = delay if isinstance(delay, DelayModel) else ConstantDelayModel(delay=delay)
 
         if self.capacity > 0:
-            self._storage: List[Tuple[MemoryQubit, Optional[QuantumModel]]] = [
+            self._storage: list[tuple[MemoryQubit, QuantumModel | None]] = [
                     (MemoryQubit(addr), None) for addr in range(self.capacity)
             ]
         else:      # should not use this case
@@ -80,8 +80,8 @@ class QuantumMemory(Entity):
             raise Exception("No LinkLayer protocol found")
 
 
-    def _search(self, key: Optional[Union[QuantumModel, str]] = None, 
-                address: Optional[int] = None) -> int:
+    def _search(self, key: QuantumModel | str | None = None, 
+                address: int | None = None) -> int:
         """
         This method searches through the internal storage for a matching qubit based on either
         its memory address or a key related to the stored EPR.
@@ -118,8 +118,8 @@ class QuantumMemory(Entity):
                     return idx
         return index
 
-    def get(self, key: Optional[Union[QuantumModel, str]] = None, 
-            address: Optional[int] = None) -> Tuple[MemoryQubit, Optional[QuantumModel]]:
+    def get(self, key: QuantumModel | str | None = None, 
+            address: int | None = None) -> tuple[MemoryQubit, QuantumModel | None]:
         """
         Retrieve a qubit from memory without removing it.
 
@@ -142,8 +142,8 @@ class QuantumMemory(Entity):
         else:
             return None
 
-    def read(self, key: Optional[Union[QuantumModel, str]] = None, 
-             address: Optional[int] = None, destructive: bool = True) -> Tuple[MemoryQubit, Optional[QuantumModel]]:
+    def read(self, key: QuantumModel | str | None = None, address: int | None = None, 
+             destructive: bool = True) -> tuple[MemoryQubit, QuantumModel | None]:
         """
         Reading of a qubit from the memory. This methods sets the fidelity of the EPR at read time.
 
@@ -185,8 +185,8 @@ class QuantumMemory(Entity):
 
         return (qubit, data)
 
-    def write(self, qm: QuantumModel, path_id: Optional[int] = None, 
-              address: Optional[int] = None, key: str = None) -> Optional[MemoryQubit]:
+    def write(self, qm: QuantumModel, path_id: int | None = None, 
+              address: int | None = None, key: str = None) -> MemoryQubit | None:
         """
         Store a quantum model (e.g., a qubit or an entangled pair) in memory.
 
@@ -329,7 +329,7 @@ class QuantumMemory(Entity):
                 return True
         return False
     
-    def search_available_qubits(self, path_id: Optional[int] = None) -> List[MemoryQubit]:
+    def search_available_qubits(self, path_id: int | None = None) -> list[MemoryQubit]:
         """
         Search for available (unoccupied and inactive) memory qubits, optionally filtered by path ID.
 
@@ -356,8 +356,8 @@ class QuantumMemory(Entity):
             qubits.append(qubit)
         return qubits
 
-    def search_eligible_qubits(self, exc_qchannel: Optional[str] = None, 
-                               path_id: Optional[int] = None) -> List[Tuple[MemoryQubit, QuantumModel]]:
+    def search_eligible_qubits(self, exc_qchannel: str | None = None, 
+                               path_id: int | None = None) -> list[tuple[MemoryQubit, QuantumModel]]:
         """
         Search for memory qubits that are eligible for use.
 
@@ -389,8 +389,8 @@ class QuantumMemory(Entity):
         return qubits
 
     def search_purif_qubits(self, exc_address: int, partner: str, 
-                            qchannel: str, path_id: Optional[int] = None, 
-                            purif_rounds: int = 0) -> List[Tuple[MemoryQubit, QuantumModel]]:
+                            qchannel: str, path_id: int | None = None, 
+                            purif_rounds: int = 0) -> list[tuple[MemoryQubit, QuantumModel]]:
         """
         Search for memory qubits eligible for purification with a given qubit.
         Assumes recurrence purification; i.e., input pairs must have undergone the same number of rounds.
@@ -431,7 +431,7 @@ class QuantumMemory(Entity):
             qubits.append((qubit, data))
         return qubits
 
-    def get_channel_qubits(self, ch_name: str) -> List[Tuple[MemoryQubit, QuantumModel]]:
+    def get_channel_qubits(self, ch_name: str) -> list[tuple[MemoryQubit, QuantumModel]]:
         """
         Retrieve all memory qubits associated with a specific quantum channel.
 

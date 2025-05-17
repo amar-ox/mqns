@@ -15,9 +15,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Dict, Optional, List
-import uuid
-
 from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.memory.memory_qubit import MemoryQubit, QubitState
@@ -25,13 +22,10 @@ from qns.entity.node.app import Application
 from qns.entity.node.node import Node
 from qns.entity.node.qnode import QNode
 from qns.entity.node.controller import Controller
-from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
-from qns.models.core.backend import QuantumModel
-from qns.network.requests import Request
-from qns.simulator.event import Event, func_to_event
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.simulator.event import Event
 from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork
-from qns.models.epr import WernerStateEntanglement
 from qns.simulator.ts import Time
 import qns.utils.log as log
 from qns.network.protocol.fib import ForwardingInformationBase
@@ -218,7 +212,7 @@ class ProactiveForwarder(Application):
         elif msg["cmd"] == "PURIF_RESPONSE":
             self.handle_purif_response(msg, from_node, dest)
 
-    def handle_swap_update(self, msg: Dict, from_node: QNode, dest_node: QNode):
+    def handle_swap_update(self, msg: dict, from_node: QNode, dest_node: QNode):
         """
         Processes an SWAP_UPDATE signaling message from a neighboring node, updating local 
         qubit state, releasing decohered pairs, or forwarding the update along the path. 
@@ -233,7 +227,7 @@ class ProactiveForwarder(Application):
 
         path_id = msg["path_id"]
         if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.INTERNAL:
-            debug.log(f"{self.own}: INT phase is over -> stop swaps")
+            log.debug(f"{self.own}: INT phase is over -> stop swaps")
             return
 
         fib_entry = self.fib.get_entry(path_id)
@@ -356,7 +350,7 @@ class ProactiveForwarder(Application):
                 log.debug(f"### {self.own}: VERIFY -> not the swapping dest and did not swap")
 
 
-    def eval_qubit_eligibility(self, fib_entry: Dict, partner: str) -> bool:
+    def eval_qubit_eligibility(self, fib_entry: dict, partner: str) -> bool:
         """
         Evaluate if a qubit is eligible for purification. 
         Compares the local node's swap rank to its partner's in the given path. 
@@ -383,7 +377,7 @@ class ProactiveForwarder(Application):
             return True
         return False
 
-    def purif(self, qubit: MemoryQubit, fib_entry: Dict, partner: QNode):
+    def purif(self, qubit: MemoryQubit, fib_entry: dict, partner: QNode):
         """
         Called when a qubit transitions to the PURIF state. 
         Determines the segment in which the qubit is entangled and number of required purification rounds from the FIB. 
@@ -475,7 +469,7 @@ class ProactiveForwarder(Application):
         else:
             log.debug(f"{self.own}: no other EPR is available for purif")
 
-    def handle_purif_solicit(self, msg: Dict, from_node: QNode, dest_node: QNode):
+    def handle_purif_solicit(self, msg: dict, from_node: QNode, dest_node: QNode):
         """
         Processes a PURIF_SOLICIT message from a partner node as part of the purification protocol. 
         Retrieves the target and auxiliary qubits from memory, verifies their states, and attempts 
@@ -543,7 +537,7 @@ class ProactiveForwarder(Application):
         else: # node is not destination: forward message
             self.send_msg(dest=dest_node, msg=msg, route=fib_entry["path_vector"])
 
-    def handle_purif_response(self, msg: Dict, from_node: QNode, dest_node: QNode):
+    def handle_purif_response(self, msg: dict, from_node: QNode, dest_node: QNode):
         """
         Handles a PURIF_RESPONSE message indicating the outcome of a purification attempt. 
         If the current node is the destination and purification succeeded, the EPR is updated, 
@@ -583,7 +577,7 @@ class ProactiveForwarder(Application):
         else:       # node is not destination: forward message
             self.send_msg(dest=dest_node, msg=msg, route=fib_entry["path_vector"])
 
-    def eligible(self, qubit: MemoryQubit, fib_entry: Dict):
+    def eligible(self, qubit: MemoryQubit, fib_entry: dict):
         """
         Called when a qubit enters the ELIGIBLE state, either to attempt entanglement swapping 
         (if the node is intermediate) or to finalize consumption (if the node is an end node). 
@@ -595,8 +589,9 @@ class ProactiveForwarder(Application):
             fib_entry (Dict): FIB entry containing path and swap sequence.
         """
 
-        if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase != SignalTypeEnum.INTERNAL:
-            debug.log(f"{self.own}: INT phase is over -> stop swaps")
+        if self.own.timing_mode == TimingModeEnum.SYNC and \
+            self.sync_current_phase != SignalTypeEnum.INTERNAL:
+            log.debug(f"{self.own}: INT phase is over -> stop swaps")
             return
 
         swap_sequence = fib_entry['swap_sequence']
@@ -701,7 +696,7 @@ class ProactiveForwarder(Application):
                                        t=self._simulator.tc, by=self)
             self._simulator.add_event(event)
 
-    def send_msg(self, dest: Node, msg: Dict, route: List[str], delay: bool = False):
+    def send_msg(self, dest: Node, msg: dict, route: list[str], delay: bool = False):
         own_idx = route.index(self.own.name)
         dest_idx = route.index(dest.name)
 
@@ -788,7 +783,7 @@ class ProactiveForwarder(Application):
             log.debug("Qubit not allocated to a path. Statistical mux not supported yet.")
 
     
-    def select_eligible_qubit(self, exc_qchannel: str, path_id: int = None) -> Optional[MemoryQubit]:
+    def select_eligible_qubit(self, exc_qchannel: str, path_id: int = None) -> MemoryQubit | None:
         """
         Searches for an eligible qubit in memory that matches the specified path ID and 
         is located on a different qchannel than the excluded one. This is used to 
@@ -806,16 +801,18 @@ class ProactiveForwarder(Application):
         qubits = self.memory.search_eligible_qubits(exc_qchannel=exc_qchannel, path_id=path_id)
         if qubits:
             return qubits[0][0]            # pick up one qubit
-            # TODO: Other qubit selection (for statistical multiplexing, multipath, quasi-local swapping, etc.)
+            # TODO: Other qubit selection 
+            # (for statistical multiplexing, multipath, quasi-local swapping, etc.)
         return None
 
     # searches and selects a purif qubit with same path_id and qchannel for purif
     def select_purif_qubit(self, exc_address: int, partner: str, qchannel: str, 
-                            path_id: int, purif_rounds: int) -> Optional[MemoryQubit]:
+                            path_id: int, purif_rounds: int) -> MemoryQubit | None:
         """
         Searches for a candidate qubit in the PURIF state that is ready for purification 
-        with a given qubit. The candidate must be a different qubit with the same path ID, quantum channel, partner, 
-        and has undergone the same number of purification rounds (i.e., recurrent purification schedule).
+        with a given qubit. The candidate must be a different qubit with the same path ID, 
+        quantum channel, partner, and has undergone the same number of purification rounds 
+        (i.e., recurrent purification schedule).
 
         Parameters:
             exc_address (int): Memory address of the qubit to exclude from the search.
@@ -828,7 +825,9 @@ class ProactiveForwarder(Application):
             Optional[MemoryQubit]: A compatible qubit for purification if found, otherwise None.
         """
 
-        qubits = self.memory.search_purif_qubits(exc_address=exc_address, partner=partner, qchannel=qchannel, path_id=path_id, purif_rounds=purif_rounds)
+        qubits = self.memory.search_purif_qubits(exc_address=exc_address, 
+                                                 partner=partner, qchannel=qchannel, 
+                                                 path_id=path_id, purif_rounds=purif_rounds)
         if qubits:
             return qubits[0][0]            # pick up one qubit
             # TODO: Other possible qubit selection criteria
@@ -842,7 +841,7 @@ class ProactiveForwarder(Application):
             return res[0]
         return None
 
-    def compute_qubit_allocation(self, path: List[str], m_v: List[int], node: str):
+    def compute_qubit_allocation(self, path: list[str], m_v: list[int], node: str):
         if node not in path:
             return None, None           # Node not in path
         idx = path.index(node)

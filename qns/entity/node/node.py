@@ -15,7 +15,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List, Union
 from qns.simulator import Simulator
 from qns.simulator import Event
 from qns.entity import Entity
@@ -26,7 +25,7 @@ class Node(Entity):
     """
     Node is a generic node in the quantum network
     """
-    def __init__(self, name: str = None, apps: List[Application] = None):
+    def __init__(self, name: str = None, apps: list[Application] = None):
         """
         Args:
             name (str): the node's name
@@ -37,9 +36,9 @@ class Node(Entity):
         self.cchannels = []
         self.croute_table = []
         if apps is None:
-            self.apps: List[Application] = []
+            self.apps: list[Application] = []
         else:
-            self.apps: List[Application] = apps
+            self.apps: list[Application] = apps
         
         # set default timing to ASYNC
         from qns.network.network import TimingModeEnum

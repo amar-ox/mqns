@@ -15,23 +15,13 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Dict, Optional
-import uuid
-
 from qns.entity.node.controller import Controller
-from qns.entity.node.qnode import QNode
 
-from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
-from qns.entity.memory.memory import QuantumMemory
+from qns.entity.cchannel.cchannel import ClassicPacket
 from qns.entity.node.app import Application
 
-from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
-from qns.models.core.backend import QuantumModel
-from qns.network.requests import Request
-from qns.simulator.event import Event, func_to_event
 from qns.simulator.simulator import Simulator
 from qns.network import QuantumNetwork
-from qns.simulator.ts import Time
 import qns.utils.log as log
 
 # from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -171,7 +161,7 @@ class ProactiveRoutingControllerApp(Application):
         route = [n.name for n in path_nodes]
         
         if len(route) != len(swapping_settings[self.swapping]):
-            raise Exception(f"{self.own}: Swapping {swapping} does not correspond to computed route: {route}")
+            raise Exception(f"{self.own}: Swapping {swapping_settings[self.swapping]} does not correspond to computed route: {route}")
 
         m_v = []
         src_capacity = self.net.get_node(path_nodes[0].name).memory.capacity

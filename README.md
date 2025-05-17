@@ -1,15 +1,5 @@
 # SimQN
 
-
-- In dev: 
- - `source simqn/bin/activate`
- - `python3 setup.py bdist_wheel`
- - `pip install --force-reinstall dist/qns-0.1.5-py3-none-any.whl`
- - `pip install -e .`
-
-
-
-
 ![Pytest](https://github.com/QNLab-USTC/SimQN/actions/workflows/pytest.yml/badge.svg) 
 ![Flake8](https://github.com/QNLab-USTC/SimQN/actions/workflows/flake8.yml/badge.svg) 
 
@@ -29,88 +19,29 @@ SimQN provides high performance for large-scale network simulation. SimQN uses [
 
 ## Installation
 
-Install and update using `pip`:
-```
-pip3 install -U qns
-```
+This is a development version to be installed from source. 
 
-# First sight of SimQN
+First, checkout the source code from Github.
 
-Here is an example of using SimQN.
+   `git checkout https://github.com/amar-ox/dynamic-qnetsim.git`
+   `cd dynamic-qnetsim`
 
-``` Python
+- Otional but recommended: create env
+ - `cd`
+ - `python3 -m venv simqn`
+ - `source simqn/bin/activate`
 
-    from qns.simulator.simulator import Simulator
-    from qns.network.topology import RandomTopology
-    from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
-    from qns.network import QuantumNetwork
-    from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-    from qns.network.topology.topo import ClassicTopology
-    import qns.utils.log as log
-    import logging
+- Alternative 1: install locally
+Install setuptools as the package tool:
+   `pip3 install setuptools wheel`
 
-    init_fidelity = 0.99   # the initial entanglement's fidelity
-    nodes_number = 150     # the number of nodes
-    lines_number = 450     # the number of quantum channels
-    qchannel_delay = 0.05  # the delay of quantum channels
-    cchannel_delay = 0.05  # the delay of classic channels
-    memory_capacity = 50   # the size of quantum memories
-    send_rate = 10         # the send rate
-    requests_number = 10   # the number of sessions (SD-pairs)
+Build the package:
+   `python3 setup.py bdist_wheel`
 
-    # generate the simulator
-    s = Simulator(0, 10, accuracy=1000000)
+This command build the package and it should be located in the `dist` directory named `qns-0.1.5-py3-none-any.whl`. 
 
-    # set the log's level
-    log.logger.setLevel(logging.INFO)
-    log.install(s)
+Finally, install the package to the system python library:
+   `pip install --force-reinstall dist/qns-0.1.5-py3-none-any.whl`
 
-    # generate a random topology using the parameters above
-    # each node will install EntanglementDistributionApp for hop-by-hop entanglement distribution
-    topo = RandomTopology(nodes_number=nodes_number,
-                          lines_number=lines_number,
-                          qchannel_args={"delay": qchannel_delay},
-                          cchannel_args={"delay": cchannel_delay},
-                          memory_args=[{"capacity": memory_capacity}],
-                          nodes_apps=[EntanglementDistributionApp(init_fidelity=init_fidelity)])
-
-    # build the network, with Dijkstra's routing algorithm
-    net = QuantumNetwork(topo=topo, classic_topo=ClassicTopology.All, route=DijkstraRouteAlgorithm())
-
-    # build the routing table
-    net.build_route()
-
-    # randomly select multiple sessions (SD-pars)
-    net.random_requests(requests_number, attr={"send_rate": send_rate})
-
-    # all entities in the network will install the simulator and do initiate works.
-    net.install(s)
-
-    # run simulation
-    s.run()
-```
-# FAQ
-## Why choose SimQN?
-SimQN is designed as a functional and easy-to-use simulator, like [NS3](https://www.nsnam.org/) in classic networks, it provides numerous functions for anyone who wants to simulate a QKD network or entanglement-based network. 
-
-Compared with the existing quantum network simulators, the developers pay more attention to simulation in the network area. Currently, a network simulation can be complicated, as users may have to implement routing algorithms and multiply protocols in different layers to complete a simulation. SimQN aims to break down this problem by providing a modulized quantum node and reusable algorithms and protocols. As a result, users can focus on what they study and reuse other built-in modules. The developers believe this will significantly reduce the burden on our users. As for the physics area, SimQN can also simulate quantum noise, fidelity, and more. Thus, if you focus on the research of the quantum network area, SimQN can be a competitive choice. 
-
-## How to contribute?
-Welcome to contribute through Github Issue or Pull Requests. Please refer to the [develop guide](https://qnlab-ustc.github.io/SimQN/develop.html). If you have any questions, you are welcome to contact the developers via e-mail.
-
-## License and Authors
-
-SimQN is an open-source project under [GPLv3](/LICENSE) license. The authors of the paper includes:
-* Lutong Chen (ertuil), School of Cyber Science and Technology, University of Science and Technology of China, China. elliot.98@outlook.com
-* Jian Li(infonetlijian), School of Cyber Science and Technology, University of Science and Technology of China, China.
-* Kaiping Xue (kaipingxue), School of Cyber Science and Technology, University of Science and Technology of China, China. xue.kaiping@gmail.com
-* Nenghai Yu, School of Cyber Science and Technology, University of Science and Technology of China, China.
-* Ruidong Li, Institute of Science and Engineering, Kanazawa University, Japan.
-* Qibin Sun, School of Cyber Science and Technology, University of Science and Technology of China, China.
-* Jun Lu, School of Cyber Science and Technology, University of Science and Technology of China, China.
-
-Other contributors includes:
-* Zirui Xiao, School of Cyber Science and Technology, University of Science and Technology of China, China.
-* Yuqi Yang, School of Cyber Science and Technology, University of Science and Technology of China, China.
-* Bing Yang, School of Cyber Science and Technology, University of Science and Technology of China, China.
-* Xumin Gao, School of Cyber Science and Technology, University of Science and Technology of China, China.
+- Alternative 2: install in edit mode
+  `pip install -e .`

@@ -15,16 +15,13 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List, Dict, Tuple
-
-
 class ForwardingInformationBase:
     def __init__(self):
         # The FIB table stores multiple path entries
-        self.table: Dict[str, Dict] = {}
+        self.table: dict[str, dict] = {}
 
-    def add_entry(self, path_id: str, path_vector: List[str], swap_sequence: List[int], 
-                  purification_scheme: Dict[Tuple[str, str], int], qubit_addresses: List[int]):
+    def add_entry(self, path_id: str, path_vector: list[str], swap_sequence: list[int], 
+                  purification_scheme: dict[tuple[str, str], int], qubit_addresses: list[int]):
         """Add a new path entry to the forwarding table."""
         if path_id in self.table:
             raise ValueError(f"Path ID '{path_id}' already exists.")
@@ -37,7 +34,7 @@ class ForwardingInformationBase:
             "qubit_addresses": qubit_addresses
         }
     
-    def get_entry(self, path_id: str):
+    def get_entry(self, path_id: str) -> dict | None:
         """Retrieve an entry from the table."""
         return self.table.get(path_id, None)
     

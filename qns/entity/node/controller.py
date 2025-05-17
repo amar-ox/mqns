@@ -15,10 +15,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List, Union
 from qns.simulator import Simulator
-from qns.simulator import Event
-from qns.entity import Entity
 from qns.entity.node.app import Application
 from qns.entity.node.node import Node
 
@@ -27,7 +24,7 @@ class Controller(Node):
     """
     Controller computes routing and swapping instructions for quantum routers 
     """
-    def __init__(self, name: str = None, apps: List[Application] = None):
+    def __init__(self, name: str = None, apps: list[Application] = None):
         """
         Args:
             name (str): the node's name
