@@ -1,6 +1,6 @@
 #    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Lutong Chen, Jian Li, Kaiping Xue
-#    University of Science and Technology of China, USTC.
+#    Copyright (C) 2024-2025 Amar Abane
+#    National Institute of Standards and Technology.
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -22,14 +22,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='qns',
-    author='elliot',
-    version="0.1.5",
-    description='A discrete-event scheduler designed for quantum networks',
+    author='amar',
+    version="0.0.1",
+    description='A discrete-event simulator for quantum networks',
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
     include_package_data=True,
-    url="https://github.com/ertuil/SimQN",
+    url="https://github.com/amar-ox/dynamic-qnetsim",
     exclude_package_data={'docs': ['.gitkeep']},
     setup_requires=["numpy", "pandas", "twine", "wheel"],
     install_requires=["numpy", "pandas"],
