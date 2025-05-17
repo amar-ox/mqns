@@ -31,13 +31,13 @@ from qns.network.route.dijkstra import DijkstraRouteAlgorithm
 from qns.network.route.route import NetworkRouteError, RouteImpl
 from qns.network.topology import (
            BasicTopology,
+           CustomTopology,
            GridTopology,
            LineTopology,
            RandomTopology,
            Topology,
            TreeTopology,
            WaxmanTopology,
-           CustomTopology
 )
 
 __all__ = ["QuantumNetwork", "Request", "Topology", "LineTopology", "NetworkRouteError",

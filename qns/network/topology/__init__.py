@@ -26,13 +26,13 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from qns.network.topology.basictopo import BasicTopology
+from qns.network.topology.customtopo import CustomTopology
 from qns.network.topology.gridtopo import GridTopology
 from qns.network.topology.linetopo import LineTopology
 from qns.network.topology.randomtopo import RandomTopology
 from qns.network.topology.topo import Topology
 from qns.network.topology.treetopo import TreeTopology
 from qns.network.topology.waxmantopo import WaxmanTopology
-from qns.network.topology.customtopo import CustomTopology
 
-__all__ = ["Topology", "BasicTopology", "LineTopology", "CustomTopology"
+__all__ = ["Topology", "BasicTopology", "LineTopology", "CustomTopology",
            "TreeTopology", "GridTopology", "RandomTopology", "WaxmanTopology"]
