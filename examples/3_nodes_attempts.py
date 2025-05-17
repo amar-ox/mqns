@@ -18,23 +18,21 @@
 
 import logging
 
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork, TimingModeEnum
-import qns.utils.log as log
-from qns.utils.rnd import set_seed
-from qns.network.protocol.proactive_forwarder import ProactiveForwarder
-from qns.network.protocol.link_layer import LinkLayer
-from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
-from qns.network.topology.customtopo import CustomTopology
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 from qns.entity.monitor import Monitor
 from qns.entity.qchannel import RecvQubitPacket
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
+from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network.protocol.link_layer import LinkLayer
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
+from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology.customtopo import CustomTopology
+from qns.simulator.simulator import Simulator
+from qns.utils import log
+from qns.utils.rnd import set_seed
 
 log.logger.setLevel(logging.CRITICAL)
 
@@ -71,7 +69,7 @@ def generate_topology(channel_qubits):
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder()]
@@ -82,7 +80,7 @@ def generate_topology(channel_qubits):
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits*2
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder(ps=p_swap)]
@@ -93,7 +91,7 @@ def generate_topology(channel_qubits):
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder()]
@@ -118,11 +116,11 @@ def generate_topology(channel_qubits):
 
 def run_simulation(num_qubits, seed):
     json_topology = generate_topology(channel_qubits = num_qubits)
-    
+
     set_seed(seed)
     s = Simulator(0, sim_duration + 5e-06, accuracy=1000000)
     log.install(s)
-    
+
     topo = CustomTopology(json_topology)
     net = QuantumNetwork(
         topo=topo,
@@ -132,7 +130,7 @@ def run_simulation(num_qubits, seed):
     net.install(s)
 
     # attempts rate per second per qchannel
-    attempts_rate = {}    
+    attempts_rate = {}
     # etg rate per second per qchannel
     ent_rate = {}
     def watch_ent_rate(simulator, network, event):
@@ -215,11 +213,11 @@ labels = {32: "L=32", 18: "L=18"}
 for L in [32, 18]:
     df_L = df[df["L"] == L]
     axs[0].errorbar(df_L["M"], df_L["Attempts rate"], yerr=df_L["Attempts std"],
-                    marker='o', linestyle='--', label=labels[L], capsize=3)
+                    marker="o", linestyle="--", label=labels[L], capsize=3)
     axs[1].errorbar(df_L["M"], df_L["Entanglement rate"], yerr=df_L["Ent std"],
-                    marker='o', linestyle='--', capsize=3)
+                    marker="o", linestyle="--", capsize=3)
     axs[2].errorbar(df_L["M"], df_L["Success rate"], yerr=df_L["Success std"],
-                    marker='o', linestyle='--', capsize=3)
+                    marker="o", linestyle="--", capsize=3)
 
 axs[0].set_title("Attempts rate")
 axs[1].set_title("Ent. rate")

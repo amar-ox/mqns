@@ -16,26 +16,35 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Any, Optional
+
 import numpy as np
-from qns.models.qubit.const import OPERATOR_HADAMARD, OPERATOR_PAULI_I, \
-                                   OPERATOR_PAULI_X, OPERATOR_PAULI_Y, \
-                                   OPERATOR_PAULI_Z, OPERATOR_PHASE_SHIFT, \
-                                   OPERATOR_RX, OPERATOR_RY, OPERATOR_RZ, \
-                                   OPERATOR_S, OPERATOR_T
-from qns.models.qubit.qubit import Qubit
-from qns.models.qubit.utils import kron, joint
+
+from qns.models.qubit.const import (
+    OPERATOR_HADAMARD,
+    OPERATOR_PAULI_I,
+    OPERATOR_PAULI_X,
+    OPERATOR_PAULI_Y,
+    OPERATOR_PAULI_Z,
+    OPERATOR_PHASE_SHIFT,
+    OPERATOR_RX,
+    OPERATOR_RY,
+    OPERATOR_RZ,
+    OPERATOR_S,
+    OPERATOR_T,
+)
 from qns.models.qubit.errors import QGateOperatorNotMatchError, QGateQubitNotInStateError
+from qns.models.qubit.qubit import Qubit
+from qns.models.qubit.utils import joint, kron
 
 
-class Gate():
-    """
-    The quantum gates that will operate qubits
+class Gate:
+    """The quantum gates that will operate qubits
     """
 
     def __init__(self, name: Optional[str] = None, _docs: Optional[str] = None):
-        """
-        Args:
-            name (str): the gate's name
+        """Args:
+        name (str): the gate's name
+
         """
         self._name: Optional[str] = name
         self.__doc__ = _docs
@@ -45,27 +54,26 @@ class Gate():
 
 
 class SingleQubitGate(Gate):
-    """
-    The single qubit gates operate on a single qubit
+    """The single qubit gates operate on a single qubit
     """
 
     def __init__(self, name: Optional[str] = None, operator: Optional[np.ndarray] = None, _docs: Optional[str] = None):
-        """
-        Args:
-            name (str): the gate's name
-            operator (np.ndarray): the matrix represent of this operator
+        """Args:
+        name (str): the gate's name
+        operator (np.ndarray): the matrix represent of this operator
+
         """
         super().__init__(name, _docs)
         self._operator = operator
 
     def __call__(self, qubit: Qubit) -> None:
-        """
-        Args:
+        """Args:
             qubit (Qubit): the operating qubit
 
         Raises:
             QGateOperatorNotMatchError
             QGateQubitNotInStateError
+
         """
         qubit.operate(self._operator)
 
@@ -73,7 +81,7 @@ class SingleQubitGate(Gate):
 X = SingleQubitGate(name="X", operator=OPERATOR_PAULI_X, _docs="Pauli X Gate")
 Y = SingleQubitGate(name="Y", operator=OPERATOR_PAULI_Y, _docs="Pauli Y Gate")
 Z = SingleQubitGate(name="Z", operator=OPERATOR_PAULI_Z, _docs="Pauli Z Gate")
-# I = SingleQubitGate(name="I", operator=OPERATOR_PAULI_I, _docs="Pauli I Gate")
+I = SingleQubitGate(name="I", operator=OPERATOR_PAULI_I, _docs="Pauli I Gate")
 H = SingleQubitGate(name="H", operator=OPERATOR_HADAMARD, _docs="Hadamard Gate")
 T = SingleQubitGate(name="T", operator=OPERATOR_T, _docs="T gate (pi/4 shift gate)")
 S = SingleQubitGate(name="S", operator=OPERATOR_S, _docs="S gate (pi/2 shift gate)")
@@ -81,13 +89,13 @@ S = SingleQubitGate(name="S", operator=OPERATOR_S, _docs="S gate (pi/2 shift gat
 
 class SingleQubitRotateGate(SingleQubitGate):
     def __call__(self, qubit: Qubit, theta=np.pi/4) -> None:
-        """
-        Args:
+        """Args:
             qubit (Qubit): the operating qubit
             theta (float): the rotating degree
         Raises:
             QGateOperatorNotMatchError
             QGateQubitNotInStateError
+
         """
         qubit.operate(self._operator(theta))
 
@@ -100,13 +108,13 @@ RZ = SingleQubitRotateGate(name="RZ", operator=OPERATOR_RZ, _docs="Rz gate (Z ro
 
 class SingleQubitArbitraryGate(SingleQubitGate):
     def __call__(self, qubit: Qubit, operator: np.ndarray) -> None:
-        """
-        Args:
+        """Args:
             qubit (Qubit): the operating qubit
             operator (np.ndarray): the operator matrix
         Raises:
             QGateOperatorNotMatchError
             QGateQubitNotInStateError
+
         """
         if operator.shape != (2, 2):
             raise QGateOperatorNotMatchError
@@ -118,8 +126,7 @@ U = SingleQubitArbitraryGate(name="U", operator=None, _docs="Arbitrary single qu
 
 
 class DoubleQubitsControlledGate(Gate):
-    """
-    The double qubits gates operate on two qubits, including a controlled qubit and a operating qubit.
+    """The double qubits gates operate on two qubits, including a controlled qubit and a operating qubit.
 
     The controlled  gate:
 
@@ -128,18 +135,17 @@ class DoubleQubitsControlledGate(Gate):
 
     def __init__(self, name: Optional[str] = None,
                  operator: Optional[np.ndarray] = OPERATOR_PAULI_X, _docs: Optional[str] = None):
-        """
-        Args:
-            name (str): the gate's name
-            operator (np.ndarray): the matrix represent of the operator
+        """Args:
+        name (str): the gate's name
+        operator (np.ndarray): the matrix represent of the operator
+
         """
         super().__init__(name, _docs)
         self._operator = operator
 
     def __call__(self, qubit1: Qubit, qubit2: Qubit,
                  operator: Optional[np.ndarray] = None) -> None:
-        """
-        Args:
+        """Args:
             qubit1 (Qubit): the first qubit (controller)
             qubit2 (Qubit): the second qubit
             operator (np.ndarray): the matrix represent of the operator
@@ -148,6 +154,7 @@ class DoubleQubitsControlledGate(Gate):
             QGateOperatorNotMatchError
             QGateQubitNotInStateError
             QGateStateJointError
+
         """
         if operator is None:
             operator = self._operator
@@ -206,8 +213,7 @@ CR = DoubleQubitsRotateGate(name="Controlled Phase Rotate Gate",
 
 class SwapGate(Gate):
     def __call__(self, qubit1: Qubit, qubit2: Qubit):
-        """
-        The swap gate, swap the states of qubit1 and qubit2
+        """The swap gate, swap the states of qubit1 and qubit2
 
         Args:
             qubit1 (Qubit): the first qubit (controller)
@@ -216,6 +222,7 @@ class SwapGate(Gate):
         Raises:
             QGateOperatorNotMatchError
             QGateQubitNotInStateError
+
         """
         if qubit1 == qubit2:
             return
@@ -236,19 +243,19 @@ Swap = SwapGate(name="Swap Gate", _docs="swap the states of qubit1 and qubit2")
 
 
 class ThreeQubitsGate(Gate):
-    """
-    The gate operates on three qubits, including 2 controlled qubit and a operating qubit.
+    """The gate operates on three qubits, including 2 controlled qubit and a operating qubit.
 
     The 3 controlled-controlled gate:
 
         [[I_6, 0][0, operator]]
     """
+
     def __init__(self, name: Optional[str] = None,
                  operator: Optional[np.ndarray] = OPERATOR_PAULI_X, _docs: Optional[str] = None):
-        """
-        Args:
-            name (str): the gate's name
-            operator (np.ndarray): the matrix represent of the operator
+        """Args:
+        name (str): the gate's name
+        operator (np.ndarray): the matrix represent of the operator
+
         """
         super().__init__(name, _docs)
         self._operator = operator

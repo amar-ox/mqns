@@ -18,19 +18,19 @@
 from typing import Dict, Optional
 
 from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
+from qns.entity.node.app import Application
+from qns.entity.node.controller import Controller
+from qns.entity.node.node import QNode
+from qns.network import QuantumNetwork
 from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
-from qns.entity.node.controller import Controller
-from qns.entity.node.app import Application
-from qns.entity.node.node import QNode
 from qns.simulator.event import Event, func_to_event
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
 from qns.simulator.ts import Time
-import qns.utils.log as log
+from qns.utils import log
 
 
-class Transmit():
+class Transmit:
     def __init__(self, id: str, src: QNode, dst: QNode,
                  first_epr_name: Optional[str] = None, second_epr_name: Optional[str] = None):
         self.id = id
@@ -52,7 +52,7 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
         self.src: QNode = src
         self.dest: QNode = dest
         self.attr: Dict = attr
-        
+
         self.net: QuantumNetwork = None
 
         self.requests = []
@@ -77,7 +77,7 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
 
     def RecvClassicPacketHandler(self, node: QNode, event: Event):
         self.handle_reponse(event)
-    
+
     def RecvNewPair(self, app: ProactiveForwarder, event: Event):
         self.handle_pair(event)
 
@@ -89,14 +89,14 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
 
         log.debug(f"{self.own}: submit new request")
         self.send_count += 1
-        
+
         # TODO: create and save request
-        
+
         # get channel to the controller
         cchannel: ClassicChannel = self.own.get_cchannel(self.controller)
         if cchannel is None:
             raise Exception("No such classic channel to the controller")
-        
+
         classic_packet = ClassicPacket(
             msg={"cmd": "submit_request", "attrs": {}}, src=self.own, dest=self.controller)
         cchannel.send(classic_packet, next_hop=self.controller)
@@ -104,14 +104,14 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
 
     def withdraw_request(self):
         log.debug(f"{self.own}: withdraw request")
-        
+
         # TODO: find the request
-        
+
         # get channel to the controller
         cchannel: ClassicChannel = self.own.get_cchannel(self.controller)
         if cchannel is None:
             raise Exception("No such classic channel to the controller")
-        
+
         classic_packet = ClassicPacket(
             msg={"cmd": "withdraw_request", "id": 0}, src=self.own, dest=self.controller)
         cchannel.send(classic_packet, next_hop=self.controller)
@@ -130,8 +130,8 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
 
         if cmd == "new_pair":
             self.success_count+=1
-            
-            
+
+
     def handle_pair(self, packet: RecvClassicPacket):      # handle pairs from routing protocol
         msg = packet.packet.get()
         cchannel = packet.cchannel
@@ -149,16 +149,15 @@ class EndNodeEntanglementApp(Application):     # application to request entangle
 
     # see what to do with this:
     def add_request(self, request):
-        """
-        add a request to this app
+        """Add a request to this app
 
         Args:
             request (Request): the inserting request
+
         """
         self.requests.append(request)
 
     def clear_request(self):
-        """
-        clear all requests
+        """Clear all requests
         """
         self.requests.clear()

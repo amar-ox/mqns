@@ -15,21 +15,20 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.cchannel.cchannel import ClassicChannel, RecvClassicPacket, ClassicPacket
-from qns.entity.node.app import Application
-from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
-from qns.entity.node.qnode import QNode
-from qns.models.qubit.const import BASIS_X, BASIS_Z, \
-    QUBIT_STATE_0, QUBIT_STATE_1, QUBIT_STATE_P, QUBIT_STATE_N
-from qns.simulator.event import Event, func_to_event
-from qns.simulator.simulator import Simulator
-from qns.models.qubit import Qubit
+import hashlib
+import random
 
 import numpy as np
-import random
-import hashlib
 
-from qns.utils.rnd import get_rand, get_choice
+from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
+from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
+from qns.models.qubit import Qubit
+from qns.models.qubit.const import BASIS_X, BASIS_Z, QUBIT_STATE_0, QUBIT_STATE_1, QUBIT_STATE_N, QUBIT_STATE_P
+from qns.simulator.event import Event, func_to_event
+from qns.simulator.simulator import Simulator
+from qns.utils.rnd import get_choice, get_rand
 
 
 class QubitWithError(Qubit):
@@ -50,20 +49,20 @@ class BB84SendApp(Application):
                  init_lower_cascade_key_block_size=5,
                  init_upper_cascade_key_block_size=20,
                  security=0.05):
-        """
-        Args:
-            dest: QNode.
-            qchannel: QuantumChannel.
-            cchannel: ClassicChannel.
-            send_rate: the sending rate of qubit.
-            min_length_for_post_processing: threshold to trigger post-processing.
-            proportion_for_estimating_error: what proportion of bits are used for error estimating.
-            max_cascade_round: how many rounds of cascade need to be executed.
-            cascade_alpha: init_cascade_size = cascade_alpha / error_rate.
-            cascade_beita: next_cascade_size = init_cascade_size * 2.
-            init_lower_cascade_key_block_size: lower bound of init_cascade_size.
-            init_upper_cascade_key_block_size: upper bound of init_cascade_size.
-            security: parameter for privacy amplification.
+        """Args:
+        dest: QNode.
+        qchannel: QuantumChannel.
+        cchannel: ClassicChannel.
+        send_rate: the sending rate of qubit.
+        min_length_for_post_processing: threshold to trigger post-processing.
+        proportion_for_estimating_error: what proportion of bits are used for error estimating.
+        max_cascade_round: how many rounds of cascade need to be executed.
+        cascade_alpha: init_cascade_size = cascade_alpha / error_rate.
+        cascade_beita: next_cascade_size = init_cascade_size * 2.
+        init_lower_cascade_key_block_size: lower bound of init_cascade_size.
+        init_upper_cascade_key_block_size: upper bound of init_cascade_size.
+        security: parameter for privacy amplification.
+
         """
         super().__init__()
         self.dest = dest
@@ -175,11 +174,11 @@ class BB84SendApp(Application):
         self._simulator.add_event(event)
 
     def recv_error_estimate_packet(self, event: RecvClassicPacket):
-        """
-        BB84SendApp recv error estimate packet,and send error_estimate_reply packet.
+        """BB84SendApp recv error estimate packet,and send error_estimate_reply packet.
 
         Args:
             event:the error estimate packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -242,11 +241,12 @@ class BB84SendApp(Application):
         return True
 
     def recv_cascade_ask_packet(self, event: RecvClassicPacket):
-        """
-        BB84SendApp recv cascade_ask packet,calculate the parity value of the corresponding block,and send cascade_reply packet.
+        """BB84SendApp recv cascade_ask packet,calculate the parity value of the corresponding block,
+        and send cascade_reply packet.
 
         Args:
             event:the cascade_ask packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -280,11 +280,11 @@ class BB84SendApp(Application):
         return True
 
     def recv_check_error_ask_packet(self, event: RecvClassicPacket):
-        """
-        BB84SendApp recv check_error_ask packet,check error,and send check_error_reply packet.
+        """BB84SendApp recv check_error_ask packet,check error,and send check_error_reply packet.
 
         Args:
             event:the check_error_ask packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -310,11 +310,11 @@ class BB84SendApp(Application):
         return True
 
     def recv_privacy_amplification_ask_packet(self, event: RecvClassicPacket):
-        """
-        BB84SendApp recv privacy_amplification_ask packet,perform privacy amplification.
+        """BB84SendApp recv privacy_amplification_ask packet,perform privacy amplification.
 
         Args:
             event:the privacy_amplification_ask packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -343,20 +343,20 @@ class BB84RecvApp(Application):
                  init_lower_cascade_key_block_size=5,
                  init_upper_cascade_key_block_size=20,
                  security=0.05):
-        """
-        Args:
-            src: QNode.
-            qchannel: QuantumChannel.
-            cchannel: ClassicChannel.
-            send_rate: the sending rate of qubit.
-            min_length_for_post_processing: threshold to trigger post-processing.
-            proportion_for_estimating_error: what proportion of bits are used for error estimating.
-            max_cascade_round: how many rounds of cascade need to be executed.
-            cascade_alpha: init_cascade_size = cascade_alpha / error_rate.
-            cascade_beita: next_cascade_size = init_cascade_size * 2.
-            init_lower_cascade_key_block_size: lower bound of init_cascade_size.
-            init_upper_cascade_key_block_size: upper bound of init_cascade_size.
-            security: parameter for privacy amplification.
+        """Args:
+        src: QNode.
+        qchannel: QuantumChannel.
+        cchannel: ClassicChannel.
+        send_rate: the sending rate of qubit.
+        min_length_for_post_processing: threshold to trigger post-processing.
+        proportion_for_estimating_error: what proportion of bits are used for error estimating.
+        max_cascade_round: how many rounds of cascade need to be executed.
+        cascade_alpha: init_cascade_size = cascade_alpha / error_rate.
+        cascade_beita: next_cascade_size = init_cascade_size * 2.
+        init_lower_cascade_key_block_size: lower bound of init_cascade_size.
+        init_upper_cascade_key_block_size: upper bound of init_cascade_size.
+        security: parameter for privacy amplification.
+
         """
         super().__init__()
         self.src = src
@@ -447,8 +447,7 @@ class BB84RecvApp(Application):
         self.cchannel.send(packet, next_hop=self.src)
 
     def send_error_estimate_packet(self):
-        """
-        BB84Recvapp send error estimate ask packet.
+        """BB84Recvapp send error estimate ask packet.
         """
         self.using_post_processing = True
         self.cur_cascade_round = 0
@@ -481,11 +480,11 @@ class BB84RecvApp(Application):
         self.cchannel.send(packet, next_hop=self.src)
 
     def recv_error_estimate_reply_packet(self, event: RecvClassicPacket):
-        """
-        BB84RecvApp recv error_estimate_reply packet,perform the first round of cascade,send cascade_ask packet.
+        """BB84RecvApp recv error_estimate_reply packet,perform the first round of cascade,send cascade_ask packet.
 
         Args:
             event:the error_estimate_reply packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -537,11 +536,11 @@ class BB84RecvApp(Application):
         return True
 
     def recv_cascade_reply_packet(self, event: RecvClassicPacket):
-        """
-        BB84RecvApp recv cascade_reply packet,perform next round of cascade,and send cascade_ask packet.
+        """BB84RecvApp recv cascade_reply packet,perform next round of cascade,and send cascade_ask packet.
 
         Args:
             event:the cascade_reply packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -622,11 +621,11 @@ class BB84RecvApp(Application):
         return True
 
     def recv_check_error_reply_packet(self, event: RecvClassicPacket):
-        """
-        BB84RecvApp recv check_error_reply packet,perform privacy amplification,and send privacy_amplification_ask packet.
+        """BB84RecvApp recv check_error_reply packet,perform privacy amplification,and send privacy_amplification_ask packet.
 
         Args:
             event:the check_error_reply packet.
+
         """
         packet = event.packet
         msg: dict = packet.get()
@@ -663,23 +662,23 @@ class BB84RecvApp(Application):
 
 
 def cascade_parity(target: list):
-    """
-        Calculate key block parity.
+    """Calculate key block parity.
 
-        Args:
-            target:target key block.
+    Args:
+        target:target key block.
+
     """
     count = sum(target)
     return count % 2
 
 
 def cascade_binary_divide(begin: int, end: int):
-    """
-        Evenly divided the key block.
+    """Evenly divided the key block.
 
-        Args:
-            begin: key block begin index.
-            end: key block end index.
+    Args:
+        begin: key block begin index.
+        end: key block end index.
+
     """
     len = end - begin + 1
     if len % 2 == 1:
@@ -690,25 +689,25 @@ def cascade_binary_divide(begin: int, end: int):
 
 
 def cascade_key_shuffle(index: list):
-    """
-        Shuffle the index.
+    """Shuffle the index.
 
-        Args:
-            index: the index list.
+    Args:
+        index: the index list.
+
     """
     np.random.shuffle(index)
     return index
 
 
 def pa_generate_toeplitz_matrix(N: int, M: int, first_row: list, first_col: list):
-    """
-        Generate a Toeplitz matrix of size N x M using two given list of binary values.
+    """Generate a Toeplitz matrix of size N x M using two given list of binary values.
 
-        Args:
-            N:col num of the Toeplitz matrix.
-            M:row num of the Toeplitz matrix.
-            first_row:first row of the Toeplitz matrix.
-            first_col:first col of the Toeplitz matrix.
+    Args:
+        N:col num of the Toeplitz matrix.
+        M:row num of the Toeplitz matrix.
+        first_row:first row of the Toeplitz matrix.
+        first_col:first col of the Toeplitz matrix.
+
     """
     N = int(N)
     M = int(M)
@@ -724,11 +723,11 @@ def pa_generate_toeplitz_matrix(N: int, M: int, first_row: list, first_col: list
 
 
 def pa_randomize_key(original_key: list, toeplitz_matrix):
-    """
-        process the original key through the toeplitz matrix.
+    """Process the original key through the toeplitz matrix.
 
-        Args:
-            original_key: the original key.
-            toeplitz_matrix: the toeplitz matrix.
+    Args:
+        original_key: the original key.
+        toeplitz_matrix: the toeplitz matrix.
+
     """
     return np.dot(toeplitz_matrix, original_key) % 2

@@ -17,29 +17,30 @@
 
 import itertools
 import multiprocessing
-from typing import Optional, Dict
+import signal
+from typing import Dict, Optional
+
 import pandas as pd
+
 from qns.utils.log import logger as log
 
-import signal
 
-
-class MPSimulations():
-    """
-    MultiProcessSimulations will help users to perfrom multiple simulations
+class MPSimulations:
+    """MultiProcessSimulations will help users to perfrom multiple simulations
     with different experiment settings and leverage multiple processes.
     """
+
     def __init__(self, settings: Dict = {}, iter_count: int = 1, aggregate: bool = True,
                  cores: int = -1, name: Optional[str] = None) -> None:
-        """
-        Args:
-            settings: a dictionary object that contains simulation settings,
-                      e.g., {"node_num": [10, 20, 30], "request_num": [1, 2, 3], "memory_size": [50, 100]}
-            iter_count (int): for each setting, the repeat number of the same experiments. (with different random seed)
-            aggregate (bool): aggregate experiments with the same settings and
-                              calculate mean and std
-            cores (int): the number of CPUs, default is -1 means to use all CPUs.
-            name (str): the name of this simulation.
+        """Args:
+        settings: a dictionary object that contains simulation settings,
+                  e.g., {"node_num": [10, 20, 30], "request_num": [1, 2, 3], "memory_size": [50, 100]}
+        iter_count (int): for each setting, the repeat number of the same experiments. (with different random seed)
+        aggregate (bool): aggregate experiments with the same settings and
+                          calculate mean and std
+        cores (int): the number of CPUs, default is -1 means to use all CPUs.
+        name (str): the name of this simulation.
+
         """
         self.settings = settings
         self.iter_count = iter_count
@@ -57,13 +58,14 @@ class MPSimulations():
         self._end_time = None
 
     def run(self, setting: Dict = {}) -> Dict:
-        """
-        This function should be overwited by users to provide codes that run a single simulation.
+        """This function should be overwited by users to provide codes that run a single simulation.
 
         Args:
             setting (Dict): the simulation setting, e.g. {'node_num': 10, 'req_num': 10, 'memory_size': 50}
+
         Returns:
             a dictionary that contains all results, e.g. {'throughput': 100, 'fidelity': 0.88}
+
         """
         raise NotImplementedError
         return {}
@@ -81,8 +83,7 @@ class MPSimulations():
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     def start(self):
-        """
-        Start the multiple process simulation
+        """Start the multiple process simulation
         """
         self.prepare_setting()
         pool = multiprocessing.Pool(processes=self.cores, initializer=self._init_worker)
@@ -130,8 +131,7 @@ class MPSimulations():
             self.aggregated_data = pd.merge(mean, std, on=list(self.settings.keys()))
 
     def prepare_setting(self):
-        """
-        Generate the experiment setting for each experiments.
+        """Generate the experiment setting for each experiments.
         """
         keys = self.settings.keys()
         _tmp = []
@@ -153,19 +153,19 @@ class MPSimulations():
         self._current_simulation_count = 0
 
     def get_data(self):
-        """
-        Get the simulation results
+        """Get the simulation results
 
         Returns:
             a result data in pd.DataFrame
+
         """
         return self.aggregated_data if self.aggregate else self.data
 
     def get_raw_data(self):
-        """
-        Get the original raw results, no matter aggregate is ``True`` or not.
+        """Get the original raw results, no matter aggregate is ``True`` or not.
 
         Returns:
             a result data in pd.DataFrame
+
         """
         return self.data

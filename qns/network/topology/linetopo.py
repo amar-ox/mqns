@@ -15,17 +15,18 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.app import Application
-from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.entity.node.qnode import QNode
 from typing import Dict, List, Optional, Tuple
-from qns.network.topology import Topology
+
+from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network.topology.topo import Topology
 
 
 class LineTopology(Topology):
+    """LineTopology includes `nodes_number` Qnodes. The topology is a line pattern.
     """
-    LineTopology includes `nodes_number` Qnodes. The topology is a line pattern.
-    """
+
     def __init__(self, nodes_number, nodes_apps: List[Application] = [],
                  qchannel_args: Dict = {}, cchannel_args: Dict = {},
                  memory_args: Optional[List[Dict]] = {}):

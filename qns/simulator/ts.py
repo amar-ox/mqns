@@ -17,31 +17,30 @@
 
 from typing import Union
 
-
 default_accuracy = 1000000  # {default_accuracy} time slots per second
 
 
 def set_default_accuracy(time_slots: int):
-    """
-    set the default simulation accuracy
+    """Set the default simulation accuracy
 
     Args:
         time_slots (int): the time slots per second.
+
     """
     global default_accuracy
     default_accuracy = time_slots
 
 
-class Time(object):
+class Time:
     def __init__(self, time_slot: int = 0, sec: float = 0.0, accuracy: int = default_accuracy):
-        '''
-        Time: the time slot used in the simulator
+        """Time: the time slot used in the simulator
 
         Args:
             time_slot (int): the time slot
             sec (float): the timestamp in second
             accuracy: time slots per second
-        '''
+
+        """
         self.accuracy = default_accuracy
         if time_slot != 0:
             self.time_slot = time_slot
@@ -52,10 +51,10 @@ class Time(object):
 
     @property
     def sec(self) -> float:
-        '''
-        Returns:
-            the timestamp in second
-        '''
+        """Returns:
+        the timestamp in second
+
+        """
         return self.time_slot / self.accuracy
 
     def __eq__(self, other: object) -> bool:
@@ -95,11 +94,11 @@ class Time(object):
         return self.time_slot != other_time.time_slot
 
     def __add__(self, ts: Union["Time", float]) -> "Time":
-        """
-        Add an offset to the Time object
+        """Add an offset to the Time object
 
         Args:
             ts (Union["Time", float]): a Time object or a float indicating time in second
+
         """
         tn = Time(time_slot=self.time_slot, accuracy=self.accuracy)
         if isinstance(ts, float):
@@ -108,11 +107,11 @@ class Time(object):
         return tn
 
     def __sub__(self, ts: Union["Time", float]) -> "Time":
-        """
-        Minus an offset to the Time object
+        """Minus an offset to the Time object
 
         Args:
             ts (Union["Time", float]): a Time object or a float indicating time in second
+
         """
         tn = Time(time_slot=self.time_slot, accuracy=self.accuracy)
         if isinstance(ts, float):

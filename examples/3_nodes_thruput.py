@@ -18,20 +18,19 @@
 
 import logging
 
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork, TimingModeEnum
-import qns.utils.log as log
-from qns.utils.rnd import set_seed
-from qns.network.protocol.proactive_forwarder import ProactiveForwarder
-from qns.network.protocol.link_layer import LinkLayer
-from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
-from qns.network.topology.customtopo import CustomTopology
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
+from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network.protocol.link_layer import LinkLayer
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
+from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology.customtopo import CustomTopology
+from qns.simulator.simulator import Simulator
+from qns.utils import log
+from qns.utils.rnd import set_seed
 
 log.logger.setLevel(logging.DEBUG)
 
@@ -62,7 +61,7 @@ ch_2 = 18
 def generate_topology(t_coherence: float) -> dict:
     """
     Defines the topology with globally declared simulation parameters.
-    
+
     Args:
         key (float): memory coherence time in seconds.
 
@@ -78,7 +77,7 @@ def generate_topology(t_coherence: float) -> dict:
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits,
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder()]
@@ -89,7 +88,7 @@ def generate_topology(t_coherence: float) -> dict:
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits * 2,
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder(ps=p_swap)]
@@ -100,7 +99,7 @@ def generate_topology(t_coherence: float) -> dict:
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits,
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder()]
@@ -124,8 +123,7 @@ def generate_topology(t_coherence: float) -> dict:
     }
 
 def run_simulation(t_coherence, seed):
-    """
-    Run a simulation with a given coherence time and seed.
+    """Run a simulation with a given coherence time and seed.
 
     This function sets up and executes a simulation using:
       - A generated topology based on the specified qubit coherence time,
@@ -144,10 +142,10 @@ def run_simulation(t_coherence, seed):
     Returns:
         Tuple[float, float]:
             - `e2e_rate`: End-to-end entanglement generation rate (entangled pairs per second).
-            - `decoherence_ratio`: Fraction of entangled qubits that decohered before use 
+            - `decoherence_ratio`: Fraction of entangled qubits that decohered before use
             over the number of e2e entanglements generated.
-    """
 
+    """
     json_topology = generate_topology(t_coherence)
 
     set_seed(seed)
@@ -171,7 +169,7 @@ def run_simulation(t_coherence, seed):
         ll_app = node.get_apps(LinkLayer)[0]
         total_etg+=ll_app.etg_count
         total_decohered+=ll_app.decoh_count
-    
+
     e2e_rate = net.get_node("S").get_apps(ProactiveForwarder)[0].e2e_count / sim_duration
 
     return e2e_rate, total_decohered / total_etg if total_etg > 0 else 0
@@ -208,13 +206,13 @@ df = pd.DataFrame(results)
 plt.figure(figsize=(6, 4))
 plt.errorbar(
     df["T_cohere"], df["Mean Rate"], yerr=df["Std Rate"],
-    fmt='o', color='orange', ecolor='orange', capsize=4, label="sim.", linestyle='--'
+    fmt="o", color="orange", ecolor="orange", capsize=4, label="sim.", linestyle="--"
 )
-plt.xscale('log')
+plt.xscale("log")
 plt.xlabel(r"$T_{\mathrm{cohere}}$")
 plt.ylabel("Ent. per second")
 plt.title("E2e rate")
 plt.legend()
-plt.grid(True, which="both", ls='--', lw=0.5)
+plt.grid(True, which="both", ls="--", lw=0.5)
 plt.tight_layout()
 plt.show()

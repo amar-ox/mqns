@@ -1,14 +1,14 @@
 import logging
 
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.network.topology.topo import ClassicTopology
-from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
-from qns.network.topology import LineTopology
-import qns.utils.log as log
-from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
 import numpy as np
 
+from qns.network import QuantumNetwork
+from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
+from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology import LineTopology
+from qns.network.topology.topo import ClassicTopology
+from qns.simulator.simulator import Simulator
+from qns.utils import log
 
 log.logger.setLevel(logging.DEBUG)
 

@@ -18,17 +18,16 @@
 from typing import Dict
 
 
-class Request():
-    """
-    Requests entanglement pairs between a source and a destination.
+class Request:
+    """Requests entanglement pairs between a source and a destination.
     """
 
     def __init__(self, src, dest, attr: Dict = {}) -> None:
-        """
-        Args:
-            src: the source node
-            dest: the destination node
-            attr: other attributions
+        """Args:
+        src: the source node
+        dest: the destination node
+        attr: other attributions
+
         """
         from qns.entity import QNode
         self.src: QNode = src

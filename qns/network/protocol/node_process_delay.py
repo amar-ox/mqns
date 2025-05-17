@@ -16,25 +16,25 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional, Tuple, Union
+
 from qns.entity.node.app import Application
 from qns.entity.node.node import Node
-from qns.simulator.simulator import Simulator
 from qns.simulator.event import Event
+from qns.simulator.simulator import Simulator
 from qns.simulator.ts import Time
 
 
 class NodeProcessDelayApp(Application):
-    """
-    This application will add an addition delay whenever the node received an event.
+    """This application will add an addition delay whenever the node received an event.
     It is used to represent the processing delay on quantum nodes.
     """
-    def __init__(self, delay: float = 0, delay_event_list: Optional[Union[type, Tuple[type]]] = None):
-        """
 
-        Args:
-            delay (float): the processing delay
-            delay_event_list: a list of Event classic list that will add a delay.
-                If `delay_event_list` is None, all events will be added a delay.
+    def __init__(self, delay: float = 0, delay_event_list: Optional[Union[type, Tuple[type]]] = None):
+        """Args:
+        delay (float): the processing delay
+        delay_event_list: a list of Event classic list that will add a delay.
+            If `delay_event_list` is None, all events will be added a delay.
+
         """
         super().__init__()
         self.delay = delay

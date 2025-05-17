@@ -16,10 +16,14 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+from qns.entity.memory.event import (
+           MemoryReadRequestEvent,
+           MemoryReadResponseEvent,
+           MemoryWriteRequestEvent,
+           MemoryWriteResponseEvent,
+)
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.memory.memory_qubit import MemoryQubit
-from qns.entity.memory.event import MemoryReadRequestEvent, MemoryReadResponseEvent, \
-                                    MemoryWriteRequestEvent, MemoryWriteResponseEvent
 
 __all__ = ["QuantumMemory", "MemoryQubit", "MemoryReadRequestEvent", "MemoryReadResponseEvent",
            "MemoryWriteRequestEvent", "MemoryWriteResponseEvent"]

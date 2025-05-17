@@ -16,8 +16,9 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy as np
+
 from qns.models.qubit.const import OPERATOR_PAULI_I
-from qns.models.qubit.errors import QGateStateJointError, OperatorError
+from qns.models.qubit.errors import OperatorError, QGateStateJointError
 
 
 def kron(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -61,8 +62,7 @@ def joint(qubit1, qubit2) -> None:
 
 
 def partial_trace(rho: np.ndarray, idx: int) -> np.ndarray:
-    """
-    Calculate the partial trace
+    """Calculate the partial trace
 
     Args:
         rho: the density matrix
@@ -70,8 +70,8 @@ def partial_trace(rho: np.ndarray, idx: int) -> np.ndarray:
 
     Returns:
         rho_res: the left density matric
-    """
 
+    """
     num_qubit = int(np.log2(rho.shape[0]))
     qubit_axis = [(idx, num_qubit + idx)]
     minus_factor = [(i, 2 * i) for i in range(len(qubit_axis))]

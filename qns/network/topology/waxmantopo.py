@@ -15,31 +15,32 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.app import Application
-from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.entity.node.qnode import QNode
-from typing import Dict, List, Optional, Tuple
-from qns.network.topology import Topology
 import itertools
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
+from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network.topology.topo import Topology
 from qns.utils.rnd import get_rand
 
 
 class WaxmanTopology(Topology):
+    """WaxmanTopology is the random topology generator using Waxman's model.
     """
-    WaxmanTopology is the random topology generator using Waxman's model.
-    """
+
     def __init__(self, nodes_number: int, size: float, alpha: float, beta: float,
                  nodes_apps: List[Application] = [],
                  qchannel_args: Dict = {}, cchannel_args: Dict = {},
                  memory_args: Optional[List[Dict]] = {}):
-        """
-        Args:
-            nodes_number (int): the number of Qnodes
-            size (float): the area size (meter)
-            alpha (float): alpha parameter in Waxman's model
-            beta (float): alpha parameter in Waxman's model
+        """Args:
+        nodes_number (int): the number of Qnodes
+        size (float): the area size (meter)
+        alpha (float): alpha parameter in Waxman's model
+        beta (float): alpha parameter in Waxman's model
+
         """
         super().__init__(nodes_number, nodes_apps, qchannel_args, cchannel_args, memory_args)
         self.size = size
@@ -66,8 +67,7 @@ class WaxmanTopology(Topology):
             tmp_l = np.sqrt((location_table[n1][0] - location_table[n2][0]) ** 2
                             + (location_table[n1][1] - location_table[n2][1]) ** 2)
             distance_table[(n1, n2)] = tmp_l
-            if tmp_l > L:
-                L = tmp_l
+            L = max(L, tmp_l)
 
         for n1, n2 in cb:
             if n1 == n2:

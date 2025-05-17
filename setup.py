@@ -15,22 +15,22 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
-with open("README.md", "r", encoding="utf-8") as fh:
+with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name='qns',
-    author='amar',
+    name="qns",
+    author="amar",
     version="0.0.1",
-    description='A discrete-event simulator for quantum networks',
+    description="A discrete-event simulator for quantum networks",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
     include_package_data=True,
     url="https://github.com/amar-ox/dynamic-qnetsim",
-    exclude_package_data={'docs': ['.gitkeep']},
+    exclude_package_data={"docs": [".gitkeep"]},
     setup_requires=["numpy", "pandas", "twine", "wheel"],
     install_requires=["numpy", "pandas"],
     classifiers=[

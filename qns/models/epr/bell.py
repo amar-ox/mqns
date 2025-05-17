@@ -16,13 +16,13 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
+
 from qns.models.core.backend import QuantumModel
 from qns.models.epr.entanglement import BaseEntanglement
 
 
 class BellStateEntanglement(BaseEntanglement, QuantumModel):
-    """
-    `BellStateEntanglement` is the ideal max entangled qubits. Its fidelity is always 1.
+    """`BellStateEntanglement` is the ideal max entangled qubits. Its fidelity is always 1.
     """
 
     def __init__(self, fidelity: float = 1, name: Optional[str] = None):
@@ -46,25 +46,25 @@ class BellStateEntanglement(BaseEntanglement, QuantumModel):
         return ne
 
     def store_error_model(self, t: Optional[float] = 0, decoherence_rate: Optional[float] = 0, **kwargs):
-        """
-        The default error model for storing this entangled pair in a quantum memory.
+        """The default error model for storing this entangled pair in a quantum memory.
         The default behavior is doing nothing
 
         Args:
             t: the time stored in a quantum memory. The unit it second.
             decoherence_rate (float): the decoherence_rate
             kwargs: other parameters
+
         """
         pass
 
     def transfer_error_model(self, length: float, decoherence_rate: Optional[float] = 0, **kwargs):
-        """
-        The default error model for transmitting this entanglement.
+        """The default error model for transmitting this entanglement.
         The default behavior is doing nothing
 
         Args:
             length (float): the length of the channel
             decoherence_rate (float): the decoherency rate
             kwargs: other parameters
+
         """
         pass

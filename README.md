@@ -1,5 +1,7 @@
 # SimQN++
 
+![Lint](https://github.com/amar-ox/dynamic-qnetsim/actions/workflows/lint.yml/badge.svg)
+
 SimQN++ is based on [SimQN](https://qnlab-ustc.github.io/SimQN/). It is a discrete-event network simulation platform for quantum networks.
 SimQN enables large-scale investigations, including QKD protocols, entanglement distributions protocols, and routing algorithms, resource allocation schemas in quantum networks. For example, users can use SimQN to design routing algorithms for better QKD performance. For more information, please refer to [SimQN's documentation](https://qnlab-ustc.github.io/).
 

@@ -15,25 +15,23 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.cchannel.cchannel import ClassicChannel
-from qns.entity.cchannel.cchannel import RecvClassicPacket
+from qns.entity.cchannel.cchannel import ClassicChannel, RecvClassicPacket
 from qns.entity.node.app import Application
 from qns.entity.node.qnode import QNode
 from qns.network.route.route import RouteImpl
-from qns.simulator.simulator import Simulator
 from qns.simulator.event import Event
+from qns.simulator.simulator import Simulator
 
 
 class ClassicPacketForwardApp(Application):
-    """
-    This application will generate routing table for classic networks
+    """This application will generate routing table for classic networks
     and allow nodes to forward classic packats to the destination.
     """
-    def __init__(self, route: RouteImpl):
-        """
 
-        Args:
-            route (RouteImpl): a route implement
+    def __init__(self, route: RouteImpl):
+        """Args:
+        route (RouteImpl): a route implement
+
         """
         super().__init__()
         self.route = route

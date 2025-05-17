@@ -16,9 +16,9 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 class QStateSizeNotMatchError(Exception):
+    """This error happens when the size of state vector or matrix mismatch occurs
     """
-    This error happens when the size of state vector or matrix mismatch occurs
-    """
+
     pass
 
 
@@ -27,9 +27,9 @@ class QStateQubitNotInStateError(Exception):
 
 
 class OperatorNotMatchError(Exception):
+    """This error happens when the size of state vector or matrix mismatch occurs
     """
-    This error happens when the size of state vector or matrix mismatch occurs
-    """
+
     pass
 
 

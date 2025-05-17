@@ -1,12 +1,13 @@
 from typing import Any, Optional
-from qns.entity.qchannel.losschannel import QubitLossChannel
-from qns.simulator.simulator import Simulator
-from qns.simulator.event import Event, func_to_event
-from qns.simulator.ts import Time
-from qns.models.qubit.qubit import Qubit
-from qns.entity.node.node import QNode
-from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
+
 from qns.entity.node.app import Application
+from qns.entity.node.node import QNode
+from qns.entity.qchannel.losschannel import QubitLossChannel
+from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
+from qns.models.qubit.qubit import Qubit
+from qns.simulator.event import Event, func_to_event
+from qns.simulator.simulator import Simulator
+from qns.simulator.ts import Time
 
 
 class QuantumRecvNode(QNode):
@@ -89,7 +90,7 @@ class RecvApp(Application):
 
     def RecvQubitHandler(self, node, event: Event) -> Optional[bool]:
         recv_time = event.t
-        print("recv_time:{}".format(recv_time))
+        print(f"recv_time:{recv_time}")
 
 
 def test_qchannel_second():

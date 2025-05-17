@@ -15,21 +15,20 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.simulator import Simulator
-from qns.simulator import Event
-from qns.entity import Entity
+from qns.entity.entity import Entity
 from qns.entity.node.app import Application
+from qns.simulator import Event, Simulator
 
 
 class Node(Entity):
+    """Node is a generic node in the quantum network
     """
-    Node is a generic node in the quantum network
-    """
+
     def __init__(self, name: str = None, apps: list[Application] = None):
-        """
-        Args:
-            name (str): the node's name
-            apps (List[Application]): the installing applications.
+        """Args:
+        name (str): the node's name
+        apps (List[Application]): the installing applications.
+
         """
         super().__init__(name=name)
         self.network = None
@@ -39,14 +38,13 @@ class Node(Entity):
             self.apps: list[Application] = []
         else:
             self.apps: list[Application] = apps
-        
+
         # set default timing to ASYNC
         from qns.network.network import TimingModeEnum
         self.timing_mode = TimingModeEnum.ASYNC
 
-    def install(self, simulator: Simulator) -> None: 
-        """
-        Called from Network.install()
+    def install(self, simulator: Simulator) -> None:
+        """Called from Network.install()
         """
         super().install(simulator)
         # initiate sub-entities
@@ -60,12 +58,12 @@ class Node(Entity):
             app.install(self, simulator)
 
     def handle(self, event: Event) -> None:
-        """
-        This function will handle an `Event`.
+        """This function will handle an `Event`.
         This event will be passed to every applications in apps list in order.
 
         Args:
             event (Event): the event that happens on this QNode
+
         """
         for app in self.apps:
             skip = app.handle(self, event)
@@ -73,40 +71,40 @@ class Node(Entity):
                 break
 
     def add_apps(self, app: Application):
-        """
-        Insert an Application into the app list. 
+        """Insert an Application into the app list.
         Called from Topology.build() -> Topology._add_apps()
 
         Args:
             app (Application): the inserting application.
+
         """
         self.apps.append(app)
 
     def get_apps(self, app_type):
-        """
-        Get an Application that is `app_type`
+        """Get an Application that is `app_type`
 
         Args:
             app_type: the class of app_type
+
         """
         return [app for app in self.apps if isinstance(app, app_type)]
 
     def add_cchannel(self, cchannel):
-        """
-        Add a classic channel in this Node
+        """Add a classic channel in this Node
 
         Args:
             cchannel (ClassicChannel): the classic channel
+
         """
         cchannel.node_list.append(self)
         self.cchannels.append(cchannel)
 
     def get_cchannel(self, dst: "Node"):
-        """
-        Get the classic channel that connects to the `dst`
+        """Get the classic channel that connects to the `dst`
 
         Args:
             dst (Node): the destination
+
         """
         for cchannel in self.cchannels:
             if dst in cchannel.node_list and self in cchannel.node_list:
@@ -114,16 +112,16 @@ class Node(Entity):
         return None
 
     def add_network(self, network):
-        """
-        add a network object to this node. 
+        """Add a network object to this node.
         Called from Network.__init__()
 
         Args:
             network (qns.network.network.Network): the network object
+
         """
         self.network = network
         self.timing_mode = network.timing_mode
-        
+
     def handle_sync_signal(self, signal_type) -> None:
         for app in self.apps:
             app.handle_sync_signal(signal_type)

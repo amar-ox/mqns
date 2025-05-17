@@ -15,7 +15,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.network.route.route import RouteImpl, NetworkRouteError
 from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.route.route import NetworkRouteError, RouteImpl
 
 __all__ = ["RouteImpl", "NetworkRouteError", "DijkstraRouteAlgorithm"]

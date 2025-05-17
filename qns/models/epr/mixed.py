@@ -16,25 +16,25 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import List, Optional
+
+import numpy as np
+
 from qns.models.core.backend import QuantumModel
 from qns.models.epr.entanglement import BaseEntanglement
 from qns.models.qubit.const import QUBIT_STATE_0, QUBIT_STATE_P
 from qns.models.qubit.qubit import QState, Qubit
-import numpy as np
-
 from qns.utils.rnd import get_rand
 
 
 class MixedStateEntanglement(BaseEntanglement, QuantumModel):
-    """
-    `MixedStateEntanglement` is a pair of entangled qubits in mixed State with a hidden-variable.
+    """`MixedStateEntanglement` is a pair of entangled qubits in mixed State with a hidden-variable.
     rho = A * Phi^+ + B * Psi^+ + C * Psi^- + D * Phi^-
     """
+
     def __init__(self, fidelity: float = 1, b: Optional[float] = None,
                  c: Optional[float] = None, d: Optional[float] = None,
                  name: Optional[str] = None):
-        """
-        generate an entanglement with certain fidelity
+        """Generate an entanglement with certain fidelity
 
         Args:
             fidelity (float): the fidelity, equals to the probability of Phi^+
@@ -42,6 +42,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
             c (float): probability of Psi^-
             d (float): probability of Phi^-
             name (str): the entanglement name
+
         """
         self.fidelity = fidelity
         self.b = b if b is not None else (1-fidelity)/3
@@ -53,8 +54,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
 
     @property
     def a(self) -> float:
-        """
-        a equals to the fidelity
+        """A equals to the fidelity
         """
         return self.fidelity
 
@@ -71,21 +71,21 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
         self.d = self.d/total
 
     def swapping(self, epr: "MixedStateEntanglement", name: Optional[str] = None, ps: float = 1) -> "MixedStateEntanglement":
-        """
-        Use `self` and `epr` to perfrom swapping and distribute a new entanglement
+        """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
         Args:
             epr (MixedEntanglement): another entanglement
             name (str): the name of the new entanglement
         Returns:
             the new distributed entanglement
+
         """
         ne = MixedStateEntanglement(name=name)
         if self.is_decoherenced or epr.is_decoherenced:
             return None
         epr.is_decoherenced = True
         self.is_decoherenced = True
-        
+
         r = get_rand()
         if r > ps:              # swap failed
             return None
@@ -98,8 +98,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
         return ne
 
     def distillation(self, epr: "MixedStateEntanglement", name: Optional[str] = None):
-        """
-        Use `self` and `epr` to perfrom distillation and distribute a new entanglement.
+        """Use `self` and `epr` to perfrom distillation and distribute a new entanglement.
         Using BBPSSW protocol.
 
         Args:
@@ -107,6 +106,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
             name (str): the name of the new entanglement
         Returns:
             the new distributed entanglement
+
         """
         ne = MixedStateEntanglement()
         if self.is_decoherenced or epr.is_decoherenced:
@@ -129,8 +129,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
         return ne
 
     def store_error_model(self, t: Optional[float] = 0, decoherence_rate: Optional[float] = 0, **kwargs):
-        """
-        The default error model for storing this entangled pair in a quantum memory.
+        """The default error model for storing this entangled pair in a quantum memory.
         The default behavior is:
             a = 0.25 + (a-0.25)*e^{decoherence_rate*t}
             b = 0.25 + (b-0.25)*e^{decoherence_rate*t}
@@ -141,6 +140,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
             t: the time stored in a quantum memory. The unit it second.
             decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time.
             kwargs: other parameters
+
         """
         self.a = 0.25 + (self.a-0.25) * np.exp(-decoherence_rate * t)
         self.b = 0.25 + (self.b-0.25) * np.exp(-decoherence_rate * t)
@@ -149,8 +149,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
         self.normalized()
 
     def transfer_error_model(self, length: float, decoherence_rate: Optional[float] = 0, **kwargs):
-        """
-        The default error model for transmitting this entanglement.
+        """The default error model for transmitting this entanglement.
         The success possibility of transmitting is:
             a = 0.25 + (a-0.25)*e^{decoherence_rate*length}
             b = 0.25 + (b-0.25)*e^{decoherence_rate*length}
@@ -161,6 +160,7 @@ class MixedStateEntanglement(BaseEntanglement, QuantumModel):
             length (float): the length of the channel
             decoherence_rate (float): the decoherency rate
             kwargs: other parameters
+
         """
         self.a = 0.25 + (self.a-0.25) * np.exp(-decoherence_rate * length)
         self.b = 0.25 + (self.b-0.25) * np.exp(-decoherence_rate * length)

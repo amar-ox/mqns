@@ -17,33 +17,32 @@
 
 from typing import Callable, List, Optional, Tuple
 
-from qns.simulator.simulator import Simulator
 from qns.simulator import Event
+from qns.simulator.simulator import Simulator
 
 
-class Application(object):
+class Application:
+    """Application can be deployed on the quantum nodes.
     """
-    Application can be deployed on the quantum nodes.
-    """
+
     def __init__(self):
         self._simulator = None
         self._node = None
         self._dispatch_dict: List[Tuple[List, List, Callable]] = []
 
     def install(self, node, simulator: Simulator):
-        """
-        install initial events for this Node. Called from Node.install()
+        """Install initial events for this Node. Called from Node.install()
 
         Args:
             node (Node): the node that will handle this event
             simulator (Simulator): the simulator
+
         """
         self._simulator = simulator
         self._node = node
 
     def handle(self, node, event: Event) -> Optional[bool]:
-        """
-        process the event on the node.
+        """Process the event on the node.
 
         Args:
             node (Node): the node that will handle this event
@@ -51,6 +50,7 @@ class Application(object):
 
         Return:
             skip (bool, None): if skip is True, further applications will not handle this event
+
         """
         return self._dispatch(node, event)
 
@@ -79,8 +79,7 @@ class Application(object):
         return False
 
     def add_handler(self, handler, EventTypeList: List = [], ByList: List = []):
-        """
-        Add a handler function to the dispather.
+        """Add a handler function to the dispather.
 
         Args:
             handler: The handler to process the event.
@@ -88,27 +87,28 @@ class Application(object):
             EventTypeList: a list of Event Class Type. An empty list meaning to match all events.
             ByList: a list of Entities, QNodes or Applications, that generates this event.
                 An empty list meaning to match all entities.
+
         """
         elem = (EventTypeList, ByList, handler)
         self._dispatch_dict.append(elem)
 
     def get_node(self):
-        """
-        get the node that runs this application
+        """Get the node that runs this application
 
         Returns:
             the quantum node
+
         """
         return self._node
 
     def get_simulator(self):
-        """
-        get the simulator
+        """Get the simulator
 
         Returns:
             the simulator
+
         """
         return self._simulator
-    
+
     def handle_sync_signal(self, signal_type):
         pass

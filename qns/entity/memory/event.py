@@ -17,6 +17,7 @@
 
 
 from typing import Any
+
 from qns.entity.node.qnode import QNode
 from qns.models.core.backend import QuantumModel
 from qns.simulator.event import Event
@@ -24,9 +25,9 @@ from qns.simulator.ts import Time
 
 
 class MemoryReadRequestEvent(Event):
+    """``MemoryReadRequestEvent`` is the event that request a memory read
     """
-    ``MemoryReadRequestEvent`` is the event that request a memory read
-    """
+
     def __init__(self, memory, key: QuantumModel | str,
                  t: Time | None = None, name: str | None = None, by: Any | None = None):
         super().__init__(t=t, name=name, by=by)
@@ -38,9 +39,9 @@ class MemoryReadRequestEvent(Event):
 
 
 class MemoryReadResponseEvent(Event):
+    """``MemoryReadResponseEvent`` is the event that returns the memory read result
     """
-    ``MemoryReadResponseEvent`` is the event that returns the memory read result
-    """
+
     def __init__(self, node: QNode, result: QuantumModel | None = None,
                  request: MemoryReadRequestEvent = None, t: Time | None = None, name: str | None = None,
                  by: Any | None = None):
@@ -54,9 +55,9 @@ class MemoryReadResponseEvent(Event):
 
 
 class MemoryWriteRequestEvent(Event):
+    """``MemoryWriteRequestEvent`` is the event that request a memory write
     """
-    ``MemoryWriteRequestEvent`` is the event that request a memory write
-    """
+
     def __init__(self, memory, qubit: QuantumModel,
                  t: Time | None = None, name: str | None = None, by: Any | None = None):
         super().__init__(t=t, name=name, by=by)
@@ -68,9 +69,9 @@ class MemoryWriteRequestEvent(Event):
 
 
 class MemoryWriteResponseEvent(Event):
+    """``MemoryWriteResponseEvent`` is the event that returns the memory write result
     """
-    ``MemoryWriteResponseEvent`` is the event that returns the memory write result
-    """
+
     def __init__(self, node: QNode, result: QuantumModel | None = None,
                  request: MemoryReadRequestEvent = None, t: Time | None = None, name: str | None = None,
                  by: Any | None = None):

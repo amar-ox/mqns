@@ -16,6 +16,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import List, Optional, Union
+
 from qns.entity.node.qnode import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
 from qns.models.delay.constdelay import ConstantDelayModel
@@ -23,29 +24,29 @@ from qns.models.delay.delay import DelayModel
 
 
 class QubitLossChannel(QuantumChannel):
-    """
-    QubitLossChannel is the channel that can loss qubits.
+    """QubitLossChannel is the channel that can loss qubits.
 
     The loss rate is: 1-(1-p_init)*10^{- attenuation_rate * length / 10}
     """
+
     def __init__(self, name: str = None, node_list: List[QNode] = [],
                  bandwidth: int = 0, delay: Union[float, DelayModel] = 0, p_init: float = 0, attenuation_rate: float = 0,
                  max_buffer_size: int = 0, length: float = 0, decoherence_rate: Optional[float] = 0,
                  transfer_error_model_args: dict = {}):
-        """
-        Args:
-            name (str): the name of this channel
-            node_list (List[QNode]): a list of QNodes that it connects to
-            bandwidth (int): the qubit per second on this channel. 0 represents unlimited
-            delay (float): the time delay for transmitting a packet, or a ``DelayModel``
-            p_init: the probability of loss a qubit immediately
-            attenuation_rate (float): the attenuation rate of the channel, in Db
-            max_buffer_size (int): the max buffer size.
-                If it is full, the next coming packet will be dropped. 0 represents unlimited.
+        """Args:
+        name (str): the name of this channel
+        node_list (List[QNode]): a list of QNodes that it connects to
+        bandwidth (int): the qubit per second on this channel. 0 represents unlimited
+        delay (float): the time delay for transmitting a packet, or a ``DelayModel``
+        p_init: the probability of loss a qubit immediately
+        attenuation_rate (float): the attenuation rate of the channel, in Db
+        max_buffer_size (int): the max buffer size.
+            If it is full, the next coming packet will be dropped. 0 represents unlimited.
 
-            length (float): the length of this channel
-            decoherence_rate: the decoherence rate that will pass to the transfer_error_model
-            transfer_error_model_args (dict): the parameters that pass to the transfer_error_model
+        length (float): the length of this channel
+        decoherence_rate: the decoherence rate that will pass to the transfer_error_model
+        transfer_error_model_args (dict): the parameters that pass to the transfer_error_model
+
         """
         super().__init__(name=name)
         self.node_list = node_list.copy()

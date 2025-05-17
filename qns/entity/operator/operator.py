@@ -16,6 +16,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Callable, List, Optional, Union
+
 from qns.entity.entity import Entity
 from qns.entity.node.qnode import QNode
 from qns.models.delay.constdelay import ConstantDelayModel
@@ -25,8 +26,7 @@ from qns.simulator.simulator import Simulator
 
 
 class QuantumOperator(Entity):
-    """
-    Quantum operator can perfrom quantum operation or measurements on qubits.
+    """Quantum operator can perfrom quantum operation or measurements on qubits.
     It has two modes:
         Synchronous mode, users can use the `operate` function to operate qubits directly without delay
         Asynchronous mode, users will use events to operate quantum operations asynchronously
@@ -34,13 +34,12 @@ class QuantumOperator(Entity):
 
     def __init__(self, name: str = None, node: QNode = None,
                  gate: Callable[..., Union[None, int, List[int]]] = None, delay: Union[float, DelayModel] = 0):
-        """
+        """Args:
+        name (str): its name
+        node (QNode): the quantum node that equips this memory
+        gate: the quantum circuit where the input is the operating qubits and returns the measure result
+        delay (Union[float,DelayModel]): the delay time in second for this operation or a ``DelayModel``
 
-        Args:
-            name (str): its name
-            node (QNode): the quantum node that equips this memory
-            gate: the quantum circuit where the input is the operating qubits and returns the measure result
-            delay (Union[float,DelayModel]): the delay time in second for this operation or a ``DelayModel``
         """
         super().__init__(name=name)
         self.node = node
@@ -62,19 +61,18 @@ class QuantumOperator(Entity):
             self._simulator.add_event(response)
 
     def set_own(self, node: QNode):
-        """
-        set the owner of this quantum operator
+        """Set the owner of this quantum operator
         """
         self.node = node
 
     def operate(self, *qubits) -> Optional[Union[int, List[int]]]:
-        """
-        operate on qubits and return the measure result
+        """Operate on qubits and return the measure result
 
         Args:
             qubits: the operating qubits
 
         Returns:
             the measure result
+
         """
         return self.gate(*qubits)

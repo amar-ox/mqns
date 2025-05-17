@@ -16,21 +16,21 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import heapq
-from qns.simulator.ts import Time
+
 from qns.simulator.event import Event
+from qns.simulator.ts import Time
 
 
-class DefaultEventPool(object):
-    """
-    The default implement of the event pool
+class DefaultEventPool:
+    """The default implement of the event pool
     """
 
     def __init__(self, ts: Time, te: Time):
-        '''
-        Args:
-            ts: the start time
-            te: the end time
-        '''
+        """Args:
+        ts: the start time
+        te: the end time
+
+        """
         self.ts = ts
         self.te = te
         self.tc = ts
@@ -38,20 +38,19 @@ class DefaultEventPool(object):
 
     @property
     def current_time(self) -> Time:
-        '''
-        Get the current time
-        '''
+        """Get the current time
+        """
         return self.tc
 
     def add_event(self, event: Event) -> bool:
-        '''
-        Insert an event into the pool
+        """Insert an event into the pool
 
         Args:
             event (Event): The inserting event
         Returns:
             if the event is inserted successfully
-        '''
+
+        """
         if event.t < self.tc or event.t > self.te:
             return False
 
@@ -59,12 +58,12 @@ class DefaultEventPool(object):
         return True
 
     def next_event(self) -> Event:
-        '''
-        Get the next event to be executed
+        """Get the next event to be executed
 
         Returns:
             The next event to be executed
-        '''
+
+        """
         try:
             event: Event = heapq.heappop(self.event_list)
             self.tc = event.t

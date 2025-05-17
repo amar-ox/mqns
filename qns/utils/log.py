@@ -29,11 +29,11 @@ logger.addHandler(handle)
 
 
 def install(s):
-    """
-    Install the logger to the simulator
+    """Install the logger to the simulator
 
     Args:
         s (Simulator): the simulator
+
     """
     logger._simulator = s
 

@@ -17,15 +17,16 @@
 
 import random
 from typing import Optional
+
 import numpy as np
 
 
 def set_seed(seed: Optional[int] = None):
-    """
-    Set a seed for random generator
+    """Set a seed for random generator
 
     Args:
         seed (int): the seed
+
     """
     if seed is None:
         return
@@ -34,23 +35,23 @@ def set_seed(seed: Optional[int] = None):
 
 
 def get_rand(low: float = 0, high: float = 1) -> float:
-    """
-    Get a random number from [low, high)
+    """Get a random number from [low, high)
 
     Args:
         low (int): the low bound
         high (int): the high bound
+
     """
     return low + np.random.random() * (high - low)
 
 
 def get_randint(low: int, high: int) -> float:
-    """
-    Get a random integer from [low, high]
+    """Get a random integer from [low, high]
 
     Args:
         low (int): the low bound
         high (int): the high bound
+
     """
     if low != int(low):
         raise ValueError("input low")
@@ -60,11 +61,11 @@ def get_randint(low: int, high: int) -> float:
 
 
 def get_choice(a):
-    """
-    return an random element from a list
+    """Return an random element from a list
 
     Args:
         a: a iterable object
+
     """
     return a[get_randint(0, len(a)-1)]
 

@@ -18,28 +18,34 @@
 
 from types import MethodType
 from typing import Optional
+
 import numpy as np
+
 from qns.models.qubit.const import QUBIT_STATE_0
-from qns.models.qubit.decoherence import PrefectMeasureErrorModel, PrefectOperateErrorModel, PrefectStorageErrorModel, \
-        PrefectTransferErrorModel
+from qns.models.qubit.decoherence import (
+    PrefectMeasureErrorModel,
+    PrefectOperateErrorModel,
+    PrefectStorageErrorModel,
+    PrefectTransferErrorModel,
+)
 from qns.models.qubit.qubit import Qubit
 
 
-class QubitFactory():
+class QubitFactory:
+    """QubitFactory is the factory class for building qubits with special error models.
     """
-    QubitFactory is the factory class for building qubits with special error models.
-    """
+
     def __init__(self, operate_decoherence_rate: float = 0, measure_decoherence_rate: float = 0,
                  store_error_model=PrefectStorageErrorModel, transfer_error_model=PrefectTransferErrorModel,
                  operate_error_model=PrefectOperateErrorModel, measure_error_model=PrefectMeasureErrorModel) -> None:
-        """
-        Args:
-            operate_decoherence_rate (float): the operate decoherence rate
-            measure_decoherence_rate (float): the measure decoherence rate
-            store_error_model: a callable function for handing errors in quantum memory
-            transfer_error_model: a callable function for handing errors in quantum channel
-            operate_error_model: a callable function for handing errors in operating quantum gates
-            measure_error_model: a callable function for handing errors in measuing the status
+        """Args:
+        operate_decoherence_rate (float): the operate decoherence rate
+        measure_decoherence_rate (float): the measure decoherence rate
+        store_error_model: a callable function for handing errors in quantum memory
+        transfer_error_model: a callable function for handing errors in quantum channel
+        operate_error_model: a callable function for handing errors in operating quantum gates
+        measure_error_model: a callable function for handing errors in measuing the status
+
         """
         self.operate_decoherence_rate = operate_decoherence_rate
         self.measure_decoherence_rate = measure_decoherence_rate
@@ -51,12 +57,12 @@ class QubitFactory():
     def __call__(self, state=QUBIT_STATE_0, rho: np.ndarray = None,
                  operate_decoherence_rate: Optional[float] = None, measure_decoherence_rate: Optional[float] = None,
                  name: Optional[str] = None) -> Qubit:
-        """
-        Args:
-            state (list): the initial state of a qubit, default is |0> = [1, 0]^T
-            operate_decoherence_rate (float): the operate decoherence rate
-            measure_decoherence_rate (float): the measure decoherence rate
-            name (str): the qubit's name
+        """Args:
+        state (list): the initial state of a qubit, default is |0> = [1, 0]^T
+        operate_decoherence_rate (float): the operate decoherence rate
+        measure_decoherence_rate (float): the measure decoherence rate
+        name (str): the qubit's name
+
         """
         if operate_decoherence_rate is None:
             operate_decoherence_rate = self.operate_decoherence_rate

@@ -15,8 +15,10 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import pandas as pd
 from typing import Any, Callable, Optional
+
+import pandas as pd
+
 from qns.entity.entity import Entity
 from qns.simulator.event import Event
 from qns.simulator.simulator import Simulator
@@ -24,9 +26,9 @@ from qns.simulator.ts import Time
 
 
 class MonitorEvent(Event):
+    """the event that notify the monitor to write down network status
     """
-    the event that notify the monitor to write down network status
-    """
+
     def __init__(self, t: Optional[Time], monitor,
                  name: Optional[str] = None, by: Optional[Any] = None):
         super().__init__(t, name, by)
@@ -38,12 +40,12 @@ class MonitorEvent(Event):
 
 class Monitor(Entity):
     def __init__(self, name: Optional[str] = None, network=None) -> None:
-        """
-        Monitor is a virtual entity that helps users to collect network status.
+        """Monitor is a virtual entity that helps users to collect network status.
 
         Args:
             name (str): the monitor's name
             network (Optional[QuantumNetwork]): a optional parameter, the quantum network.
+
         """
         super().__init__(name=name)
         self.network = network
@@ -94,18 +96,17 @@ class Monitor(Entity):
         self.data = pd.concat([self.data, record_pd], ignore_index=True)
 
     def get_data(self):
-        """
-        Get the collected data.
+        """Get the collected data.
 
         Returns:
             the collected data, as a ``pd.DataFrame``.
+
         """
         return self.data
 
     def add_attribution(self, name: str,
                         calculate_func: Callable[[Simulator, Any, Optional[Event]], Any]) -> None:
-        """
-        Set an attribution that will be recorded. For example, an attribution could be the throughput, or the fidelity.
+        """Set an attribution that will be recorded. For example, an attribution could be the throughput, or the fidelity.
 
         Args:
             name (str): the column's name, e.g., fidelity, throughput, time ...
@@ -121,12 +122,12 @@ class Monitor(Entity):
 
             # get the 'name' attribution of the last node
             m.add_attribution("count", lambda s,network,e: network.nodes[-1].name)
+
         """
         self.attributions.append((name, calculate_func))
 
     def at_start(self) -> None:
-        """
-        Watch the initial status before the simulation starts.
+        """Watch the initial status before the simulation starts.
 
         Usage:
             m.at_start()
@@ -134,8 +135,7 @@ class Monitor(Entity):
         self.watch_at_start = True
 
     def at_finish(self) -> None:
-        """
-        Watch the final status after the simulation.
+        """Watch the final status after the simulation.
 
         Usage:
             m.at_finish()
@@ -143,8 +143,7 @@ class Monitor(Entity):
         self.watch_at_finish = True
 
     def at_period(self, period_time: float) -> None:
-        """
-        Watch network status at a constant period.
+        """Watch network status at a constant period.
 
         Args:
             period_time (float): the period of watching network status [s]
@@ -152,13 +151,13 @@ class Monitor(Entity):
         Usage:
             # record network status every 3 seconds.
             m.at_period(3)
+
         """
         assert (period_time > 0)
         self.watch_period.append(period_time)
 
     def at_event(self, event_type) -> None:
-        """
-        Watch network status whenever the event happends
+        """Watch network status whenever the event happends
 
         Args:
             event_type (Event): the watching event
@@ -166,5 +165,6 @@ class Monitor(Entity):
         Usage:
             # record network status when a node receives a qubit
             m.at_event(RecvQubitPacket)
+
         """
         self.watch_event.append(event_type)

@@ -15,7 +15,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.operator.operator import QuantumOperator
 from qns.entity.operator.event import OperateRequestEvent, OperateResponseEvent
+from qns.entity.operator.operator import QuantumOperator
 
 __all__ = ["QuantumOperator", "OperateRequestEvent", "OperateResponseEvent"]

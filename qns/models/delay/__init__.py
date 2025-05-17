@@ -15,9 +15,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.models.delay.delay import DelayModel
 from qns.models.delay.constdelay import ConstantDelayModel
-from qns.models.delay.uniformdelay import UniformDelayModel
+from qns.models.delay.delay import DelayModel
 from qns.models.delay.normaldelay import NormalDelayModel
+from qns.models.delay.uniformdelay import UniformDelayModel
 
 __all__ = ["DelayModel", "ConstantDelayModel", "UniformDelayModel", "NormalDelayModel"]

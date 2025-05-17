@@ -15,17 +15,18 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.qchannel.qchannel import QuantumChannel
 from qns.entity.cchannel.cchannel import ClassicChannel
-from qns.entity.node.qnode import QNode
-from qns.entity.node.controller import Controller
-from qns.network.topology import Topology
 from qns.entity.memory.memory import QuantumMemory
+from qns.entity.node.controller import Controller
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network.topology.topo import Topology
+
 
 class CustomTopology(Topology):
+    """TopologyCreator processed the topology dict.
     """
-    TopologyCreator processed the topology dict.
-    """
+
     def __init__(self, topo: dict = {}):
         super().__init__(0)
         self.topo = topo
@@ -35,46 +36,46 @@ class CustomTopology(Topology):
         qcl: list[QuantumChannel] = []
 
         # Create quantum nodes
-        for node in self.topo['qnodes']:
-            qn = QNode(node['name'])
-            for app in node['apps']:
+        for node in self.topo["qnodes"]:
+            qn = QNode(node["name"])
+            for app in node["apps"]:
                 qn.add_apps(app)
-            
+
             # Assign a new memory
-            memory_args = node['memory']
+            memory_args = node["memory"]
             m = QuantumMemory(name=qn.name, node=qn, **memory_args)
             qn.set_memory(m)
 
             qnl.append(qn)
 
         # Create quantum channels and assign memories with proper capacity
-        for ch in self.topo['qchannels']:
-            link = QuantumChannel(name=f"q_{ch['node1']},{ch['node2']}", **ch['parameters'])
+        for ch in self.topo["qchannels"]:
+            link = QuantumChannel(name=f"q_{ch['node1']},{ch['node2']}", **ch["parameters"])
             qcl.append(link)
-            
+
             for qn in qnl:
-                if qn.name == ch['node1'] or qn.name == ch['node2']:
+                if qn.name == ch["node1"] or qn.name == ch["node2"]:
                     # Attach quantum channel to nodes
                     qn.add_qchannel(link)
 
-                    for _ in range(ch['capacity']):
+                    for _ in range(ch["capacity"]):
                         if qn.memory.assign(link) == -1:
                             raise RuntimeError("Not enough qubits to assignment")
 
         if "controller" in self.topo:
-            self.controller = Controller(name=self.topo['controller']['name'], apps=self.topo['controller']['apps'])
-        
+            self.controller = Controller(name=self.topo["controller"]["name"], apps=self.topo["controller"]["apps"])
+
         self.qnl = qnl
         return qnl, qcl
-    
+
     def add_cchannels(self):
         ccl: list[ClassicChannel] = []
-        for ch in self.topo['cchannels']:
-            link = ClassicChannel(name=f"c_{ch['node1']},{ch['node2']}", **ch['parameters'])
+        for ch in self.topo["cchannels"]:
+            link = ClassicChannel(name=f"c_{ch['node1']},{ch['node2']}", **ch["parameters"])
             ccl.append(link)
 
             for node in self.qnl + [self.controller]:
-                if node and (node.name == ch['node1'] or node.name == ch['node2']):
+                if node and (node.name == ch["node1"] or node.name == ch["node2"]):
                     # Attach classic channel to nodes
                     node.add_cchannel(link)
 

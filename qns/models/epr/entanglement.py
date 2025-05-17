@@ -17,22 +17,22 @@
 
 import numpy as np
 
-from qns.models.qubit.qubit import Qubit, QState
-from qns.models.qubit.gate import H, X, Y, Z, CNOT, U
 from qns.models.qubit.const import OPERATOR_PAULI_I, QUBIT_STATE_0, QUBIT_STATE_P
+from qns.models.qubit.gate import CNOT, H, U, X, Y, Z
+from qns.models.qubit.qubit import QState, Qubit
 
 
-class BaseEntanglement(object):
+class BaseEntanglement:
+    """This is the base entanglement model
     """
-    This is the base entanglement model
-    """
+
     def __init__(self, fidelity: float = 1, name: str | None = None):
-        """
-        generate an entanglement with certain fidelity
+        """Generate an entanglement with certain fidelity
 
         Args:
             fidelity (float): the fidelity
             name (str): the entanglement name
+
         """
         self.fidelity = fidelity
         self.name = name
@@ -44,37 +44,37 @@ class BaseEntanglement(object):
 
     def set_decoherenced(self, value: bool):
         self.is_decoherenced = value
-        
+
 
     def swapping(self, epr: "BaseEntanglement", name: str | None = None, ps: float = 1) -> "BaseEntanglement":
-        """
-        Use `self` and `epr` to perfrom swapping and distribute a new entanglement
+        """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
         Args:
             epr (BaseEntanglement): another entanglement
         Returns:
             the new distributed entanglement
+
         """
         raise NotImplementedError
 
     def distillation(self, epr: "BaseEntanglement") -> "BaseEntanglement":
-        """
-        Use `self` and `epr` to perfrom distillation and distribute a new entanglement
+        """Use `self` and `epr` to perfrom distillation and distribute a new entanglement
 
         Args:
             epr (BaseEntanglement): another entanglement
         Returns:
             the new distributed entanglement
+
         """
         raise NotImplementedError
 
     def to_qubits(self) -> list[Qubit]:
-        """
-        Transport the entanglement into a pair of qubits based on the fidelity.
+        """Transport the entanglement into a pair of qubits based on the fidelity.
         Suppose the first qubit is [1/sqrt(2), 1/sqrt(2)].H
 
         Returns:
             A list of two qubits
+
         """
         if self.is_decoherenced:
             q0 = Qubit(state=QUBIT_STATE_P, name="q0")
@@ -91,13 +91,13 @@ class BaseEntanglement(object):
         return [q0, q1]
 
     def teleportion(self, qubit: Qubit) -> Qubit:
-        """
-        Use `self` and `epr` to perfrom distillation and distribute a new entanglement
+        """Use `self` and `epr` to perfrom distillation and distribute a new entanglement
 
         Args:
             epr (BaseEntanglement): another entanglement
         Returns:
             the new distributed entanglement
+
         """
         q1, q2 = self.to_qubits()
         CNOT(qubit, q1)

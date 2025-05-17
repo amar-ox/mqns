@@ -16,19 +16,20 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
+
 from qns.models.delay.delay import DelayModel
 from qns.utils.rnd import get_normal
 
 
 class NormalDelayModel(DelayModel):
     def __init__(self, mean_delay: float = 0, std: float = 0, name: Optional[str] = None) -> None:
-        """
-        A random delay from normal distribution X~N(mean_delay, std^2)
+        """A random delay from normal distribution X~N(mean_delay, std^2)
 
         Args:
             name (str): the name of this delay model
             mean_delay (float): the mean of the time delay [s]
             std (float): the standand deviation [s]
+
         """
         super().__init__(name)
         self._mean_delay = mean_delay

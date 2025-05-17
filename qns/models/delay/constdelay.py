@@ -16,24 +16,25 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
+
 from qns.models.delay.delay import DelayModel
 
 
 class ConstantDelayModel(DelayModel):
     def __init__(self, delay: float = 0, name: Optional[str] = None) -> None:
-        """
-        A constant delay model
+        """A constant delay model
 
         Args:
             name (str): the name of this delay model
             delay (float): the time delay [s]
+
         """
         super().__init__(name)
         self._delay = delay
 
     def calculate(self) -> float:
-        """
-        Return:
-            the time delay [s]
+        """Return:
+        the time delay [s]
+
         """
         return self._delay

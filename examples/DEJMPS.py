@@ -1,11 +1,11 @@
-from qns.models.epr.mixed import MixedStateEntanglement
-from qns.models.qubit.gate import RX, CNOT
 import numpy as np
+
+from qns.models.epr.mixed import MixedStateEntanglement
+from qns.models.qubit.gate import CNOT, RX
 
 
 def DEJMPS(q1, q2, q3, q4):
-    """
-    The BEJMPS distillation protocol
+    """The BEJMPS distillation protocol
     """
     RX(q1, np.pi/2)
     RX(q2, np.pi/2)

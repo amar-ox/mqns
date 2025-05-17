@@ -18,19 +18,18 @@
 
 import logging
 
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork, TimingModeEnum
-import qns.utils.log as log
-from qns.utils.rnd import set_seed
-from qns.network.protocol.proactive_forwarder import ProactiveForwarder
-from qns.network.protocol.link_layer import LinkLayer
-from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
-from qns.network.topology.customtopo import CustomTopology
-
 import numpy as np
 import pandas as pd
 
+from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network.protocol.link_layer import LinkLayer
+from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
+from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology.customtopo import CustomTopology
+from qns.simulator.simulator import Simulator
+from qns.utils import log
+from qns.utils.rnd import set_seed
 
 log.logger.setLevel(logging.DEBUG)
 
@@ -66,7 +65,7 @@ def generate_topology(t_coherence):
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits,
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder()]
@@ -77,7 +76,7 @@ def generate_topology(t_coherence):
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits*2,
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder(ps=p_swap)]
@@ -88,7 +87,7 @@ def generate_topology(t_coherence):
                 "decoherence_rate": 1 / t_coherence,
                 "capacity": channel_qubits,
             },
-            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity, 
+            "apps": [LinkLayer(attempt_rate=entg_attempt_rate, init_fidelity=init_fidelity,
                                  alpha_db_per_km=fiber_alpha,
                                  eta_d=eta_d, eta_s=eta_s,
                                  frequency=frequency), ProactiveForwarder()]

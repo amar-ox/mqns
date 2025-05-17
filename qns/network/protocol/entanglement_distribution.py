@@ -15,8 +15,8 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Dict, Optional
 import uuid
+from typing import Dict, Optional
 
 from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
 from qns.entity.memory.memory import QuantumMemory
@@ -24,16 +24,16 @@ from qns.entity.node.app import Application
 from qns.entity.node.qnode import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
 from qns.models.core.backend import QuantumModel
+from qns.models.epr import WernerStateEntanglement
+from qns.network import QuantumNetwork
 from qns.network.requests import Request
 from qns.simulator.event import Event, func_to_event
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
-from qns.models.epr import WernerStateEntanglement
 from qns.simulator.ts import Time
-import qns.utils.log as log
+from qns.utils import log
 
 
-class Transmit():
+class Transmit:
     def __init__(self, id: str, src: QNode, dst: QNode,
                  first_epr_name: Optional[str] = None, second_epr_name: Optional[str] = None):
         self.id = id

@@ -1,8 +1,10 @@
-from qns.entity.memory.memory import QuantumMemory
-from qns.models.epr import WernerStateEntanglement
-from qns.entity.node.qnode import QNode
-from qns.simulator.simulator import Simulator
 import numpy as np
+
+from qns.entity.memory.memory import QuantumMemory
+from qns.entity.node.qnode import QNode
+from qns.models.epr import WernerStateEntanglement
+from qns.simulator.simulator import Simulator
+
 
 class ErrorEntanglement(WernerStateEntanglement):
     def store_error_model(self, t: float, **kwargs):
@@ -10,7 +12,7 @@ class ErrorEntanglement(WernerStateEntanglement):
         t_coh = kwargs.get("t_coh", 1)
         self.w = self.w * np.exp(- 1 / t_coh)
         print("xxx")
-        
+
 n1 = QNode("n1")
 
 # memory error attributions: coherence time is 1 second

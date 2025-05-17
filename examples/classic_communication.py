@@ -1,10 +1,10 @@
 
-from qns.simulator.simulator import Simulator
-from qns.simulator.event import Event
+from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
-from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
 from qns.simulator import func_to_event
+from qns.simulator.event import Event
+from qns.simulator.simulator import Simulator
 
 
 # the send application

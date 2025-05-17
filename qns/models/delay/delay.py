@@ -19,20 +19,20 @@
 from typing import Optional
 
 
-class DelayModel():
+class DelayModel:
+    """The model for delay in storing, operating and transmitting qubits or eprs.
     """
-    The model for delay in storing, operating and transmitting qubits or eprs.
-    """
+
     def __init__(self, name: Optional[str] = None) -> None:
-        """
-        Args:
-            name (str): the name of this delay model
+        """Args:
+        name (str): the name of this delay model
+
         """
         self.name = name
 
     def calculate(self) -> float:
-        """
-        Return:
-            the time delay in second, default is 0
+        """Return:
+        the time delay in second, default is 0
+
         """
         return 0

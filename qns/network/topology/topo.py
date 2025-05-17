@@ -15,16 +15,16 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.qnode import QNode
+import copy
+import itertools
+from enum import Enum
+from typing import Dict, List, Optional, Tuple
+
 from qns.entity.cchannel.cchannel import ClassicChannel
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
-
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
-import itertools
-import copy
 
 
 class ClassicTopology(Enum):
@@ -33,21 +33,20 @@ class ClassicTopology(Enum):
     Follow = 3
 
 
-class Topology(object):
-    """
-    Topology is a factory for QuantumNetwork
+class Topology:
+    """Topology is a factory for QuantumNetwork
     """
 
     def __init__(self, nodes_number: int, nodes_apps: List[Application] = [],
                  qchannel_args: Dict = {}, cchannel_args: Dict = {},
                  memory_args: Optional[List[Dict]] = {}):
-        """
-        Args:
-            nodes_number: the number of Qnodes
-            nodes_apps: apps will be installed to all nodes
-            qchannel_args: default quantum channel arguments
-            cchannel_args: default channel channel arguments
-            memory_args: default quantum memory arguments
+        """Args:
+        nodes_number: the number of Qnodes
+        nodes_apps: apps will be installed to all nodes
+        qchannel_args: default quantum channel arguments
+        cchannel_args: default channel channel arguments
+        memory_args: default quantum memory arguments
+
         """
         self.nodes_number = nodes_number
         self.nodes_apps = nodes_apps
@@ -57,20 +56,20 @@ class Topology(object):
         self.controller = None
 
     def build(self) -> Tuple[List[QNode], List[QuantumChannel]]:
-        """
-        build the special topology
+        """Build the special topology
 
         Returns:
             the list of QNodes and the list of QuantumChannel
+
         """
         pass
 
     def _add_apps(self, nl: List[QNode]):
-        """
-        add apps for all nodes in `nl`
+        """Add apps for all nodes in `nl`
 
         Args:
             nl (List[QNode]): a list of quantum nodes
+
         """
         for n in nl:
             for p in self.nodes_apps:
@@ -78,11 +77,11 @@ class Topology(object):
                 n.add_apps(tmp_p)
 
     def _add_memories(self, nl: List[QNode]):
-        """
-        Add quantum memories to all nodes in `nl`
+        """Add quantum memories to all nodes in `nl`
 
         Args:
             nl (List[QNode]): a list of quantum nodes
+
         """
         if self.memory_args is None:
             return
@@ -97,8 +96,7 @@ class Topology(object):
 
     def add_cchannels(self, classic_topo: ClassicTopology = ClassicTopology.Empty,
                       nl: List[QNode] = [], ll: Optional[List[QuantumChannel]] = None):
-        """
-        build classic network topology
+        """Build classic network topology
 
         Args:
             classic_topo (ClassicTopology): Classic topology,
@@ -107,6 +105,7 @@ class Topology(object):
                 ClassicTopology.Follow -> follow the quantum topology
             nl (List[qns.entity.node.node.QNode]): a list of quantum nodes
             ll (List[qns.entity.qchannel.qchannel.QuantumChannel]): a list of quantum channels
+
         """
         cchannel_list = []
         if classic_topo == ClassicTopology.All:

@@ -15,14 +15,12 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.controller import Controller
-
 from qns.entity.cchannel.cchannel import ClassicPacket
 from qns.entity.node.app import Application
-
-from qns.simulator.simulator import Simulator
+from qns.entity.node.controller import Controller
 from qns.network import QuantumNetwork
-import qns.utils.log as log
+from qns.simulator.simulator import Simulator
+from qns.utils import log
 
 # from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -36,7 +34,7 @@ swapping_settings = {
     # for 2-repeater
     "swap_2_asap": [1,0,0,1],
     "swap_2_l2r": [2,0,1,2],
-    "swap_2_r2l": [2,1,0,2], 
+    "swap_2_r2l": [2,1,0,2],
 
     # for 3-repeater
     "swap_3_asap": [1,0,0,0,1],
@@ -47,7 +45,7 @@ swapping_settings = {
     "swap_3_vora_increasing": [3,0,1,2,3],
     "swap_3_vora_decreasing": [3,2,1,0,3],
     "swap_3_vora_mid_bottleneck": [3,1,2,0,3],   # [2,0,1,0,2]  ~ baln
-    
+
     # for 4-repeater
     "swap_4_asap": [1,0,0,0,0,1],
     "swap_4_baln": [3,0,1,0,2,3],
@@ -61,7 +59,7 @@ swapping_settings = {
     "swap_4_vora_increasing2": [3,0,1,2,0,3],
     "swap_4_vora_decreasing2": [3,2,0,1,0,3],
     "swap_4_vora_mid_bottleneck2": [3,0,1,2,0,3],
-    
+
     # for 5-repeater example
     "swap_5_asap": [1,0,0,0,0,0,1],
     "swap_5_baln": [3,0,1,0,2,0,3],     # need to specify exact doubling  => this is used in the vora paper
@@ -75,17 +73,17 @@ swapping_settings = {
 }
 
 class ProactiveRoutingControllerApp(Application):
-    """
-    This is the centralized control plane app for Proactive Routing. Works with Proactive Forwarder on quantum nodes.
+    """This is the centralized control plane app for Proactive Routing. Works with Proactive Forwarder on quantum nodes.
     A predefined swapping order has to be added in `swapping_settings` map and selected through the `swapping` parameter.
     """
+
     def __init__(self, swapping: str):
-        """
-        Args:
-            swapping (str): swapping order to use for the S-D path, chosen from `swapping_settings` map.
+        """Args:
+        swapping (str): swapping order to use for the S-D path, chosen from `swapping_settings` map.
+
         """
         super().__init__()
-        self.net: QuantumNetwork = None           # contains QN physical topology and classical topology 
+        self.net: QuantumNetwork = None           # contains QN physical topology and classical topology
         self.own: Controller = None               # controller node running this app
 
         if swapping not in swapping_settings:
@@ -103,12 +101,12 @@ class ProactiveRoutingControllerApp(Application):
     #         self.end_headers()
     #         self.wfile.write(b"Test function executed")
 
-    
+
     def install(self, node: Controller, simulator: Simulator):
         super().install(node, simulator)
         self.own: Controller = self._node
         self.net = self.own.network
-        
+
         #print("Starting server on port 8080...")
         #self.server.serve_forever()
 
@@ -116,19 +114,18 @@ class ProactiveRoutingControllerApp(Application):
         self.install_static_path()
 
     def install_static_path(self):
-        """
-        Install a static path between nodes "S" (source) and "D" (destination) of the network topology.
+        """Install a static path between nodes "S" (source) and "D" (destination) of the network topology.
         It currently supports linear chain topology with a single S-D path.
         It computes a path between S and D and installs instructions with a predefined swapping order.
 
         This method performs the following:
             - Builds the network route table.
             - Locates the source ("S") and destination ("D") nodes in the network.
-            - Computes shortest path between source and destination. 
+            - Computes shortest path between source and destination.
             DijkstraRouteAlgorithm is the default algorithm and uses hop counts at metric.
             - Verifies that the number of nodes in the computed path matches the expected number
             of swapping steps based on the configured swapping strategy.
-            - Constructs per-channel memory allocation vectors (m_v) assuming buffer-space multiplexing 
+            - Constructs per-channel memory allocation vectors (m_v) assuming buffer-space multiplexing
             defined by the memory capacity of node S.
             - Sends installation instructions to each node along the path using classical channels.
 
@@ -141,11 +138,11 @@ class ProactiveRoutingControllerApp(Application):
             - Path instructions are transmitted over classical channels using the `"install_path"` command.
             - This method is primarily intended for test or static configuration scenarios, not dynamic routing.
             - Purification scheme has to be specified (hardcoded) in the function.
-        """
 
+        """
         self.net.build_route()
         network_nodes = self.net.get_nodes()
-        
+
         src = None
         dst = None
         for qn in network_nodes:
@@ -157,9 +154,9 @@ class ProactiveRoutingControllerApp(Application):
         route_result = self.net.query_route(src, dst)
         path_nodes = route_result[0][2]
         log.debug(f"{self.own}: Computed path: {path_nodes}")
-        
+
         route = [n.name for n in path_nodes]
-        
+
         if len(route) != len(swapping_settings[self.swapping]):
             raise Exception(f"{self.own}: Swapping {swapping_settings[self.swapping]} \
                 does not correspond to computed route: {route}")

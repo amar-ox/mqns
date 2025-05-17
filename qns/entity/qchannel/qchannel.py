@@ -19,35 +19,35 @@ from typing import Any, List, Optional, Union
 
 from qns.entity.entity import Entity
 from qns.entity.node.qnode import QNode
+from qns.models.core.backend import QuantumModel
 from qns.models.delay.constdelay import ConstantDelayModel
 from qns.models.delay.delay import DelayModel
+from qns.simulator.event import Event
 from qns.simulator.simulator import Simulator
 from qns.simulator.ts import Time
-from qns.simulator.event import Event
-from qns.models.core.backend import QuantumModel
-import qns.utils.log as log
+from qns.utils import log
 
 
 class QuantumChannel(Entity):
+    """QuantumChannel is the channel for transmitting qubit
     """
-    QuantumChannel is the channel for transmitting qubit
-    """
+
     def __init__(self, name: str = None, node_list: List[QNode] = [],
                  bandwidth: int = 0, delay: Union[float, DelayModel] = 0,
                  max_buffer_size: int = 0, length: float = 0, decoherence_rate: Optional[float] = 0,
                  transfer_error_model_args: dict = {}):
-        """
-        Args:
-            name (str): the name of this channel
-            node_list (List[QNode]): a list of QNodes that it connects to
-            bandwidth (int): the qubit per second on this channel. 0 represents unlimited
-            delay (float): the time delay for transmitting a packet, or a ``DelayModel``
-            max_buffer_size (int): the max buffer size.
-                If it is full, the next coming packet will be dropped. 0 represents unlimited.
+        """Args:
+        name (str): the name of this channel
+        node_list (List[QNode]): a list of QNodes that it connects to
+        bandwidth (int): the qubit per second on this channel. 0 represents unlimited
+        delay (float): the time delay for transmitting a packet, or a ``DelayModel``
+        max_buffer_size (int): the max buffer size.
+            If it is full, the next coming packet will be dropped. 0 represents unlimited.
 
-            length (float): the length of this channel
-            decoherence_rate: the decoherence rate that will pass to the transfer_error_model
-            transfer_error_model_args (dict): the parameters that pass to the transfer_error_model
+        length (float): the length of this channel
+        decoherence_rate: the decoherence rate that will pass to the transfer_error_model
+        transfer_error_model_args (dict): the parameters that pass to the transfer_error_model
+
         """
         super().__init__(name=name)
         self.node_list = node_list.copy()
@@ -59,28 +59,27 @@ class QuantumChannel(Entity):
         self.transfer_error_model_args = transfer_error_model_args
 
     def install(self, simulator: Simulator) -> None:
-        '''
-        ``install`` is called before ``simulator`` runs to initialize or set initial events
+        """``install`` is called before ``simulator`` runs to initialize or set initial events
 
         Args:
             simulator (Simulator): the simulator
-        '''
+
+        """
         if not self._is_installed:
             self._simulator = simulator
             self._next_send_time = self._simulator.ts
             self._is_installed = True
 
     def send(self, qubit: QuantumModel, next_hop: QNode):
-        """
-        Send a qubit to the next_hop
+        """Send a qubit to the next_hop
 
         Args:
             qubit (QuantumModel): the transmitting qubit
             next_hop (QNode): the next hop QNode
         Raises:
             NextHopNotConnectionException: the next_hop is not connected to this channel
-        """
 
+        """
         if next_hop not in self.node_list:
             raise NextHopNotConnectionException
 
@@ -128,9 +127,9 @@ class NextHopNotConnectionException(Exception):
 
 
 class RecvQubitPacket(Event):
+    """The event for a QNode to receive a classic packet
     """
-    The event for a QNode to receive a classic packet
-    """
+
     def __init__(self, t: Optional[Time] = None, qchannel: QuantumChannel = None,
                  qubit: QuantumModel = None, dest: QNode = None, name: Optional[str] = None, by: Optional[Any] = None):
         super().__init__(t=t, name=name, by=by)

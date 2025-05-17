@@ -1,14 +1,26 @@
 
 from typing import Optional
+
 import numpy as np
-from qns.entity.memory.event import MemoryReadRequestEvent, MemoryReadResponseEvent, \
-                                    MemoryWriteRequestEvent, MemoryWriteResponseEvent
+
+from qns.entity.memory.event import (
+    MemoryReadRequestEvent,
+    MemoryReadResponseEvent,
+    MemoryWriteRequestEvent,
+    MemoryWriteResponseEvent,
+)
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
 from qns.models.qubit.const import QUBIT_STATE_0, QUBIT_STATE_1
-from qns.models.qubit.decoherence import DephaseMeasureErrorModel, DephaseOperateErrorModel, \
-        DephaseStorageErrorModel, DepolarMeasureErrorModel, DepolarOperateErrorModel, DepolarStorageErrorModel
+from qns.models.qubit.decoherence import (
+    DephaseMeasureErrorModel,
+    DephaseOperateErrorModel,
+    DephaseStorageErrorModel,
+    DepolarMeasureErrorModel,
+    DepolarOperateErrorModel,
+    DepolarStorageErrorModel,
+)
 from qns.models.qubit.factory import QubitFactory
 from qns.models.qubit.gate import X
 from qns.simulator.event import Event
@@ -59,16 +71,16 @@ def test_qubit_memory():
 
         def MemoryReadResponseHandler(self, node, event: Event) -> Optional[bool]:
             result = event.result
-            print("self._simulator.tc.sec: {}".format(self._simulator.tc))
-            print("result: {}".format(result))
+            print(f"self._simulator.tc.sec: {self._simulator.tc}")
+            print(f"result: {result}")
             assert (self._simulator.tc.sec == 1.5)
             assert (result is not None)
             print(result.state)
 
         def MemoryWriteResponseHandler(self, node, event: Event) -> Optional[bool]:
             result = event.result
-            print("self._simulator.tc.sec: {}".format(self._simulator.tc))
-            print("result: {}".format(result))
+            print(f"self._simulator.tc.sec: {self._simulator.tc}")
+            print(f"result: {result}")
             assert (self._simulator.tc.sec == 0.5)
             assert (result)
 
@@ -101,16 +113,16 @@ def test_qubit_memory_2():
 
         def MemoryReadResponseHandler(self, node, event: Event) -> Optional[bool]:
             result = event.result
-            print("self._simulator.tc.sec: {}".format(self._simulator.tc))
-            print("result: {}".format(result))
+            print(f"self._simulator.tc.sec: {self._simulator.tc}")
+            print(f"result: {result}")
             assert (self._simulator.tc.sec == 1.5)
             assert (result is not None)
             print(result.state)
 
         def MemoryWriteResponseHandler(self, node, event: Event) -> Optional[bool]:
             result = event.result
-            print("self._simulator.tc.sec: {}".format(self._simulator.tc))
-            print("result: {}".format(result))
+            print(f"self._simulator.tc.sec: {self._simulator.tc}")
+            print(f"result: {result}")
             assert (self._simulator.tc.sec == 0.5)
             assert (result)
 

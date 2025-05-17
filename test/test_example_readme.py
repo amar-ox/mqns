@@ -1,11 +1,12 @@
-from qns.simulator.simulator import Simulator
-from qns.network.topology import RandomTopology
-from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
-from qns.network import QuantumNetwork
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.network.topology.topo import ClassicTopology
-import qns.utils.log as log
 import logging
+
+from qns.network import QuantumNetwork
+from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
+from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology import RandomTopology
+from qns.network.topology.topo import ClassicTopology
+from qns.simulator.simulator import Simulator
+from qns.utils import log
 
 
 def test_example_readme():

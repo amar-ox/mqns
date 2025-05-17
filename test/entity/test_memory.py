@@ -1,13 +1,18 @@
 from typing import Optional
-from qns.entity.memory.event import MemoryReadRequestEvent, MemoryReadResponseEvent, \
-    MemoryWriteRequestEvent, MemoryWriteResponseEvent
+
+from qns.entity.memory.event import (
+    MemoryReadRequestEvent,
+    MemoryReadResponseEvent,
+    MemoryWriteRequestEvent,
+    MemoryWriteResponseEvent,
+)
+from qns.entity.memory.memory import QuantumMemory
 from qns.entity.node.app import Application
 from qns.entity.node.node import QNode
+from qns.models.epr.werner import WernerStateEntanglement
+from qns.models.qubit import Qubit
 from qns.simulator.event import Event
 from qns.simulator.simulator import Simulator
-from qns.entity.memory.memory import QuantumMemory
-from qns.models.qubit import Qubit
-from qns.models.epr.werner import WernerStateEntanglement
 
 
 def test_memory_sync_qubit():
@@ -73,15 +78,15 @@ def test_memory_async_qubit():
         def MemoryReadhandler(self, node, event: Event) -> Optional[bool]:
             print(1)
             result = event.result
-            print("self._simulator.tc.sec: {}".format(self._simulator.tc))
-            print("result: {}".format(result))
+            print(f"self._simulator.tc.sec: {self._simulator.tc}")
+            print(f"result: {result}")
             assert (self._simulator.tc.sec == 1.5)
             assert (result is not None)
 
         def MemoryWritehandler(self, node, event: Event) -> Optional[bool]:
             result = event.result
-            print("self._simulator.tc.sec: {}".format(self._simulator.tc))
-            print("result: {}".format(result))
+            print(f"self._simulator.tc.sec: {self._simulator.tc}")
+            print(f"result: {result}")
             assert (self._simulator.tc.sec == 0.5)
             assert (result)
 

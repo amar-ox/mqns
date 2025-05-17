@@ -4,8 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 128
-select = ["E", "F"]  # E = pycodestyle (PEP8), F = pyflakes
-ignore = []
+# select = ["E", "F"]
+select = [
+  "E",  # pycodestyle (includes missing newline at EOF, etc.)
+  "F",  # pyflakes
+  "W",  # pycodestyle warnings
+  "I",  # isort (import sorting)
+ # "D",  # pydocstyle
+ # "UP", # pyupgrade
+ # "PT", # pytest-style
+  "Q",  # quote-conventions
+ # "PL", # pylint (useful for layout, blank lines, etc.)
+]
+ignore = ["E741"]
 
 # Optional: specify the source code directory
 # src = ["qns", "examples]

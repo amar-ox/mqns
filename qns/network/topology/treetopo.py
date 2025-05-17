@@ -15,25 +15,26 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.app import Application
-from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.entity.node.qnode import QNode
 from typing import Dict, List, Optional, Tuple
-from qns.network.topology import Topology
+
+from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network.topology.topo import Topology
 
 
 class TreeTopology(Topology):
-    """
-    TreeTopology includes `nodes_number` Qnodes.
+    """TreeTopology includes `nodes_number` Qnodes.
     The topology is a tree pattern, where each parent has `children_num` children.
     """
+
     def __init__(self, nodes_number, children_number: int = 2, nodes_apps: List[Application] = [],
                  qchannel_args: Dict = {}, cchannel_args: Dict = {},
                  memory_args: Optional[List[Dict]] = {}):
-        """
-        Args:
-            nodes_number (int): the total number of QNodes
-            children_number (int): the number of children one parent has
+        """Args:
+        nodes_number (int): the total number of QNodes
+        children_number (int): the number of children one parent has
+
         """
         super().__init__(nodes_number, nodes_apps, qchannel_args, cchannel_args, memory_args)
         self.children_number = children_number

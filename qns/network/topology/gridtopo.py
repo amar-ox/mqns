@@ -15,19 +15,20 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.app import Application
-from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.entity.node.qnode import QNode
-from typing import Dict, List, Optional, Tuple
-from qns.network.topology import Topology
 import math
+from typing import Dict, List, Optional, Tuple
+
+from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network.topology.topo import Topology
 
 
 class GridTopology(Topology):
-    """
-    GridTopology includes `nodes_number` Qnodes. `nodes_number` should be a perfect square number.
+    """GridTopology includes `nodes_number` Qnodes. `nodes_number` should be a perfect square number.
     The topology is a square grid pattern, where each node has 4 neighbors.
     """
+
     def __init__(self, nodes_number, nodes_apps: List[Application] = [],
                  qchannel_args: Dict = {}, cchannel_args: Dict = {},
                  memory_args: Optional[List[Dict]] = {}):

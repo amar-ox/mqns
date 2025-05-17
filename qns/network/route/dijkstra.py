@@ -15,29 +15,28 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Callable, Dict, List, Tuple, Union
 import math
+from typing import Callable, Dict, List, Tuple, Union
 
+from qns.entity.cchannel.cchannel import ClassicChannel
 from qns.entity.node.qnode import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.entity.cchannel.cchannel import ClassicChannel
-from qns.network.route.route import RouteImpl, NetworkRouteError
+from qns.network.route.route import NetworkRouteError, RouteImpl
 
 
 class DijkstraRouteAlgorithm(RouteImpl):
-    """
-    This is the dijkstra route algorithm implement
+    """This is the dijkstra route algorithm implement
     """
 
     INF = math.inf
 
     def __init__(self, name: str = "dijkstra",
                  metric_func: Callable[[Union[QuantumChannel, ClassicChannel]], float] = None) -> None:
-        """
-        Args:
-            name: the routing algorithm's name
-            metric_func: the function that returns the metric for each channel.
-                The default is the const function m(l)=1
+        """Args:
+        name: the routing algorithm's name
+        metric_func: the function that returns the metric for each channel.
+            The default is the const function m(l)=1
+
         """
         self.name = name
         self.route_table = {}
@@ -88,8 +87,7 @@ class DijkstraRouteAlgorithm(RouteImpl):
             self.route_table[n] = d
 
     def query(self, src: QNode, dest: QNode) -> List[Tuple[float, QNode, List[QNode]]]:
-        """
-        query the metric, nexthop and the path
+        """Query the metric, nexthop and the path
 
         Args:
             src: the source node
@@ -98,6 +96,7 @@ class DijkstraRouteAlgorithm(RouteImpl):
         Returns:
             A list of route paths. The result should be sortted by the priority.
             The element is a tuple containing: metric, the next-hop and the whole path.
+
         """
         ls: Dict[QNode, List[float, List[QNode]]] = self.route_table.get(src, None)
         if ls is None:

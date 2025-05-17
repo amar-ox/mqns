@@ -15,25 +15,26 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.node.app import Application
-from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.entity.node.qnode import QNode
 from typing import Dict, List, Optional, Tuple
-from qns.network.topology import Topology
+
+from qns.entity.node.app import Application
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.network.topology.topo import Topology
 from qns.utils.rnd import get_randint
 
 
 class RandomTopology(Topology):
+    """RandomTopology includes `nodes_number` Qnodes. The topology is randomly generated.
     """
-    RandomTopology includes `nodes_number` Qnodes. The topology is randomly generated.
-    """
+
     def __init__(self, nodes_number, lines_number: int, nodes_apps: List[Application] = [],
                  qchannel_args: Dict = {}, cchannel_args: Dict = {},
                  memory_args: Optional[List[Dict]] = {}):
-        """
-        Args:
-            nodes_number: the number of Qnodes
-            lines_number: the number of lines (QuantumChannel)
+        """Args:
+        nodes_number: the number of Qnodes
+        lines_number: the number of lines (QuantumChannel)
+
         """
         super().__init__(nodes_number, nodes_apps, qchannel_args, cchannel_args, memory_args)
         self.lines_number = lines_number

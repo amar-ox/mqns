@@ -15,20 +15,20 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.simulator import Simulator
 from qns.entity.node.app import Application
 from qns.entity.node.node import Node
+from qns.simulator import Simulator
 
 
 class QNode(Node):
+    """QNode is a quantum node in the quantum network. Inherits Node and add quantum elements.
     """
-    QNode is a quantum node in the quantum network. Inherits Node and add quantum elements.
-    """
+
     def __init__(self, name: str = None, apps: list[Application] = None):
-        """
-        Args:
-            name (str): the node's name
-            apps (List[Application]): the installing applications.
+        """Args:
+        name (str): the node's name
+        apps (List[Application]): the installing applications.
+
         """
         super().__init__(name=name, apps=apps)
         self.qchannels = []
@@ -43,7 +43,7 @@ class QNode(Node):
         from qns.entity import QuantumMemory
         assert (isinstance(self.memory, QuantumMemory))
         self.memory.install(simulator)
-        
+
         for qchannel in self.qchannels:
             from qns.entity import QuantumChannel
             assert (isinstance(qchannel, QuantumChannel))
@@ -54,47 +54,46 @@ class QNode(Node):
             operator.install(simulator)
 
     def set_memory(self, memory):
-        """
-        Add a quantum memory in this QNode
+        """Add a quantum memory in this QNode
 
         Args:
             memory (Memory): the quantum memory
+
         """
         memory.node = self
         self.memory = memory
 
     def get_memory(self):
-        """
-        Get the memory
+        """Get the memory
         """
         return self.memory
 
     def add_operator(self, operator):
-        """
-        Add a quantum operator in this node
+        """Add a quantum operator in this node
 
         Args:
             operator (QuantumOperator): the quantum operator
+
         """
         operator.set_own(self)
         self.operators.append(operator)
 
     def add_qchannel(self, qchannel):
-        """
-        Add a quantum channel in this QNode
+        """Add a quantum channel in this QNode
 
         Args:
             qchannel (QuantumChannel): the quantum channel
+
         """
         qchannel.node_list.append(self)
         self.qchannels.append(qchannel)
 
     def get_qchannel(self, dst: "QNode"):
-        """
-        Get the quantum channel that connects to the `dst`
+        """Get the quantum channel that connects to the `dst`
 
         Args:
             dst (QNode): the destination
+
         """
         for qchannel in self.qchannels:
             if dst in qchannel.node_list and self in qchannel.node_list:

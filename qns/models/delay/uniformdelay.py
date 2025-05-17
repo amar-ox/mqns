@@ -16,19 +16,20 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
+
 from qns.models.delay.delay import DelayModel
 from qns.utils.rnd import get_rand
 
 
 class UniformDelayModel(DelayModel):
     def __init__(self, min_delay: float = 0, max_delay: float = 0, name: Optional[str] = None) -> None:
-        """
-        A random delay from distribution X~U(min, max)
+        """A random delay from distribution X~U(min, max)
 
         Args:
             name (str): the name of this delay model
             min_delay (float): the minimum time delay [s]
             max_delay (float): the maximum time delay [s]
+
         """
         super().__init__(name)
         assert (max_delay >= min_delay)

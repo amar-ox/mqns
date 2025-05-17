@@ -16,7 +16,8 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from enum import Enum, auto
-import qns.utils.log as log
+
+from qns.utils import log
 
 
 class QubitState(Enum):
@@ -29,7 +30,7 @@ class QubitState(Enum):
 class QubitFSM:
     def __init__(self):
         self.state = QubitState.RELEASE
-        
+
     def to_entangled(self):
         if self.state == QubitState.RELEASE:
             self.state = QubitState.ENTANGLED
@@ -43,7 +44,7 @@ class QubitFSM:
             self.state = QubitState.PURIF
         else:
             log.debug(f"Unexpected transition: <{self.state}> -> <PURIF>")
-    
+
     def to_pending(self):
         if self.state == QubitState.PURIF:
             self.state = QubitState.PENDING
@@ -55,35 +56,35 @@ class QubitFSM:
             self.state = QubitState.RELEASE
         else:
             log.debug(f"Unexpected transition: <{self.state}> -> <RELEASE>")
-            
+
     def to_eligible(self):
         if self.state == QubitState.PURIF:
             self.state = QubitState.ELIGIBLE
         else:
             log.debug(f"Unexpected transition: <{self.state}> -> <ELIGIBLE>")
-            
+
     def __repr__(self) -> str:
         return f"{self.state}"
 
-class MemoryQubit():
+class MemoryQubit:
+    """An addressable qubit in memory, with a lifecycle.
     """
-    An addressable qubit in memory, with a lifecycle.
-    """
+
     def __init__(self, addr: int):
-        """
-        Args:
-            addr (int): address of this qubit in memory
+        """Args:
+        addr (int): address of this qubit in memory
+
         """
         self.addr = addr
         self.fsm = QubitFSM()           # state of the qubit according to the FSM
         self.qchannel = None            # qchannel to which qubit is assigned to (currnetly only at topology creation time)
         self.path_id = None             # Optional path ID to which qubit is allocated
-        self.active: str = None         # Reservation key if qubit is reserved for entanglement, None otherwise 
-        self.purif_rounds = 0           # Number of purification rounds currently completed by the EPR stored on this qubit 
+        self.active: str = None         # Reservation key if qubit is reserved for entanglement, None otherwise
+        self.purif_rounds = 0           # Number of purification rounds currently completed by the EPR stored on this qubit
 
     def allocate(self, path_id: int) -> None:
         self.path_id = path_id
-        
+
     def deallocate(self) -> None:
         self.path_id = None
 

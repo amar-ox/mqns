@@ -20,17 +20,16 @@ from typing import Any, Optional
 from qns.simulator.ts import Time
 
 
-class Event(object):
-    """
-    Basic event class in simulator
+class Event:
+    """Basic event class in simulator
     """
 
     def __init__(self, t: Optional[Time] = None, name: Optional[str] = None, by: Optional[Any] = None):
-        """
-        Args:
-            t (Time): the time slot of this event
-            by: the entity or application that causes this event
-            name (str): the name of this event
+        """Args:
+        t (Time): the time slot of this event
+        by: the entity or application that causes this event
+        name (str): the name of this event
+
         """
         self.t: Optional[Time] = t
         self.name: Optional[str] = name
@@ -38,22 +37,20 @@ class Event(object):
         self._is_canceled: bool = False
 
     def invoke(self) -> None:
-        """
-        Invoke the event, should be implemented
+        """Invoke the event, should be implemented
         """
         raise NotImplementedError
 
     def cancel(self) -> None:
-        """
-        Cancel this event
+        """Cancel this event
         """
         self._is_canceled = True
 
     @property
     def is_canceled(self) -> bool:
-        """
-        Returns:
-            whether this event has been canceled
+        """Returns:
+        whether this event has been canceled
+
         """
         return self._is_canceled
 
@@ -82,8 +79,7 @@ class Event(object):
 
 
 def func_to_event(t: Time, fn, name: Optional[str] = None, by: Optional[Any] = None, *args, **kwargs):
-    """
-    Convert a function to an event, the function `fn` will be called at `t`.
+    """Convert a function to an event, the function `fn` will be called at `t`.
     It is a simple method to wrap a function to an event.
 
     Args:
@@ -92,6 +88,7 @@ def func_to_event(t: Time, fn, name: Optional[str] = None, by: Optional[Any] = N
         by: the entity or application that will causes this event
         *args: the function's parameters
         **kwargs: the function's parameters
+
     """
 
     class WrapperEvent(Event):

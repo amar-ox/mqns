@@ -15,9 +15,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.models.epr.entanglement import BaseEntanglement
 from qns.models.epr.bell import BellStateEntanglement
-from qns.models.epr.werner import WernerStateEntanglement
+from qns.models.epr.entanglement import BaseEntanglement
 from qns.models.epr.mixed import MixedStateEntanglement
+from qns.models.epr.werner import WernerStateEntanglement
 
 __all__ = ["BellStateEntanglement", "WernerStateEntanglement", "BaseEntanglement", "MixedStateEntanglement"]

@@ -1,13 +1,13 @@
 import logging
 
+from qns.network import QuantumNetwork
+from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
 from qns.network.route.dijkstra import DijkstraRouteAlgorithm
+from qns.network.topology import RandomTopology
 from qns.network.topology.topo import ClassicTopology
 from qns.simulator.simulator import Simulator
-from qns.network import QuantumNetwork
-from qns.network.topology import RandomTopology
-import qns.utils.log as log
+from qns.utils import log
 from qns.utils.rnd import set_seed
-from qns.network.protocol.entanglement_distribution import EntanglementDistributionApp
 
 # constrains
 init_fidelity = 0.99

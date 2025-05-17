@@ -17,30 +17,29 @@
 
 import json
 from typing import Any, List, Optional, Union
-from qns.models.delay.constdelay import ConstantDelayModel
-from qns.models.delay.delay import DelayModel
 
-from qns.simulator.simulator import Simulator
-from qns.simulator.ts import Time
-from qns.simulator.event import Event
-import qns.utils.log as log
 from qns.entity.entity import Entity
 from qns.entity.node.node import Node
+from qns.models.delay.constdelay import ConstantDelayModel
+from qns.models.delay.delay import DelayModel
+from qns.simulator.event import Event
+from qns.simulator.simulator import Simulator
+from qns.simulator.ts import Time
+from qns.utils import log
 from qns.utils.rnd import get_rand
 
 
-class ClassicPacket(object):
-    """
-    ClassicPacket is the message that transfer on a ClassicChannel
+class ClassicPacket:
+    """ClassicPacket is the message that transfer on a ClassicChannel
     """
 
     def __init__(self, msg: Union[str, bytes, Any], src: Node = None, dest: Node = None):
-        """
-        Args:
-            msg (Union[str, bytes, Any]): the message content.
-                It can be a `str` or `bytes` type or can be dumpped to json.
-            src (Node): the source of this message
-            dest (Node): the destination of this message
+        """Args:
+        msg (Union[str, bytes, Any]): the message content.
+            It can be a `str` or `bytes` type or can be dumpped to json.
+        src (Node): the source of this message
+        dest (Node): the destination of this message
+
         """
         self.is_json = False
         #if not isinstance(msg, (str, bytes)):
@@ -52,22 +51,22 @@ class ClassicPacket(object):
         self.dest = dest
 
     def encode(self) -> bytes:
-        """
-        encode the self.msg if it is a `str`
+        """Encode the self.msg if it is a `str`
 
         Return:
             (bytes) a `bytes` object
+
         """
         if isinstance(self.msg, str):
             return self.msg.encode(encoding="utf-8")
         return self.msg
 
     def get(self):
-        """
-        get the message from packet
+        """Get the message from packet
 
         Return:
             (Union[str, bytes, Any])
+
         """
         if self.is_json:
             return json.loads(self.msg)
@@ -78,22 +77,22 @@ class ClassicPacket(object):
 
 
 class ClassicChannel(Entity):
+    """ClassicChannel is the channel for classic message
     """
-    ClassicChannel is the channel for classic message
-    """
+
     def __init__(self, name: str = None, node_list: List[Node] = [],
                  bandwidth: int = 0, delay: Union[float, DelayModel] = 0, length: Optional[float] = 0, drop_rate: float = 0,
                  max_buffer_size: int = 0):
-        """
-        Args:
-            name (str): the name of this channel
-            node_list (List[Node]): a list of QNodes that it connects to
-            bandwidth (int): the byte per second on this channel. 0 represents unlimited
-            delay (Union[float, DelayModel]): the time delay for transmitting a packet. It is a float number or a ``DelayModel``
-            length (float): the length of this channel
-            drop_rate (float): the drop rate
-            max_buffer_size (int): the max buffer size.
-                If it is full, the next coming packet will be dropped. 0 represents unlimited.
+        """Args:
+        name (str): the name of this channel
+        node_list (List[Node]): a list of QNodes that it connects to
+        bandwidth (int): the byte per second on this channel. 0 represents unlimited
+        delay (Union[float, DelayModel]): the time delay for transmitting a packet. It is a float number or a ``DelayModel``
+        length (float): the length of this channel
+        drop_rate (float): the drop rate
+        max_buffer_size (int): the max buffer size.
+            If it is full, the next coming packet will be dropped. 0 represents unlimited.
+
         """
         super().__init__(name=name)
         self.node_list = node_list.copy()
@@ -104,20 +103,19 @@ class ClassicChannel(Entity):
         self.max_buffer_size = max_buffer_size
 
     def install(self, simulator: Simulator) -> None:
-        '''
-        ``install`` is called before ``simulator`` runs to initialize or set initial events
+        """``install`` is called before ``simulator`` runs to initialize or set initial events
 
         Args:
             simulator (qns.simulator.simulator.Simulator): the simulator
-        '''
+
+        """
         if not self._is_installed:
             self._simulator = simulator
             self._next_send_time = self._simulator.ts
             self._is_installed = True
 
     def send(self, packet: ClassicPacket, next_hop: Node, delay: float = 0):
-        """
-        Send a classic packet to the next_hop
+        """Send a classic packet to the next_hop
 
         Args:
             packet (ClassicPacket): the packet
@@ -125,6 +123,7 @@ class ClassicChannel(Entity):
         Raises:
             qns.entity.cchannel.cchannel.NextHopNotConnectionException:
                 the next_hop is not connected to this channel
+
         """
         if next_hop not in self.node_list:
             raise NextHopNotConnectionException
@@ -167,9 +166,9 @@ class NextHopNotConnectionException(Exception):
 
 
 class RecvClassicPacket(Event):
+    """The event for a Node to receive a classic packet
     """
-    The event for a Node to receive a classic packet
-    """
+
     def __init__(self, t: Optional[Time] = None, name: Optional[str] = None,
                  cchannel: ClassicChannel = None, packet: ClassicPacket = None, dest: Node = None,
                  by: Optional[Any] = None):

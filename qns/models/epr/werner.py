@@ -15,43 +15,44 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.models.epr.entanglement import BaseEntanglement
-from qns.models.core.backend import QuantumModel
-from qns.models.qubit.qubit import Qubit, QState
-from qns.models.qubit.const import QUBIT_STATE_0, QUBIT_STATE_P
+import hashlib
+
 import numpy as np
 
+from qns.models.core.backend import QuantumModel
+from qns.models.epr.entanglement import BaseEntanglement
+from qns.models.qubit.const import QUBIT_STATE_0, QUBIT_STATE_P
+from qns.models.qubit.qubit import QState, Qubit
 from qns.utils.rnd import get_rand
 
-import hashlib
 
 def hash(s1: str) -> str:
     return hashlib.sha256(s1.encode()).hexdigest()
 
 
 class WernerStateEntanglement(BaseEntanglement, QuantumModel):
+    """A pair of entangled qubits in Werner State with a hidden-variable
     """
-    A pair of entangled qubits in Werner State with a hidden-variable
-    """
+
     def __init__(self, fidelity: float = 1, name: str | None = None):
-        """
-        generate an entanglement with certain fidelity
+        """Generate an entanglement with certain fidelity
 
         Args:
             fidelity (float): the fidelity
             name (str): the entanglement name
+
         """
         self.w = (fidelity * 4 - 1) / 3
         self.name = name
         self.is_decoherenced = False
-        self.src = None              # src node 
+        self.src = None              # src node
         self.dst = None              # dst node
         self.ch_index = -1           # index of this EPR along the path
         self.orig_eprs = []          # Elementary EPRs from which this EPR is created via swapping
-        
+
         self.decoherence_time = None
         self.creation_time = None
-        
+
         self.read = False                # to know when both end-nodes are aware of the EPR
         self.key = None              # to store the EPR in the right negociated qubit at the dst node
 
@@ -68,8 +69,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
 
 
     def swapping(self, epr: "WernerStateEntanglement", ps: float = 1) -> "WernerStateEntanglement":
-        """
-        Use `self` and `epr` to perfrom swapping and distribute a new entanglement
+        """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
         Args:
             epr (WernerEntanglement): another entanglement
@@ -77,6 +77,7 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
             ps (float): probability of successful swapping
         Returns:
             the new distributed entanglement
+
         """
         ne = WernerStateEntanglement()
         if self.is_decoherenced or epr.is_decoherenced:
@@ -92,27 +93,27 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         ne.orig_eprs = self._merge_orig_eprs(epr)
 
         eprs_name_list = [e.name for e in ne.orig_eprs]
-        ne.name = hash('-'.join(eprs_name_list))
-        
+        ne.name = hash("-".join(eprs_name_list))
+
         # set decoherence time to the shorter among the two pairs
         ne.decoherence_time = min(self.decoherence_time, epr.decoherence_time)
         return ne
 
     def purify(self, epr: "WernerStateEntanglement") -> bool:
-        """
-        Use `self` and `epr` to perfrom distillation and update this entanglement
+        """Use `self` and `epr` to perfrom distillation and update this entanglement
         Using Bennett 96 protocol and estimate lower bound
 
         Args:
             epr (WernerEntanglement): another entanglement
         Returns:
             whether purification succeeded
+
         """
         if self.is_decoherenced or epr.is_decoherenced:
             self.is_decoherenced = True
             self.fidelity = 0
             return False
-        
+
         epr.is_decoherenced = True
         fmin = min(self.fidelity, epr.fidelity)
 
@@ -126,26 +127,26 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         return True
 
     def store_error_model(self, t: float, decoherence_rate: float| None, **kwargs):
-        """
-        The default error model for storing this entangled pair in a quantum memory
+        """The default error model for storing this entangled pair in a quantum memory
         The default behavior is: w = w*e^{-decoherence_rate*t}, default a = 0
 
         Args:
             t: the time stored in a quantum memory. The unit it second
             decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time
             kwargs: other parameters
+
         """
         self.w = self.w * np.exp(-decoherence_rate * t)
 
     def transfer_error_model(self, length: float, decoherence_rate: float| None = 0, **kwargs):
-        """
-        The default error model for transmitting this entanglement
+        """The default error model for transmitting this entanglement
         The success possibility of transmitting is: w = w* e^{decoherence_rate * length}
 
         Args:
             length (float): the length of the channel
             decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time
             kwargs: other parameters
+
         """
         self.w = self.w * np.exp(-decoherence_rate * length)
 
@@ -166,8 +167,8 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
         q1.state = qs
         self.is_decoherenced = True
         return [q0, q1]
-    
-    
+
+
     def _merge_orig_eprs(self, epr):
         # Helper: get a dict of name -> epr from an object's orig_epr list
         def epr_dict(obj):
@@ -179,18 +180,18 @@ class WernerStateEntanglement(BaseEntanglement, QuantumModel):
             if name not in merged:
                 merged[name] = epr
 
-        # Add elementary eprs     
+        # Add elementary eprs
         if self.ch_index > -1 and self.name not in merged:
-            merged['self'] = self
+            merged["self"] = self
         if epr.ch_index > -1 and epr.name not in merged:
-            merged['epr'] = epr
+            merged["epr"] = epr
 
         # Sort the result by epr.index
         return sorted(
             merged.values(),
             key=lambda e: e.ch_index
         )
-  
+
     def __repr__(self):
         return (f"{self.__class__.__name__}("
             f"name={self.name}, fidelity={self.fidelity:.4f}, "
