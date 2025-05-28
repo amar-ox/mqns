@@ -16,7 +16,6 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import time
-from typing import Optional
 
 from qns.simulator.event import Event
 from qns.simulator.pool import DefaultEventPool
@@ -73,8 +72,8 @@ class Simulator:
         """
         return self.current_time
 
-    def time(self, time_slot: Optional[int] = None, sec: Optional[float] = None) -> Time:
-        """Produce a ``Time`` using ``time_slot`` or ``sec``
+    def time(self, time_slot: int|None = None, sec: int|float|None = None) -> Time:
+        """Produce a ``Time`` using either ``time_slot`` or ``sec``
 
         Args:
             time_slot (Optional[int]): the time slot
@@ -85,6 +84,7 @@ class Simulator:
         """
         if time_slot is not None:
             return Time(time_slot=time_slot, accuracy=self.accuracy)
+        assert sec is not None
         return Time(sec=sec, accuracy=self.accuracy)
 
     def add_event(self, event: Event) -> None:
