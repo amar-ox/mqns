@@ -1,4 +1,6 @@
-from qns.simulator.ts import Time
+from pytest import approx
+
+from qns.simulator.ts import Time, set_default_accuracy
 
 
 def test_time():
@@ -16,6 +18,32 @@ def test_time():
     assert (t1 < t2)
     assert (t3 < t1)
 
+def test_time_accuracy():
+    t0 = Time(sec=1.0)
+
+    class ChangeDefaultAccuracy:
+        def __enter__(self):
+            set_default_accuracy(2000)
+        def __exit__(self, exc_type, exc_value, traceback):
+            set_default_accuracy(t0.accuracy)
+
+    with ChangeDefaultAccuracy():
+        t1 = Time(sec=1.0)
+        t2 = Time(sec=1.0, accuracy=3000)
+
+    t3 = Time(sec=1.0)
+    t4 = Time(sec=1.0, accuracy=4000)
+
+    assert t0.sec == approx(1.0)
+    assert t1.sec == approx(1.0)
+    assert t2.sec == approx(1.0)
+    assert t3.sec == approx(1.0)
+    assert t4.sec == approx(1.0)
+
+    assert t0.accuracy == t3.accuracy
+    assert t1.accuracy == 2000
+    assert t2.accuracy == 3000
+    assert t4.accuracy == 4000
 
 def print_msg(msg):
     print(msg)

@@ -32,7 +32,7 @@ def set_default_accuracy(time_slots: int):
 
 
 class Time:
-    def __init__(self, time_slot: int = 0, sec: float = 0.0, accuracy: int = default_accuracy):
+    def __init__(self, time_slot: int = 0, sec: int|float = 0, accuracy: int|None = None):
         """Time: the time slot used in the simulator
 
         Args:
@@ -41,12 +41,10 @@ class Time:
             accuracy: time slots per second
 
         """
-        self.accuracy = default_accuracy
+        self.accuracy = default_accuracy if accuracy is None else accuracy
         if time_slot != 0:
             self.time_slot = time_slot
         else:
-            if sec is None:
-                sec = 0
             self.time_slot = int(sec * self.accuracy)
 
     @property
