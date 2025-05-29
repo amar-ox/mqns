@@ -15,8 +15,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Optional
-
 from qns.models.core.backend import QuantumModel
 from qns.models.epr.entanglement import BaseEntanglement
 
@@ -25,11 +23,11 @@ class BellStateEntanglement(BaseEntanglement["BellStateEntanglement"], QuantumMo
     """`BellStateEntanglement` is the ideal max entangled qubits. Its fidelity is always 1.
     """
 
-    def __init__(self, fidelity: float = 1, name: Optional[str] = None):
+    def __init__(self, fidelity: float = 1, name: str|None = None):
         super().__init__(fidelity=1, name=name)
 
     def swapping(self, epr: "BellStateEntanglement", *,
-                 name: Optional[str] = None, ps: float = 1) -> "BellStateEntanglement|None":
+                 name: str|None = None, ps: float = 1) -> "BellStateEntanglement|None":
         ne = BellStateEntanglement(name=name)
         if self.is_decoherenced or epr.is_decoherenced:
             return None

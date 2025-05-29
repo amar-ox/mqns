@@ -21,6 +21,7 @@ import numpy as np
 
 from qns.models.qubit.const import OPERATOR_PAULI_I
 from qns.models.qubit.errors import OperatorError, QGateStateJointError
+from qns.models.qubit.typing import Operator1
 
 if TYPE_CHECKING:
     from qns.models.qubit.qubit import Qubit
@@ -34,7 +35,7 @@ def kron(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return (a[:, None, :, None]*b[None, :, None, :]).reshape(a.shape[0]*b.shape[0], a.shape[1]*b.shape[1])
 
 
-def single_gate_expand(qubit: "Qubit", operator: np.ndarray) -> np.ndarray:
+def single_gate_expand(qubit: "Qubit", operator: Operator1) -> Operator1:
     state = qubit.state
     if operator.shape != (2, 2):
         raise OperatorError

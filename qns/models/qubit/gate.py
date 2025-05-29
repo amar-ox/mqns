@@ -33,6 +33,7 @@ from qns.models.qubit.const import (
     OPERATOR_T,
 )
 from qns.models.qubit.errors import QGateOperatorNotMatchError, QGateQubitNotInStateError
+from qns.models.qubit.typing import Operator1
 from qns.models.qubit.utils import joint, kron
 
 if TYPE_CHECKING:
@@ -61,7 +62,7 @@ class SingleQubitGate(Gate):
 
 
 class SingleQubitSimpleGate(SingleQubitGate):
-    def __init__(self, name: str, operator: np.ndarray, _docs: str|None = None):
+    def __init__(self, name: str, operator: Operator1, _docs: str|None = None):
         """Args:
         name (str): the gate's name
         operator (np.ndarray): the matrix represent of this operator
@@ -92,7 +93,7 @@ S = SingleQubitSimpleGate(name="S", operator=OPERATOR_S, _docs="S gate (pi/2 shi
 
 
 class SingleQubitRotateGate(SingleQubitGate):
-    def __init__(self, name: str, operator: Callable[[float], np.ndarray], _docs: str|None = None):
+    def __init__(self, name: str, operator: Callable[[float], Operator1], _docs: str|None = None):
         """Args:
         name (str): the gate's name
         operator: a function that returns the matrix represent of this operator
@@ -120,7 +121,7 @@ RZ = SingleQubitRotateGate(name="RZ", operator=OPERATOR_RZ, _docs="Rz gate (Z ro
 
 
 class SingleQubitArbitraryGate(SingleQubitGate):
-    def __call__(self, qubit: "Qubit", operator: np.ndarray) -> None:
+    def __call__(self, qubit: "Qubit", operator: Operator1) -> None:
         """Args:
             qubit (Qubit): the operating qubit
             operator (np.ndarray): the operator matrix
@@ -146,7 +147,7 @@ class DoubleQubitsControlledGate(Gate):
         [[I_2, 0][0, operator]]
     """
 
-    def __init__(self, name: str, operator: np.ndarray, _docs: str|None = None):
+    def __init__(self, name: str, operator: Operator1, _docs: str|None = None):
         """Args:
         name (str): the gate's name
         operator (np.ndarray): the matrix represent of the operator
@@ -156,7 +157,7 @@ class DoubleQubitsControlledGate(Gate):
         self._operator = operator
 
     def __call__(self, qubit1: "Qubit", qubit2: "Qubit",
-                 operator: np.ndarray|None = None) -> None:
+                 operator: Operator1|None = None) -> None:
         """Args:
             qubit1 (Qubit): the first qubit (controller)
             qubit2 (Qubit): the second qubit
@@ -214,7 +215,7 @@ CZ = DoubleQubitsControlledGate(name="Controlled Pauli-Z Gate",
 
 
 class DoubleQubitsRotateGate(Gate):
-    def __init__(self, name: str, operator: Callable[[float], np.ndarray], _docs: str|None = None):
+    def __init__(self, name: str, operator: Callable[[float], Operator1], _docs: str|None = None):
         """Args:
         name (str): the gate's name
         operator: a function that returns the matrix represent of the operator
@@ -271,7 +272,7 @@ class ThreeQubitsGate(Gate):
         [[I_6, 0][0, operator]]
     """
 
-    def __init__(self, name: str, operator: np.ndarray = OPERATOR_PAULI_X, _docs: str|None = None):
+    def __init__(self, name: str, operator: Operator1 = OPERATOR_PAULI_X, _docs: str|None = None):
         """Args:
         name (str): the gate's name
         operator (np.ndarray): the matrix represent of the operator
@@ -280,7 +281,7 @@ class ThreeQubitsGate(Gate):
         super().__init__(name, _docs)
         self._operator = operator
 
-    def __call__(self, qubit1: "Qubit", qubit2: "Qubit", qubit3: "Qubit", operator: np.ndarray|None = None) -> Any:
+    def __call__(self, qubit1: "Qubit", qubit2: "Qubit", qubit3: "Qubit", operator: Operator1|None = None) -> Any:
         if operator is None:
             operator = self._operator
         if operator.shape != (2, 2):

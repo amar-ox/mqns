@@ -15,14 +15,22 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 
 from qns.models.core.backend import QuantumModel
-from qns.models.qubit.const import QUBIT_STATE_0, QUBIT_STATE_1, QUBIT_STATE_L, QUBIT_STATE_N, QUBIT_STATE_P, QUBIT_STATE_R
+from qns.models.qubit.const import (
+    QUBIT_STATE_0,
+    QUBIT_STATE_1,
+    QUBIT_STATE_L,
+    QUBIT_STATE_N,
+    QUBIT_STATE_P,
+    QUBIT_STATE_R,
+)
 from qns.models.qubit.errors import OperatorNotMatchError, QStateBaseError, QStateQubitNotInStateError, QStateSizeNotMatchError
 from qns.models.qubit.gate import SingleQubitGate
+from qns.models.qubit.typing import MultiQubitRho, MultiQubitState, Operator, Operator1, QubitRho, QubitState
 from qns.models.qubit.utils import kron, partial_trace, single_gate_expand
 from qns.utils.rnd import get_rand
 
@@ -31,8 +39,8 @@ class QState:
     """QState is the state of one (or multiple) qubits
     """
 
-    def __init__(self, qubits: list["Qubit"] = [], state: np.ndarray = QUBIT_STATE_0,
-                 rho: np.ndarray|None = None, name: str|None = None):
+    def __init__(self, qubits: list["Qubit"] = [], state: MultiQubitState = QUBIT_STATE_0,
+                 rho: MultiQubitRho|None = None, name: str|None = None):
         """Args:
         qubits (List[Qubit]): a list of qubits in this quantum state
         state: the state vector of this state, either ``state`` or ``rho`` can be used to present a state
@@ -44,10 +52,9 @@ class QState:
         self.num = len(qubits)
         self.name = name
         self.qubits = qubits
-        self.rho: np.ndarray
+        self.rho: MultiQubitRho
 
         if rho is None:
-            assert state is not None
             if len(state) != 2**self.num:
                 raise QStateSizeNotMatchError
             self.rho = np.dot(state, state.T.conjugate())
@@ -59,7 +66,7 @@ class QState:
                 raise QStateSizeNotMatchError
             self.rho = rho
 
-    def measure(self, qubit: "Qubit", base: str = "Z") -> int:
+    def measure(self, qubit: "Qubit", base: Literal["Z", "X", "Y"] = "Z") -> int:
         """Measure this qubit using Z basis
         Args:
             qubit (Qubit): the measuring qubit
@@ -129,7 +136,7 @@ class QState:
         qubit.state = ns
         return ret
 
-    def operate(self, operator: np.ndarray):
+    def operate(self, operator: Operator):
         """Transform using `operator`
 
         Args:
@@ -146,7 +153,7 @@ class QState:
             raise OperatorNotMatchError
         self.rho = np.dot(full_operator, np.dot(self.rho, full_operator.T.conjugate()))
 
-    def stochastic_operate(self, list_operators: list[np.ndarray] = [], list_p: list[float] = []):
+    def stochastic_operate(self, list_operators: list[Operator] = [], list_p: list[float] = []):
         """A stochastic operate progess. It usually turns a pure state into a mixed state.
 
         Args:
@@ -156,7 +163,7 @@ class QState:
             OperatorNotMatchError
 
         """
-        new_state = np.zeros((2**self.num, 2**self.num), dtype=complex)
+        new_state: MultiQubitRho = np.zeros((2**self.num, 2**self.num), dtype=np.complex128)
 
         if len(list_operators) != len(list_p):
             raise OperatorNotMatchError("Not match number between operators and possibilities")
@@ -198,7 +205,7 @@ class QState:
         """
         return abs(np.trace(np.dot(self.rho, self.rho)) - 1) <= eps
 
-    def state(self) -> np.ndarray|None:
+    def state(self) -> MultiQubitState|None:
         """If the state is a pure state, return the state vector, or return None
 
         Returns:
@@ -225,7 +232,7 @@ class Qubit(QuantumModel):
     """Represent a qubit
     """
 
-    def __init__(self, state: np.ndarray = QUBIT_STATE_0, rho: np.ndarray|None = None,
+    def __init__(self, state: QubitState = QUBIT_STATE_0, rho: QubitRho|None = None,
                  operate_decoherence_rate: float = 0, measure_decoherence_rate: float = 0,
                  name: str|None = None):
         """Args:
@@ -285,7 +292,7 @@ class Qubit(QuantumModel):
         self.measure_error_model(self.measure_decoherence_rate)
         return self.measure()
 
-    def operate(self, operator: SingleQubitGate|np.ndarray) -> None:
+    def operate(self, operator: SingleQubitGate|Operator1) -> None:
         """Perfrom a operate on this qubit
 
         Args:
@@ -299,7 +306,7 @@ class Qubit(QuantumModel):
         full_operator = single_gate_expand(self, operator)
         self.state.operate(full_operator)
 
-    def _operate_without_error(self, operator: SingleQubitGate|np.ndarray) -> None:
+    def _operate_without_error(self, operator: SingleQubitGate|Operator1) -> None:
         """Perfrom a operate on this qubit
 
         Args:
@@ -312,7 +319,7 @@ class Qubit(QuantumModel):
         full_operator = single_gate_expand(self, operator)
         self.state.operate(full_operator)
 
-    def stochastic_operate(self, list_operators: list[SingleQubitGate|np.ndarray] = [], list_p: list[float] = []):
+    def stochastic_operate(self, list_operators: list[SingleQubitGate|Operator1] = [], list_p: list[float] = []):
         """A stochastic operate on this qubit. It usually turns a pure state into a mixed state.
 
         Args:
@@ -322,7 +329,7 @@ class Qubit(QuantumModel):
             OperatorNotMatchError
 
         """
-        full_operators_list = []
+        full_operators_list: list[Operator1] = []
         for operator in list_operators:
             if isinstance(operator, SingleQubitGate):
                 full_operators_list.append(single_gate_expand(self, cast(Any, operator)._operator))

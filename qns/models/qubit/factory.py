@@ -18,8 +18,6 @@
 
 from types import MethodType
 
-import numpy as np
-
 from qns.models.qubit.const import QUBIT_STATE_0
 from qns.models.qubit.decoherence import (
     PrefectMeasureErrorModel,
@@ -28,6 +26,7 @@ from qns.models.qubit.decoherence import (
     PrefectTransferErrorModel,
 )
 from qns.models.qubit.qubit import Qubit
+from qns.models.qubit.typing import QubitRho, QubitState
 
 
 class QubitFactory:
@@ -53,7 +52,7 @@ class QubitFactory:
         self.operate_error_model = operate_error_model
         self.measure_error_model = measure_error_model
 
-    def __call__(self, state: np.ndarray = QUBIT_STATE_0, rho: np.ndarray|None = None,
+    def __call__(self, state: QubitState = QUBIT_STATE_0, rho: QubitRho|None = None,
                  operate_decoherence_rate: float|None = None, measure_decoherence_rate: float|None = None,
                  name: str|None = None) -> Qubit:
         """Args:

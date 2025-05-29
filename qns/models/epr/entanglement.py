@@ -98,7 +98,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         q1 = Qubit(state=QUBIT_STATE_0, name="q1")
         a = np.sqrt(self.fidelity / 2)
         b = np.sqrt((1 - self.fidelity) / 2)
-        qs = QState([q0, q1], state=np.array([[a], [b], [b], [a]]))
+        qs = QState([q0, q1], state=np.array([[a], [b], [b], [a]], dtype=np.complex128))
         q0.state = qs
         q1.state = qs
         self.is_decoherenced = True
