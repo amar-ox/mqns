@@ -17,49 +17,53 @@
 
 import numpy as np
 
-QUBIT_STATE_0 = np.array([[1], [0]], dtype=np.complex128)
-QUBIT_STATE_1 = np.array([[0], [1]], dtype=np.complex128)
+from qns.models.qubit.typing import Basis, Operator1, Operator2, QubitState
 
-QUBIT_STATE_P = 1 / np.sqrt(2) * np.array([[1], [1]], dtype=np.complex128)
-QUBIT_STATE_N = 1 / np.sqrt(2) * np.array([[1], [-1]], dtype=np.complex128)
+QUBIT_STATE_0: QubitState = np.array([[1], [0]], dtype=np.complex128)
+QUBIT_STATE_1: QubitState = np.array([[0], [1]], dtype=np.complex128)
 
-QUBIT_STATE_R = 1 / np.sqrt(2) * np.array([[-1j], [1]], dtype=np.complex128)
-QUBIT_STATE_L = 1 / np.sqrt(2) * np.array([[1], [-1j]], dtype=np.complex128)
+QUBIT_STATE_P: QubitState = 1 / np.sqrt(2) * np.array([[1], [1]], dtype=np.complex128)
+QUBIT_STATE_N: QubitState = 1 / np.sqrt(2) * np.array([[1], [-1]], dtype=np.complex128)
 
-OPERATOR_HADAMARD = 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]], dtype=np.complex128)
-OPERATOR_T = np.array([[1, 0], [0, np.e**(1j * np.pi / 4)]], dtype=np.complex128)
-OPERATOR_S = np.array([[1, 0], [0, 1j]], dtype=np.complex128)
+QUBIT_STATE_R: QubitState = 1 / np.sqrt(2) * np.array([[-1j], [1]], dtype=np.complex128)
+QUBIT_STATE_L: QubitState = 1 / np.sqrt(2) * np.array([[1], [-1j]], dtype=np.complex128)
 
-OPERATOR_PAULI_I = np.array([[1, 0], [0, 1]], dtype=np.complex128)
-OPERATOR_PAULI_X = np.array([[0, 1], [1, 0]], dtype=np.complex128)
-OPERATOR_PAULI_Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)
-OPERATOR_PAULI_Z = np.array([[1, 0], [0, -1]], dtype=np.complex128)
+OPERATOR_HADAMARD: Operator1 = 1 / np.sqrt(2) * np.array([[1, 1], [1, -1]], dtype=np.complex128)
+OPERATOR_T: Operator1 = np.array([[1, 0], [0, np.e**(1j * np.pi / 4)]], dtype=np.complex128)
+OPERATOR_S: Operator1 = np.array([[1, 0], [0, 1j]], dtype=np.complex128)
+
+OPERATOR_PAULI_I: Operator1 = np.array([[1, 0], [0, 1]], dtype=np.complex128)
+OPERATOR_PAULI_X: Operator1 = np.array([[0, 1], [1, 0]], dtype=np.complex128)
+OPERATOR_PAULI_Y: Operator1 = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)
+OPERATOR_PAULI_Z: Operator1 = np.array([[1, 0], [0, -1]], dtype=np.complex128)
 
 
-def OPERATOR_RX(theta: float):
+def OPERATOR_RX(theta: float) -> Operator1:
     return np.array([[np.cos(theta/2), -1j * np.sin(theta/2)],
                      [-1j * np.sin(theta/2), np.cos(theta/2)]], dtype=np.complex128)
 
 
-def OPERATOR_RY(theta: float):
+def OPERATOR_RY(theta: float) -> Operator1:
     return np.array([[np.cos(theta/2), -np.sin(theta/2)],
                      [np.sin(theta/2), np.cos(theta/2)]], dtype=np.complex128)
 
 
-def OPERATOR_RZ(theta: float):
+def OPERATOR_RZ(theta: float) -> Operator1:
     return np.array([[np.e**(-0.5j * theta), 0],
                      [0, np.e**(0.5j * theta)]], dtype=np.complex128)
 
 
-def OPERATOR_PHASE_SHIFT(theta: float):
+def OPERATOR_PHASE_SHIFT(theta: float) -> Operator1:
     return np.array([[1, 0], [0, np.e**(1j * theta)]], dtype=np.complex128)
 
 
-OPERATOR_CNOT = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]],
-                         dtype=np.complex128)
-OPERATOR_SWAP = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]],
-                         dtype=np.complex128)
+OPERATOR_CNOT: Operator2 = np.array(
+    [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]],
+    dtype=np.complex128)
+OPERATOR_SWAP: Operator2 = np.array(
+    [[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]],
+    dtype=np.complex128)
 
-BASIS_Z = OPERATOR_PAULI_Z
-BASIS_X = OPERATOR_PAULI_X
-BASIS_Y = OPERATOR_PAULI_Y
+BASIS_Z: Basis = OPERATOR_PAULI_Z
+BASIS_X: Basis = OPERATOR_PAULI_X
+BASIS_Y: Basis = OPERATOR_PAULI_Y
