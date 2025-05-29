@@ -15,12 +15,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import List, Optional, Union
-
 from qns.entity.node.qnode import QNode
 from qns.entity.qchannel.qchannel import QuantumChannel
-from qns.models.delay.constdelay import ConstantDelayModel
-from qns.models.delay.delay import DelayModel
+from qns.models.delay import ConstantDelayModel, DelayModel
 
 
 class QubitLossChannel(QuantumChannel):
@@ -29,9 +26,9 @@ class QubitLossChannel(QuantumChannel):
     The loss rate is: 1-(1-p_init)*10^{- attenuation_rate * length / 10}
     """
 
-    def __init__(self, name: str = None, node_list: List[QNode] = [],
-                 bandwidth: int = 0, delay: Union[float, DelayModel] = 0, p_init: float = 0, attenuation_rate: float = 0,
-                 max_buffer_size: int = 0, length: float = 0, decoherence_rate: Optional[float] = 0,
+    def __init__(self, name: str|None = None, node_list: list[QNode] = [],
+                 bandwidth: int = 0, delay: float|DelayModel = 0, p_init: float = 0, attenuation_rate: float = 0,
+                 max_buffer_size: int = 0, length: float = 0, decoherence_rate: float = 0,
                  transfer_error_model_args: dict = {}):
         """Args:
         name (str): the name of this channel
