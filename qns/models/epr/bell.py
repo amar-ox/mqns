@@ -23,9 +23,6 @@ class BellStateEntanglement(BaseEntanglement["BellStateEntanglement"], QuantumMo
     """`BellStateEntanglement` is the ideal max entangled qubits. Its fidelity is always 1.
     """
 
-    def __init__(self, fidelity: float = 1, name: str|None = None):
-        super().__init__(fidelity=1, name=name)
-
     def swapping(self, epr: "BellStateEntanglement", *,
                  name: str|None = None, ps: float = 1) -> "BellStateEntanglement|None":
         ne = BellStateEntanglement(name=name)

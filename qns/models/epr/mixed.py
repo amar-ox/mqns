@@ -42,13 +42,11 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
             name (str): the entanglement name
 
         """
-        self.fidelity = fidelity
+        super().__init__(fidelity=fidelity, name=name)
         self.b = b if b is not None else (1-fidelity)/3
         self.c = c if c is not None else (1-fidelity)/3
         self.d = d if d is not None else (1-fidelity)/3
         self.normalized()
-        self.name = name
-        self.is_decoherenced = False
 
     @property
     def a(self) -> float:

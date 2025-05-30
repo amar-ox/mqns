@@ -25,13 +25,17 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 import numpy as np
 
 from qns.models.qubit.const import OPERATOR_PAULI_I, QUBIT_STATE_0, QUBIT_STATE_P
 from qns.models.qubit.gate import CNOT, H, U, X, Y, Z
 from qns.models.qubit.qubit import QState, Qubit
+from qns.simulator import Time
+
+if TYPE_CHECKING:
+    from qns.entity import QNode
 
 EntanglementT = TypeVar("EntanglementT")
 
@@ -40,7 +44,7 @@ class BaseEntanglement(Generic[EntanglementT]):
     """This is the base entanglement model
     """
 
-    def __init__(self, fidelity: float = 1, name: str | None = None):
+    def __init__(self, fidelity: float = 1, name: str|None = None):
         """Generate an entanglement with certain fidelity
 
         Args:
@@ -51,16 +55,26 @@ class BaseEntanglement(Generic[EntanglementT]):
         self.fidelity = fidelity
         self.name = name
         self.is_decoherenced = False
-        self.src = None
-        self.dst = None
+        self.creation_time: Time|None = None
+        self.decoherence_time: Time|None = None
+        self.src: "QNode|None" = None
+        """src node"""
+        self.dst: "QNode|None" = None
+        """dst node"""
         self.ch_index = -1
+        """index of this EPR along the path"""
         self.orig_eprs = []
+        """Elementary EPRs from which this EPR is created via swapping"""
+        self.read = False
+        """to know when both end-nodes are aware of the EPR"""
+        self.key = None
+        """to store the EPR in the right negotiated qubit at the dst node"""
 
     def set_decoherenced(self, value: bool):
         self.is_decoherenced = value
 
 
-    def swapping(self, epr: EntanglementT, *, name: str | None = None, ps: float = 1) -> EntanglementT | None:
+    def swapping(self, epr: EntanglementT, *, name: str|None = None, ps: float = 1) -> EntanglementT|None:
         """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
         Args:
@@ -71,7 +85,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         """
         raise NotImplementedError
 
-    def distillation(self, epr: EntanglementT) -> EntanglementT | None:
+    def distillation(self, epr: EntanglementT) -> EntanglementT|None:
         """Use `self` and `epr` to perfrom distillation and distribute a new entanglement
 
         Args:
@@ -124,7 +138,7 @@ class BaseEntanglement(Generic[EntanglementT]):
             Z(q2)
         elif c1 == 1 and c0 == 1:
             Y(q2)
-            U(q2, 1j * OPERATOR_PAULI_I)
+            U(q2, np.complex128(1j) * OPERATOR_PAULI_I)
         self.is_decoherenced = True
         return q2
 
