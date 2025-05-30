@@ -183,7 +183,7 @@ class QuantumMemory(Entity):
             return None
 
         (qubit, data) = self._storage[idx]
-        
+
         if not data:
             return None
 

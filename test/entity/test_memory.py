@@ -1,14 +1,10 @@
-import pytest
-import uuid
-from qns.entity.node.qnode import QNode
-from qns.models.qubit import Qubit
-from qns.models.epr.werner import WernerStateEntanglement
-from qns.simulator.simulator import Simulator
 from qns.entity.memory.memory import QuantumMemory
-from qns.entity.qchannel.qchannel import QuantumChannel, RecvQubitPacket
-from qns.models.delay.constdelay import ConstantDelayModel
+from qns.entity.node.qnode import QNode
+from qns.entity.qchannel.qchannel import QuantumChannel
+from qns.models.epr.werner import WernerStateEntanglement
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+from qns.simulator.simulator import Simulator
 
 light_speed = 2 * 10**5 # km/s
 
@@ -49,7 +45,7 @@ def test_write_and_read_with_path_and_key():
     qubit, data = mem.read(key="epr1")   # destructive reading
     assert data.name == "epr1"
     assert mem._usage == 0
-    
+
     res = mem.read(address=qubit.addr)
     assert res is None
 
@@ -65,7 +61,7 @@ def test_channel_qubit_assignment_and_search():
     node.install(sim)
 
     ch = QuantumChannel(
-        "qch", 
+        "qch",
         { "node1": "S", "node2":"R", "capacity": 1, "parameters": {"length": 10, "delay": 10 / light_speed} }
         )
     addr = mem.assign(ch)
@@ -81,12 +77,12 @@ def test_channel_qubit_assignment_and_search():
 
 def test_decoherence_event_removes_qubit():
     mem = QuantumMemory("mem", capacity=1, decoherence_rate=1)
-    
+
     ch = QuantumChannel(
-        "qch", 
+        "qch",
         { "node1": "S", "node2":"R", "capacity": 1, "parameters": {"length": 10, "delay": 10 / light_speed} }
         )
-    qubit_assign = mem.assign(ch)
+    mem.assign(ch)
 
     node = QNode("n3")
     node.set_memory(mem)
