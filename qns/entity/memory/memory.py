@@ -174,7 +174,7 @@ class QuantumMemory(Entity):
             Tuple[MemoryQubit, Optional[QuantumModel]]:
                 - The `MemoryQubit` metadata objeect of the specified location.
                 - The associated `QuantumModel`.
-                - None if qubit not found.
+                - None if qubit not found or no quantum information is stored.
         """
         assert self._simulator is not None
 
@@ -183,6 +183,9 @@ class QuantumMemory(Entity):
             return None
 
         (qubit, data) = self._storage[idx]
+        
+        if not data:
+            return None
 
         t_now = self._simulator.current_time
         sec_diff = t_now.sec - data.creation_time.sec
@@ -197,9 +200,10 @@ class QuantumMemory(Entity):
             self._storage[idx] = (self._storage[idx][0], None)
 
             # cancel scheduled decoherence event
-            event = self.pending_decohere_events[data.name]
-            event.cancel()
-            self.pending_decohere_events.pop(data.name)
+            if data.name in self.pending_decohere_events:
+                event = self.pending_decohere_events[data.name]
+                event.cancel()
+                self.pending_decohere_events.pop(data.name)
 
         return (qubit, data)
 
@@ -245,12 +249,13 @@ class QuantumMemory(Entity):
         self._usage += 1
 
         # schedule an event at T_coh to decohere the qubit
-        decoherence_t = qm.creation_time + Time(sec = 1 / self.decoherence_rate)
-        event = func_to_event(decoherence_t, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=qm)
-        self.pending_decohere_events[qm.name] = event
-        self._simulator.add_event(event)
+        if self.decoherence_rate:
+            decoherence_t = qm.creation_time + Time(sec = 1 / self.decoherence_rate)
+            event = func_to_event(decoherence_t, self.decohere_qubit, by=self, qubit=self._storage[idx][0], qm=qm)
+            self.pending_decohere_events[qm.name] = event
+            self._simulator.add_event(event)
+            qm.decoherence_time = decoherence_t
 
-        qm.decoherence_time = decoherence_t
         return self._storage[idx][0]    # return the memory qubit
 
     def update(self, old_qm: str, new_qm: QuantumModel) -> bool:
@@ -345,7 +350,6 @@ class QuantumMemory(Entity):
         Returns:
             bool: True if the qubit was found and deallocated successfully,
                 False if no qubit with the specified address exists.
-
         """
         for (qubit,_) in self._storage:
             if qubit.addr == address:
