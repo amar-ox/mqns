@@ -498,7 +498,7 @@ class QuantumMemory(Entity):
             event = QubitDecoheredEvent(link_layer=self.link_layer, qubit=qubit, t=t, by=self)
             self._simulator.add_event(event)
 
-    def cout_unallocated_qubits(self) -> int:
+    def count_unallocated_qubits(self) -> int:
         """Return the number of qubits not allocated to any path ID
         """
         free = self.capacity

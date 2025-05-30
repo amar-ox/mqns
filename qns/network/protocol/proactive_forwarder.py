@@ -151,13 +151,13 @@ class ProactiveForwarder(Application):
         if instructions["m_v"]:
             num_left, num_next = self.compute_qubit_allocation(instructions["route"], instructions["m_v"], self.own.name)
             if num_left:
-                if num_left <= self.memory.cout_unallocated_qubits():
+                if num_left <= self.memory.count_unallocated_qubits():
                     for i in range(num_left):
                         left_qubits.append(self.memory.allocate(path_id=path_id))
                 else:
                     raise Exception("Not enough qubits for left qchannel allocation")
             if num_next:
-                if num_next <= self.memory.cout_unallocated_qubits():
+                if num_next <= self.memory.count_unallocated_qubits():
                     for i in range(num_next):
                         right_qubits.append(self.memory.allocate(path_id=path_id))
                 else:
