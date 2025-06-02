@@ -44,28 +44,6 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
     """A pair of entangled qubits in Werner State with a hidden-variable
     """
 
-    def __init__(self, fidelity: float = 1, name: str | None = None):
-        """Generate an entanglement with certain fidelity
-
-        Args:
-            fidelity (float): the fidelity
-            name (str): the entanglement name
-
-        """
-        self.w = (fidelity * 4 - 1) / 3
-        self.name = name
-        self.is_decoherenced = False
-        self.src = None              # src node
-        self.dst = None              # dst node
-        self.ch_index = -1           # index of this EPR along the path
-        self.orig_eprs = []          # Elementary EPRs from which this EPR is created via swapping
-
-        self.decoherence_time = None
-        self.creation_time = None
-
-        self.read = False                # to know when both end-nodes are aware of the EPR
-        self.key = None              # to store the EPR in the right negociated qubit at the dst node
-
     def __deepcopy__(self, memo):
         return self
 
@@ -84,13 +62,13 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
 
         Args:
             epr (WernerEntanglement): another entanglement
-            name (str): the name of the new entanglement, a hash of the elementary origin EPR names
+            name (str): the name of the new entanglement, defaults to a hash of the elementary origin EPR names
             ps (float): probability of successful swapping
         Returns:
             the new distributed entanglement
 
         """
-        ne = WernerStateEntanglement()
+        ne = WernerStateEntanglement(name=name)
         if self.is_decoherenced or epr.is_decoherenced:
             return None
 
@@ -103,8 +81,14 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
         ne.w = self.w * epr.w
         ne.orig_eprs = self._merge_orig_eprs(epr)
 
-        eprs_name_list = [e.name for e in ne.orig_eprs]
-        ne.name = hash("-".join(eprs_name_list))
+        if ne.name is None:
+            eprs_name_list = [e.name for e in ne.orig_eprs]
+            ne.name = hash("-".join(eprs_name_list))
+
+        assert self.decoherence_time is not None
+        assert epr.decoherence_time is not None
+        assert self.creation_time is not None
+        assert epr.creation_time is not None
 
         # set decoherence time to the shorter among the two pairs
         ne.decoherence_time = min(self.decoherence_time, epr.decoherence_time)
@@ -114,7 +98,7 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
         return ne
 
     def purify(self, epr: "WernerStateEntanglement") -> bool:
-        """Use `self` and `epr` to perfrom distillation and update this entanglement
+        """Use `self` and `epr` to perform distillation and update this entanglement
         Using Bennett 96 protocol and estimate lower bound
 
         Args:
@@ -145,7 +129,7 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
         The default behavior is: w = w*e^{-decoherence_rate*t}, default a = 0
 
         Args:
-            t: the time stored in a quantum memory. The unit it second
+            t: the time stored in a quantum memory. The unit is second
             decoherence_rate: the decoherence rate, equals to 1/T_coh, where T_coh is the coherence time
             kwargs: other parameters
 
@@ -213,5 +197,5 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
             f"src={self.src}, dst={self.dst}, "
             f"ch_index={self.ch_index}, "
             f"orig_eprs={[e.name if hasattr(e, 'name') else repr(e) for e in self.orig_eprs]}), "
-            f"cration_time={self.creation_time}, "
+            f"creation_time={self.creation_time}, "
             f"decoherence_time={self.decoherence_time})")

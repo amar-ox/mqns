@@ -1,7 +1,8 @@
 import numpy as np
 
-from qns.models.epr.werner import WernerStateEntanglement
+from qns.models.epr import WernerStateEntanglement
 from qns.models.qubit.const import QUBIT_STATE_P
+from qns.simulator import Time
 
 
 def test_fidelity_conversion():
@@ -12,18 +13,18 @@ def test_fidelity_conversion():
 def test_swap_success(monkeypatch):
     e1 = WernerStateEntanglement(fidelity=0.9)
     e2 = WernerStateEntanglement(fidelity=0.8)
-    e1.creation_time = 1
-    e2.creation_time = 2
-    e1.decoherence_time = 3
-    e2.decoherence_time = 4
+    e1.creation_time = Time(time_slot=1, accuracy=1000)
+    e2.creation_time = Time(time_slot=2, accuracy=1000)
+    e1.decoherence_time = Time(time_slot=3, accuracy=1000)
+    e2.decoherence_time = Time(time_slot=4, accuracy=1000)
 
     monkeypatch.setattr("qns.models.epr.werner.get_rand", lambda: 0.1)
 
     ne = e1.swapping(e2, ps=1.0)
     assert ne is not None
     assert ne.fidelity < min(e1.fidelity, e2.fidelity)  # swapping reduces fidelity
-    assert ne.creation_time == 1
-    assert ne.decoherence_time == 3
+    assert ne.creation_time == Time(time_slot=1, accuracy=1000)
+    assert ne.decoherence_time == Time(time_slot=3, accuracy=1000)
     assert not ne.is_decoherenced
     assert isinstance(ne.name, str)
 
