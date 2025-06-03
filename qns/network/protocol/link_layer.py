@@ -20,7 +20,7 @@ from typing import Optional
 
 import numpy as np
 
-from qns.entity.cchannel.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
+from qns.entity.cchannel.cchannel import ClassicPacket, RecvClassicPacket
 from qns.entity.memory.memory import QuantumMemory
 from qns.entity.memory.memory_qubit import MemoryQubit
 from qns.entity.node.app import Application
@@ -189,9 +189,7 @@ class LinkLayer(Application):
         log.debug(f"{self.own}: start reservation with key={key}")
         qubit.active = key
         self.pending_init_reservation[key] = (qchannel, next_hop, qubit.addr)
-        cchannel: ClassicChannel = self.own.get_cchannel(next_hop)
-        if cchannel is None:
-            raise Exception(f"{self.own}: No classic channel for dest {next_hop}")
+        cchannel = self.own.get_cchannel(next_hop)
         classic_packet = ClassicPacket(msg={"cmd": "RESERVE_QUBIT", "path_id": path_id, "key": key},
                                        src=self.own, dest=next_hop)
         cchannel.send(classic_packet, next_hop=next_hop)
@@ -330,9 +328,7 @@ class LinkLayer(Application):
         from qns.network.protocol.event import ManageActiveChannels, QubitDecoheredEvent, QubitReleasedEvent, TypeEnum
         if isinstance(event, ManageActiveChannels):
             log.debug(f"{self.own}: start qchannel with {event.neighbor}")
-            qchannel: QuantumChannel = self.own.get_qchannel(event.neighbor)
-            if qchannel is None:
-                raise Exception("No such quantum channel")
+            qchannel = self.own.get_qchannel(event.neighbor)
             if event.type == TypeEnum.ADD:
                 if qchannel.name not in self.active_channels:
                     self.active_channels[qchannel.name] = (qchannel, event.neighbor)
@@ -405,9 +401,7 @@ class LinkLayer(Application):
         msg = packet.packet.get()
         cchannel = packet.cchannel
         from_node: QNode = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
-        qchannel: QuantumChannel = self.own.get_qchannel(from_node)
-        if qchannel is None:
-            raise Exception("No such quantum channel")
+        qchannel = self.own.get_qchannel(from_node)
 
         cmd = msg["cmd"]
         path_id = msg["path_id"]

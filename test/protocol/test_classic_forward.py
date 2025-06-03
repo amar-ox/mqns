@@ -30,8 +30,6 @@ class SendApp(Application):
             raise RuntimeError("not found next hop")
         next_hop = route_result[0][1]
         cchannel = self.get_node().get_cchannel(next_hop)
-        if cchannel is None:
-            raise RuntimeError("not found next channel")
 
         # send the classic packet
         cchannel.send(packet=packet, next_hop=next_hop)
