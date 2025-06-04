@@ -124,7 +124,7 @@ class QuantumChannel(Entity):
 
         # operation on the qubit
         qubit.transfer_error_model(self.length, self.decoherence_rate, **self.transfer_error_model_args)
-        send_event = RecvQubitPacket(recv_time, name=None, by=self, qchannel=self,
+        send_event = RecvQubitPacket(t=recv_time, by=self, qchannel=self,
                                      qubit=qubit, dest=next_hop)
         simulator.add_event(send_event)
 
@@ -139,16 +139,15 @@ class NextHopNotConnectionException(Exception):
 
 
 class RecvQubitPacket(Event):
-    """The event for a QNode to receive a classic packet
+    """The event for a QNode to receive a qubit
     """
 
-    def __init__(self, t: Time|None = None, qchannel: QuantumChannel|None = None,
-                 qubit: QuantumModel|None = None, dest: QNode|None = None, name: str|None = None, by: Any = None):
+    def __init__(self, *, t: Time, name: str|None = None, by: Any = None,
+                 qchannel: QuantumChannel, qubit: QuantumModel, dest: QNode):
         super().__init__(t=t, name=name, by=by)
         self.qchannel = qchannel
         self.qubit = qubit
         self.dest = dest
 
     def invoke(self) -> None:
-        assert self.dest is not None
         self.dest.handle(self)

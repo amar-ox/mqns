@@ -95,9 +95,8 @@ class QuantumMemory(Entity):
         assert self.node is not None
 
         from qns.network.protocol.link_layer import LinkLayer
-        ll_apps = self.node.get_apps(LinkLayer)
         try:
-            self.link_layer = ll_apps[0]
+            self.link_layer = self.node.get_app(LinkLayer)
         except IndexError:
             pass
 
