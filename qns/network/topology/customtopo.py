@@ -16,12 +16,12 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from typing import Any, TypedDict
+from typing import TypedDict
 
-from qns.entity.cchannel import ClassicChannel
-from qns.entity.memory import QuantumMemory
+from qns.entity.cchannel import ClassicChannel, ClassicChannelInitKwargs
+from qns.entity.memory import QuantumMemory, QuantumMemoryInitKwargs
 from qns.entity.node import Application, Controller, QNode
-from qns.entity.qchannel import QuantumChannel
+from qns.entity.qchannel import QuantumChannel, QuantumChannelInitKwargs
 from qns.network.topology.topo import Topology
 
 try:
@@ -31,19 +31,19 @@ except ImportError:
 
 class TopoQNode(TypedDict):
     name: str
-    memory: Any
+    memory: QuantumMemoryInitKwargs
     apps: list[Application]
 
 class TopoQChannel(TypedDict):
     node1: str
     node2: str
     capacity: int
-    parameters: Any
+    parameters: QuantumChannelInitKwargs
 
 class TopoCChannel(TypedDict):
     node1: str
     node2: str
-    parameters: Any
+    parameters: ClassicChannelInitKwargs
 
 class TopoController(TypedDict):
     name: str

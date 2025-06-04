@@ -30,10 +30,10 @@ import itertools
 from enum import Enum
 from typing import TypedDict
 
-from qns.entity.cchannel import ClassicChannel
-from qns.entity.memory import QuantumMemory
+from qns.entity.cchannel import ClassicChannel, ClassicChannelInitKwargs
+from qns.entity.memory import QuantumMemory, QuantumMemoryInitKwargs
 from qns.entity.node import Application, Controller, QNode
-from qns.entity.qchannel import QuantumChannel
+from qns.entity.qchannel import QuantumChannel, QuantumChannelInitKwargs
 
 try:
     from typing import Unpack
@@ -42,9 +42,9 @@ except ImportError:
 
 class TopologyInitKwargs(TypedDict, total=False):
     nodes_apps: list[Application]
-    qchannel_args: dict
-    cchannel_args: dict
-    memory_args: dict
+    qchannel_args: QuantumChannelInitKwargs
+    cchannel_args: ClassicChannelInitKwargs
+    memory_args: QuantumMemoryInitKwargs
 
 
 class ClassicTopology(Enum):
