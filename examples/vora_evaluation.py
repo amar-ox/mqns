@@ -1,6 +1,7 @@
 import argparse
 import itertools
 import logging
+from multiprocessing import Pool
 from typing import cast
 
 import matplotlib.pyplot as plt
@@ -214,15 +215,15 @@ parser.add_argument("--runs", default=N_RUNS, type=int, help="Number of trials p
 parser.add_argument("--routers", action="append", type=int, help="Number of routers between source and destination.")
 parser.add_argument("--csv", type=str, help="Save results as CSV file.")
 parser.add_argument("--plt", type=str, help="Save plot as image file.")
+parser.add_argument("-j", default=1, type=int, help="Number of workers for parallel execution.")
 args = parser.parse_args()
 N_RUNS = cast(int, args.runs)
 if args.routers is not None:
     NUM_ROUTERS_OPTIONS = cast(list[int], args.routers)
 
-results = []
 
-# Simulation loop
-for num_routers, dist_prop, swap_conf in itertools.product(NUM_ROUTERS_OPTIONS, DIST_PROPORTIONS, SWAP_CONFIGS):
+# Simulation iteration
+def run_row(num_routers: int, dist_prop: str, swap_conf: str) -> dict:
     full_swapping_config = f"swap_{num_routers}_{swap_conf}"
     if swap_conf == "vora":
         full_swapping_config += f"_{dist_prop}"
@@ -241,19 +242,22 @@ for num_routers, dist_prop, swap_conf in itertools.product(NUM_ROUTERS_OPTIONS, 
     mean_exp = np.mean(expired)
     std_exp = np.std(expired)
 
-    results.append(
-        {
-            "Routers": num_routers,
-            "Distance Distribution": dist_prop,
-            "Swapping Config": swap_conf,
-            "Entanglements Per Second": mean_entg,
-            "Entanglements Std": std_entg,
-            "Entanglements All Runs": entanglements,
-            "Expired Memories Per Entanglement": mean_exp,
-            "Expired Memories Std": std_exp,
-            "Expired Memories All Runs": expired,
-        }
-    )
+    return {
+        "Routers": num_routers,
+        "Distance Distribution": dist_prop,
+        "Swapping Config": swap_conf,
+        "Entanglements Per Second": mean_entg,
+        "Entanglements Std": std_entg,
+        "Entanglements All Runs": entanglements,
+        "Expired Memories Per Entanglement": mean_exp,
+        "Expired Memories Std": std_exp,
+        "Expired Memories All Runs": expired,
+    }
+
+
+# Simulator loop with process-based parallelism
+with Pool(processes=cast(int, args.j)) as pool:
+    results = pool.starmap(run_row, itertools.product(NUM_ROUTERS_OPTIONS, DIST_PROPORTIONS, SWAP_CONFIGS))
 
 df = pd.DataFrame(results)
 if args.csv is not None:
