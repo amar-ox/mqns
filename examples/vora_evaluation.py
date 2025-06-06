@@ -1,5 +1,7 @@
+import argparse
 import itertools
 import logging
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -206,6 +208,17 @@ NUM_ROUTERS_OPTIONS = [3, 4, 5]
 DIST_PROPORTIONS = ["decreasing", "increasing", "mid_bottleneck", "uniform"]
 SWAP_CONFIGS = ["asap", "baln", "vora", "l2r"]
 
+# Command line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--runs", default=N_RUNS, type=int, help="Number of trials per parameter set.")
+parser.add_argument("--routers", action="append", type=int, help="Number of routers between source and destination.")
+parser.add_argument("--csv", type=str, help="Save results as CSV file.")
+parser.add_argument("--plt", type=str, help="Save plot as image file.")
+args = parser.parse_args()
+N_RUNS = cast(int, args.runs)
+if args.routers is not None:
+    NUM_ROUTERS_OPTIONS = cast(list[int], args.routers)
+
 results = []
 
 # Simulation loop
@@ -243,7 +256,8 @@ for num_routers, dist_prop, swap_conf in itertools.product(NUM_ROUTERS_OPTIONS, 
     )
 
 df = pd.DataFrame(results)
-# df.to_csv("trend_results_3.csv", index=False)
+if args.csv is not None:
+    df.to_csv(cast(str, args.csv), index=False)
 
 # === Combined Plot ===
 fig, axes = plt.subplots(2, 3, figsize=(18, 10), sharey="row")
@@ -294,4 +308,6 @@ axes[0, 0].legend(loc="upper left")
 axes[1, 0].legend(loc="upper left")
 
 plt.tight_layout()
+if args.plt is not None:
+    plt.savefig(cast(str, args.plt), dpi=300, transparent=True)
 plt.show()
