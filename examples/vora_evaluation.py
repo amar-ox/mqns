@@ -35,7 +35,7 @@ t_coherence = 0.01  # sec
 p_swap = 0.5
 
 
-def compute_distances_distribution(end_to_end_distance, number_of_routers, distance_proportion):
+def compute_distances_distribution(end_to_end_distance: int, number_of_routers: int, distance_proportion: str) -> list[int]:
     """Computes the distribution of channel distances between nodes in a quantum or classical network.
 
     Args:
@@ -82,7 +82,7 @@ def compute_distances_distribution(end_to_end_distance, number_of_routers, dista
         raise ValueError(f"Invalid distance proportion type: {distance_proportion}")
 
 
-def generate_topology(number_of_routers, distance_proportion, swapping_config, total_distance) -> Topo:
+def generate_topology(number_of_routers: int, distance_proportion: str, swapping_config: str, total_distance: int) -> Topo:
     # Generate nodes
     nodes: list[TopoQNode] = []
     nodes.append(
@@ -144,9 +144,8 @@ def generate_topology(number_of_routers, distance_proportion, swapping_config, t
     # Generate qchannels and cchannels
     qchannels: list[TopoQChannel] = []
     cchannels: list[TopoCChannel] = []
-    names = ["S"] + [f"R{i}" for i in range(1, number_of_routers + 1)] + ["D"]
-    for i in range(len(names) - 1):
-        ch_len = distances[i]
+    names = [node["name"] for node in nodes]
+    for i, ch_len in enumerate(distances):
         qchannels.append(
             {
                 "node1": names[i],
@@ -169,7 +168,9 @@ def generate_topology(number_of_routers, distance_proportion, swapping_config, t
     return {"qnodes": nodes, "qchannels": qchannels, "cchannels": cchannels, "controller": controller}
 
 
-def run_simulation(number_of_routers, distance_proportion, swapping_config, total_distance, seed):
+def run_simulation(
+    number_of_routers: int, distance_proportion: str, swapping_config: str, total_distance: int, seed: int
+) -> tuple[float, float]:
     json_topology = generate_topology(number_of_routers, distance_proportion, swapping_config, total_distance)
 
     set_seed(seed)
