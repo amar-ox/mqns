@@ -23,7 +23,7 @@ def test_time_compare():
         t3 = Time()
         t4 = Time(1100000)
 
-    assert t1 == t1 # noqa: PLR0124
+    assert t1 == t1  # noqa: PLR0124
     assert t2 >= t1
     assert t1 <= t2
     assert t1 < t2
@@ -95,6 +95,7 @@ def test_simulator_time():
     """
     from qns.simulator.event import func_to_event
     from qns.simulator.simulator import Simulator
+
     s = Simulator(1, 10, 1000)
     s.run()
     print_event = func_to_event(Time(sec=1), print_msg, "hello world")

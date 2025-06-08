@@ -34,5 +34,14 @@ from qns.network.topology.topo import ClassicTopology, Topology
 from qns.network.topology.treetopo import TreeTopology
 from qns.network.topology.waxmantopo import WaxmanTopology
 
-__all__ = ["Topology", "ClassicTopology", "BasicTopology", "LinearTopology", "CustomTopology",
-           "TreeTopology", "GridTopology", "RandomTopology", "WaxmanTopology"]
+__all__ = [
+    "Topology",
+    "ClassicTopology",
+    "BasicTopology",
+    "LinearTopology",
+    "CustomTopology",
+    "TreeTopology",
+    "GridTopology",
+    "RandomTopology",
+    "WaxmanTopology",
+]

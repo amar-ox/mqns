@@ -26,16 +26,16 @@ if TYPE_CHECKING:
 
 NodeT = TypeVar("NodeT", bound="Node")
 EventT = TypeVar("EventT")
-Handler = Callable[["Node", EventT], Any] | Callable[["QNode", EventT], bool|None]
+Handler = Callable[["Node", EventT], Any] | Callable[["QNode", EventT], bool | None]
+
 
 class Application:
-    """Application can be deployed on the quantum nodes.
-    """
+    """Application can be deployed on the quantum nodes."""
 
     def __init__(self):
-        self._simulator: Simulator|None = None
+        self._simulator: Simulator | None = None
         self._node: "Node|None" = None
-        self._dispatch_dict: list[tuple[list[type[Event]],list[Any],Handler]] = []
+        self._dispatch_dict: list[tuple[list[type[Event]], list[Any], Handler]] = []
 
     def install(self, node: "Node", simulator: Simulator):
         """Install initial events for this Node. Called from Node.install()
@@ -48,7 +48,7 @@ class Application:
         self._simulator = simulator
         self._node = node
 
-    def handle(self, node: "Node", event: Event) -> bool|None:
+    def handle(self, node: "Node", event: Event) -> bool | None:
         """Process the event on the node.
 
         Args:
@@ -61,7 +61,7 @@ class Application:
         """
         return self._dispatch(node, event)
 
-    def _dispatch(self, node: "Node", event: Event) -> bool|None:
+    def _dispatch(self, node: "Node", event: Event) -> bool | None:
         for eventTypeList, byList, handler in self._dispatch_dict:
             flag_et = False
             flag_by = False
@@ -94,7 +94,7 @@ class Application:
         """
         self._dispatch_dict.append((EventTypeList, ByList, handler))
 
-    def get_node(self, *, node_type: type["NodeT"]|None = None) -> "NodeT":
+    def get_node(self, *, node_type: type["NodeT"] | None = None) -> "NodeT":
         """Get the node that runs this application
 
         Returns:

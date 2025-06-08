@@ -65,7 +65,7 @@ ext_modules = [
     Extension("qns.network.protocol.bb84", ["qns/network/protocol/bb84.py"]),
     Extension("qns.network.protocol.classicforward", ["qns/network/protocol/classicforward.py"]),
     Extension("qns.network.protocol.node_process_delay", ["qns/network/protocol/node_process_delay.py"]),
-    ]
+]
 
 
 setup(

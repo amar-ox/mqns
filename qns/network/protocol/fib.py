@@ -15,13 +15,20 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
 class ForwardingInformationBase:
     def __init__(self):
         # The FIB table stores multiple path entries
         self.table: dict[str, dict] = {}
 
-    def add_entry(self, path_id: str, path_vector: list[str], swap_sequence: list[int],
-                  purification_scheme: dict[tuple[str, str], int], qubit_addresses: list[int]):
+    def add_entry(
+        self,
+        path_id: str,
+        path_vector: list[str],
+        swap_sequence: list[int],
+        purification_scheme: dict[tuple[str, str], int],
+        qubit_addresses: list[int],
+    ):
         """Add a new path entry to the forwarding table."""
         if path_id in self.table:
             raise ValueError(f"Path ID '{path_id}' already exists.")
@@ -31,7 +38,7 @@ class ForwardingInformationBase:
             "path_vector": path_vector,
             "swap_sequence": swap_sequence,
             "purification_scheme": purification_scheme,
-            "qubit_addresses": qubit_addresses
+            "qubit_addresses": qubit_addresses,
         }
 
     def get_entry(self, path_id: str) -> dict | None:

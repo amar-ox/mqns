@@ -41,10 +41,9 @@ EntanglementT = TypeVar("EntanglementT")
 
 
 class BaseEntanglement(Generic[EntanglementT]):
-    """This is the base entanglement model
-    """
+    """This is the base entanglement model"""
 
-    def __init__(self, fidelity: float = 1, name: str|None = None):
+    def __init__(self, fidelity: float = 1, name: str | None = None):
         """Generate an entanglement with certain fidelity
 
         Args:
@@ -55,8 +54,8 @@ class BaseEntanglement(Generic[EntanglementT]):
         self.fidelity = fidelity
         self.name = name
         self.is_decoherenced = False
-        self.creation_time: Time|None = None
-        self.decoherence_time: Time|None = None
+        self.creation_time: Time | None = None
+        self.decoherence_time: Time | None = None
         self.src: "QNode|None" = None
         """src node"""
         self.dst: "QNode|None" = None
@@ -67,14 +66,13 @@ class BaseEntanglement(Generic[EntanglementT]):
         """Elementary EPRs from which this EPR is created via swapping"""
         self.read = False
         """to know when both end-nodes are aware of the EPR"""
-        self.key: str|None = None
+        self.key: str | None = None
         """to store the EPR in the right negotiated qubit at the dst node"""
 
     def set_decoherenced(self, value: bool):
         self.is_decoherenced = value
 
-
-    def swapping(self, epr: EntanglementT, *, name: str|None = None, ps: float = 1) -> EntanglementT|None:
+    def swapping(self, epr: EntanglementT, *, name: str | None = None, ps: float = 1) -> EntanglementT | None:
         """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
 
         Args:
@@ -85,7 +83,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         """
         raise NotImplementedError
 
-    def distillation(self, epr: EntanglementT) -> EntanglementT|None:
+    def distillation(self, epr: EntanglementT) -> EntanglementT | None:
         """Use `self` and `epr` to perfrom distillation and distribute a new entanglement
 
         Args:
@@ -142,7 +140,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         self.is_decoherenced = True
         return q2
 
-    #def __repr__(self) -> str:
+    # def __repr__(self) -> str:
     #    if self.name is not None:
     #        return "<epr "+self.name+">"
     #    return super().__repr__()

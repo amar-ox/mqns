@@ -29,10 +29,12 @@ try:
 except ImportError:
     from typing_extensions import NotRequired
 
+
 class TopoQNode(TypedDict):
     name: str
     memory: QuantumMemoryInitKwargs
     apps: list[Application]
+
 
 class TopoQChannel(TypedDict):
     node1: str
@@ -40,20 +42,24 @@ class TopoQChannel(TypedDict):
     capacity: int
     parameters: QuantumChannelInitKwargs
 
+
 class TopoCChannel(TypedDict):
     node1: str
     node2: str
     parameters: ClassicChannelInitKwargs
 
+
 class TopoController(TypedDict):
     name: str
     apps: list[Application]
+
 
 class Topo(TypedDict):
     qnodes: list[TopoQNode]
     qchannels: list[TopoQChannel]
     cchannels: list[TopoCChannel]
     controller: NotRequired[TopoController]
+
 
 class CustomTopology(Topology):
     """
