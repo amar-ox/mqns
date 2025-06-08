@@ -40,6 +40,7 @@ try:
 except ImportError:
     from typing_extensions import Unpack
 
+
 class QuantumChannelInitKwargs(TypedDict, total=False):
     bandwidth: int
     delay: DelayInput
@@ -49,9 +50,9 @@ class QuantumChannelInitKwargs(TypedDict, total=False):
     decoherence_rate: float
     transfer_error_model_args: dict
 
+
 class QuantumChannel(Entity):
-    """QuantumChannel is the channel for transmitting qubit
-    """
+    """QuantumChannel is the channel for transmitting qubit"""
 
     def __init__(self, name: str, node_list: list[QNode] = [], **kwargs: Unpack[QuantumChannelInitKwargs]):
         """Args:
@@ -106,14 +107,12 @@ class QuantumChannel(Entity):
             raise NextHopNotConnectionException
 
         if self.bandwidth != 0:
-
             if self._next_send_time <= simulator.current_time:
                 send_time = simulator.current_time
             else:
                 send_time = self._next_send_time
 
-            if self.max_buffer_size != 0 and \
-               send_time > simulator.current_time + self.max_buffer_size / self.bandwidth:
+            if self.max_buffer_size != 0 and send_time > simulator.current_time + self.max_buffer_size / self.bandwidth:
                 # buffer is overflow
                 log.debug(f"qchannel {self}: drop qubit {qubit} due to overflow")
                 return
@@ -126,7 +125,7 @@ class QuantumChannel(Entity):
         if self.drop_rate > 0 and get_rand() < self.drop_rate:
             log.debug(f"qchannel {self}: drop qubit {qubit} due to drop rate")
             if isinstance(qubit, BaseEntanglement):
-                qubit.set_decoherenced(True) # photon is lost -> flag this pair as decoherenced to inform receiver node
+                qubit.set_decoherenced(True)  # photon is lost -> flag this pair as decoherenced to inform receiver node
             return
 
         # add delay
@@ -134,12 +133,11 @@ class QuantumChannel(Entity):
 
         # operation on the qubit
         qubit.transfer_error_model(self.length, self.decoherence_rate, **self.transfer_error_model_args)
-        send_event = RecvQubitPacket(t=recv_time, by=self, qchannel=self,
-                                     qubit=qubit, dest=next_hop)
+        send_event = RecvQubitPacket(t=recv_time, by=self, qchannel=self, qubit=qubit, dest=next_hop)
         simulator.add_event(send_event)
 
     def __repr__(self) -> str:
-        return "<qchannel "+self.name+">"
+        return "<qchannel " + self.name + ">"
 
 
 class NextHopNotConnectionException(Exception):
@@ -147,11 +145,11 @@ class NextHopNotConnectionException(Exception):
 
 
 class RecvQubitPacket(Event):
-    """The event for a QNode to receive a qubit
-    """
+    """The event for a QNode to receive a qubit"""
 
-    def __init__(self, *, t: Time, name: str|None = None, by: Any = None,
-                 qchannel: QuantumChannel, qubit: QuantumModel, dest: QNode):
+    def __init__(
+        self, *, t: Time, name: str | None = None, by: Any = None, qchannel: QuantumChannel, qubit: QuantumModel, dest: QNode
+    ):
         super().__init__(t=t, name=name, by=by)
         self.qchannel = qchannel
         self.qubit = qubit

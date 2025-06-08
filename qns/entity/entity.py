@@ -19,8 +19,7 @@ from qns.simulator import Event, Simulator
 
 
 class Entity:
-    """This is the basic entity class, including memories, channels and nodes.
-    """
+    """This is the basic entity class, including memories, channels and nodes."""
 
     def __init__(self, name: str):
         """Args:
@@ -28,7 +27,7 @@ class Entity:
 
         """
         self.name = name
-        self._simulator: Simulator|None = None
+        self._simulator: Simulator | None = None
 
     @property
     def simulator(self) -> Simulator:

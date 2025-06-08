@@ -41,10 +41,9 @@ except ImportError:
 
 
 class ClassicPacket:
-    """ClassicPacket is the message that transfer on a ClassicChannel
-    """
+    """ClassicPacket is the message that transfer on a ClassicChannel"""
 
-    def __init__(self, msg: Any, src: Node|None = None, dest: Node|None = None):
+    def __init__(self, msg: Any, src: Node | None = None, dest: Node | None = None):
         """Args:
         msg (Union[str, bytes, Any]): the message content.
             It can be a `str` or `bytes` type or can be dumpped to json.
@@ -53,10 +52,10 @@ class ClassicPacket:
 
         """
         self.is_json: bool = False
-        #if not isinstance(msg, (str, bytes)):
+        # if not isinstance(msg, (str, bytes)):
         #    self.msg = json.dumps(msg)
         #    self.is_json = True
-        #else:
+        # else:
         self.msg = msg
         self.src = src
         self.dest = dest
@@ -95,9 +94,9 @@ class ClassicChannelInitKwargs(TypedDict, total=False):
     max_buffer_size: int
     length: float
 
+
 class ClassicChannel(Entity):
-    """ClassicChannel is the channel for classic message
-    """
+    """ClassicChannel is the channel for classic message"""
 
     def __init__(self, name: str, node_list: list[Node] = [], **kwargs: Unpack[ClassicChannelInitKwargs]):
         """Args:
@@ -153,8 +152,7 @@ class ClassicChannel(Entity):
             else:
                 send_time = self._next_send_time
 
-            if self.max_buffer_size != 0 and \
-                send_time > simulator.current_time + self.max_buffer_size / self.bandwidth:
+            if self.max_buffer_size != 0 and send_time > simulator.current_time + self.max_buffer_size / self.bandwidth:
                 # buffer is overflow
                 log.debug(f"cchannel {self}: drop packet {packet} due to overflow")
                 return
@@ -170,12 +168,11 @@ class ClassicChannel(Entity):
         #  add delay
         recv_time = send_time + (self.delay_model.calculate() + delay)
 
-        send_event = RecvClassicPacket(t=recv_time, name=None, by=self,
-                                       cchannel=self, packet=packet, dest=next_hop)
+        send_event = RecvClassicPacket(t=recv_time, name=None, by=self, cchannel=self, packet=packet, dest=next_hop)
         simulator.add_event(send_event)
 
     def __repr__(self) -> str:
-        return "<cchannel "+self.name+">"
+        return "<cchannel " + self.name + ">"
 
 
 class NextHopNotConnectionException(Exception):
@@ -183,11 +180,11 @@ class NextHopNotConnectionException(Exception):
 
 
 class RecvClassicPacket(Event):
-    """The event for a Node to receive a classic packet
-    """
+    """The event for a Node to receive a classic packet"""
 
-    def __init__(self, *, t: Time, name: str|None = None, by: Any = None,
-                 cchannel: ClassicChannel, packet: ClassicPacket, dest: Node):
+    def __init__(
+        self, *, t: Time, name: str | None = None, by: Any = None, cchannel: ClassicChannel, packet: ClassicPacket, dest: Node
+    ):
         super().__init__(t=t, name=name, by=by)
         self.cchannel = cchannel
         self.packet = packet

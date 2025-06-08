@@ -37,11 +37,11 @@ if TYPE_CHECKING:
 
 ApplicationT = TypeVar("ApplicationT", bound=Application)
 
-class Node(Entity):
-    """Node is a generic node in the quantum network
-    """
 
-    def __init__(self, name: str, *, apps: list[Application]|None = None):
+class Node(Entity):
+    """Node is a generic node in the quantum network"""
+
+    def __init__(self, name: str, *, apps: list[Application] | None = None):
         """Args:
         name (str): the node's name
         apps (List[Application]): the installing applications.
@@ -50,20 +50,21 @@ class Node(Entity):
         super().__init__(name=name)
         self._network: "QuantumNetwork|None" = None
         self.cchannels: list["ClassicChannel"] = []
-        self.croute_table = [] # XXX unused
+        self.croute_table = []  # XXX unused
         self.apps: list[Application] = [] if apps is None else apps
 
         # set default timing to ASYNC
         from qns.network.network import TimingModeEnum
+
         self.timing_mode: TimingModeEnum = TimingModeEnum.ASYNC
 
     def install(self, simulator: Simulator) -> None:
-        """Called from Network.install()
-        """
+        """Called from Network.install()"""
         super().install(simulator)
         # initiate sub-entities
         for cchannel in self.cchannels:
             from qns.entity import ClassicChannel
+
             assert isinstance(cchannel, ClassicChannel)
             cchannel.install(simulator)
 

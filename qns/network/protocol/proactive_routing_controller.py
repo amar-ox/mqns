@@ -26,51 +26,47 @@ from qns.utils import log
 
 swapping_settings = {
     # disable swapping (for studying isolated links)
-    "isolation_1": [0,0,0],
-
+    "isolation_1": [0, 0, 0],
     # for 1-repeater
-    "swap_1": [1,0,1],
-
+    "swap_1": [1, 0, 1],
     # for 2-repeater
-    "swap_2_asap": [1,0,0,1],
-    "swap_2_l2r": [2,0,1,2],
-    "swap_2_r2l": [2,1,0,2],
-
+    "swap_2_asap": [1, 0, 0, 1],
+    "swap_2_l2r": [2, 0, 1, 2],
+    "swap_2_r2l": [2, 1, 0, 2],
     # for 3-repeater
-    "swap_3_asap": [1,0,0,0,1],
-    "swap_3_baln": [2,0,1,0,2],
-    "swap_3_l2r": [3,0,1,2,3],
-    "swap_3_r2l": [3,2,1,0,3],
-    "swap_3_vora_uniform": [3,0,2,1,3],    # equiv. [2,0,1,0,2] ~ baln
-    "swap_3_vora_increasing": [3,0,1,2,3],
-    "swap_3_vora_decreasing": [3,2,1,0,3],
-    "swap_3_vora_mid_bottleneck": [3,1,2,0,3],   # [2,0,1,0,2]  ~ baln
-
+    "swap_3_asap": [1, 0, 0, 0, 1],
+    "swap_3_baln": [2, 0, 1, 0, 2],
+    "swap_3_l2r": [3, 0, 1, 2, 3],
+    "swap_3_r2l": [3, 2, 1, 0, 3],
+    "swap_3_vora_uniform": [3, 0, 2, 1, 3],  # equiv. [2,0,1,0,2] ~ baln
+    "swap_3_vora_increasing": [3, 0, 1, 2, 3],
+    "swap_3_vora_decreasing": [3, 2, 1, 0, 3],
+    "swap_3_vora_mid_bottleneck": [3, 1, 2, 0, 3],  # [2,0,1,0,2]  ~ baln
     # for 4-repeater
-    "swap_4_asap": [1,0,0,0,0,1],
-    "swap_4_baln": [3,0,1,0,2,3],
-    "swap_4_l2r": [4,0,1,2,3,4],
-    "swap_4_r2l": [4,3,2,1,0,4],
-    "swap_4_vora_uniform": [4,0,3,1,2,4],           # equiv. [3,0,2,0,1,3]
-    "swap_4_vora_increasing": [4,0,1,3,2,4],        # equiv. [3,0,1,2,0,3]
-    "swap_4_vora_decreasing": [4,3,1,2,0,4],        # equiv. [3,2,0,1,0,3]
-    "swap_4_vora_mid_bottleneck": [4,0,2,3,1,4],    # equiv. [3,0,1,2,0,3]
-    "swap_4_vora_uniform2": [3,0,2,0,1,3],
-    "swap_4_vora_increasing2": [3,0,1,2,0,3],
-    "swap_4_vora_decreasing2": [3,2,0,1,0,3],
-    "swap_4_vora_mid_bottleneck2": [3,0,1,2,0,3],
-
+    "swap_4_asap": [1, 0, 0, 0, 0, 1],
+    "swap_4_baln": [3, 0, 1, 0, 2, 3],
+    "swap_4_l2r": [4, 0, 1, 2, 3, 4],
+    "swap_4_r2l": [4, 3, 2, 1, 0, 4],
+    "swap_4_vora_uniform": [4, 0, 3, 1, 2, 4],  # equiv. [3,0,2,0,1,3]
+    "swap_4_vora_increasing": [4, 0, 1, 3, 2, 4],  # equiv. [3,0,1,2,0,3]
+    "swap_4_vora_decreasing": [4, 3, 1, 2, 0, 4],  # equiv. [3,2,0,1,0,3]
+    "swap_4_vora_mid_bottleneck": [4, 0, 2, 3, 1, 4],  # equiv. [3,0,1,2,0,3]
+    "swap_4_vora_uniform2": [3, 0, 2, 0, 1, 3],
+    "swap_4_vora_increasing2": [3, 0, 1, 2, 0, 3],
+    "swap_4_vora_decreasing2": [3, 2, 0, 1, 0, 3],
+    "swap_4_vora_mid_bottleneck2": [3, 0, 1, 2, 0, 3],
     # for 5-repeater example
-    "swap_5_asap": [1,0,0,0,0,0,1],
-    "swap_5_baln": [3,0,1,0,2,0,3],     # need to specify exact doubling  => this is used in the vora paper
-    "swap_5_baln2": [3,0,2,0,1,0,3],
-    "swap_5_l2r": [5,0,1,2,3,4,5],
-    "swap_5_r2l": [5,4,3,2,1,0,5],
-    "swap_5_vora_uniform": [5,0,3,1,4,2,5],      # [3,0,1,0,2,0,3]  ~ baln
-    "swap_5_vora_increasing": [5,0,3,1,4,2,5],      # [3,0,1,0,2,0,3] ~ baln
-    "swap_5_vora_decreasing": [5,2,4,1,3,0,5],      # [3,0,2,0,1,0,3] ~ baln2
-    "swap_5_vora_mid_bottleneck": [5,0,4,2,3,1,5]    # [3,0,2,0,1,0,3] ~ baln2
+    "swap_5_asap": [1, 0, 0, 0, 0, 0, 1],
+    "swap_5_baln": [3, 0, 1, 0, 2, 0, 3],  # need to specify exact doubling  => this is used in the vora paper
+    "swap_5_baln2": [3, 0, 2, 0, 1, 0, 3],
+    "swap_5_l2r": [5, 0, 1, 2, 3, 4, 5],
+    "swap_5_r2l": [5, 4, 3, 2, 1, 0, 5],
+    "swap_5_vora_uniform": [5, 0, 3, 1, 4, 2, 5],  # [3,0,1,0,2,0,3]  ~ baln
+    "swap_5_vora_increasing": [5, 0, 3, 1, 4, 2, 5],  # [3,0,1,0,2,0,3] ~ baln
+    "swap_5_vora_decreasing": [5, 2, 4, 1, 3, 0, 5],  # [3,0,2,0,1,0,3] ~ baln2
+    "swap_5_vora_mid_bottleneck": [5, 0, 4, 2, 3, 1, 5],  # [3,0,2,0,1,0,3] ~ baln2
 }
+
 
 class ProactiveRoutingControllerApp(Application):
     """This is the centralized control plane app for Proactive Routing. Works with Proactive Forwarder on quantum nodes.
@@ -83,8 +79,8 @@ class ProactiveRoutingControllerApp(Application):
 
         """
         super().__init__()
-        self.net: QuantumNetwork # contains QN physical topology and classical topology
-        self.own: Controller     # controller node running this app
+        self.net: QuantumNetwork  # contains QN physical topology and classical topology
+        self.own: Controller  # controller node running this app
 
         if swapping not in swapping_settings:
             raise Exception(f"{self.own}: Swapping {swapping} not configured")
@@ -101,14 +97,13 @@ class ProactiveRoutingControllerApp(Application):
     #         self.end_headers()
     #         self.wfile.write(b"Test function executed")
 
-
     def install(self, node: Controller, simulator: Simulator):
         super().install(node, simulator)
         self.own = self.get_node(node_type=Controller)
         self.net = self.own.network
 
-        #print("Starting server on port 8080...")
-        #self.server.serve_forever()
+        # print("Starting server on port 8080...")
+        # self.server.serve_forever()
 
         # install the test path on QNodes
         self.install_static_path()
@@ -158,8 +153,10 @@ class ProactiveRoutingControllerApp(Application):
         route = [n.name for n in path_nodes]
 
         if len(route) != len(swapping_settings[self.swapping]):
-            raise Exception(f"{self.own}: Swapping {swapping_settings[self.swapping]} \
-                does not correspond to computed route: {route}")
+            raise Exception(
+                f"{self.own}: Swapping {swapping_settings[self.swapping]} \
+                does not correspond to computed route: {route}"
+            )
 
         m_v = []
         src_capacity = self.net.get_node(path_nodes[0].name).memory.capacity
@@ -173,15 +170,15 @@ class ProactiveRoutingControllerApp(Application):
                 "mux": "B",
                 "m_v": m_v,
                 # "purif": { 'S-R':1, 'R-D':1 },
-                "purif": {}
+                "purif": {},
             }
 
             cchannel = self.own.get_cchannel(qnode)
             classic_packet = ClassicPacket(
-                msg={"cmd": "install_path", "path_id": 0, "instructions": instructions}, src=self.own, dest=qnode)
+                msg={"cmd": "install_path", "path_id": 0, "instructions": instructions}, src=self.own, dest=qnode
+            )
             cchannel.send(classic_packet, next_hop=qnode)
             log.debug(f"{self.own}: send {classic_packet.msg} to {qnode}")
-
 
     # def RecvClassicPacketHandler(self, node: Controller, event: Event):
     #     self.handle_request(event)
@@ -212,4 +209,3 @@ class ProactiveRoutingControllerApp(Application):
     #         pass
     #     else:
     #         pass
-

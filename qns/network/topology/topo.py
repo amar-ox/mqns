@@ -40,6 +40,7 @@ try:
 except ImportError:
     from typing_extensions import Unpack
 
+
 class TopologyInitKwargs(TypedDict, total=False):
     nodes_apps: list[Application]
     qchannel_args: QuantumChannelInitKwargs
@@ -54,8 +55,7 @@ class ClassicTopology(Enum):
 
 
 class Topology:
-    """Topology is a factory for QuantumNetwork
-    """
+    """Topology is a factory for QuantumNetwork"""
 
     def __init__(self, nodes_number: int, **kwargs: Unpack[TopologyInitKwargs]):
         """Args:
@@ -71,7 +71,7 @@ class Topology:
         self.qchannel_args = kwargs.get("qchannel_args", {})
         self.cchannel_args = kwargs.get("cchannel_args", {})
         self.memory_args = kwargs.get("memory_args", {})
-        self.controller: Controller|None = None
+        self.controller: Controller | None = None
 
     def build(self) -> tuple[list[QNode], list[QuantumChannel]]:
         """Build the special topology
@@ -105,8 +105,9 @@ class Topology:
             m = QuantumMemory(name=f"m{idx}", node=n, **self.memory_args)
             n.set_memory(m)
 
-    def add_cchannels(self, *, classic_topo: ClassicTopology = ClassicTopology.Empty,
-                      nl: list[QNode] = [], ll: list[QuantumChannel] = []) -> list[ClassicChannel]:
+    def add_cchannels(
+        self, *, classic_topo: ClassicTopology = ClassicTopology.Empty, nl: list[QNode] = [], ll: list[QuantumChannel] = []
+    ) -> list[ClassicChannel]:
         """Build classic network topology
 
         Args:
@@ -122,7 +123,7 @@ class Topology:
         if classic_topo == ClassicTopology.All:
             topo = list(itertools.combinations(nl, 2))
             for idx, (src, dst) in enumerate(topo):
-                cchannel = ClassicChannel(name=f"c{idx+1}", **self.cchannel_args)
+                cchannel = ClassicChannel(name=f"c{idx + 1}", **self.cchannel_args)
                 src.add_cchannel(cchannel=cchannel)
                 dst.add_cchannel(cchannel=cchannel)
                 cchannel_list.append(cchannel)

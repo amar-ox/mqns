@@ -32,19 +32,22 @@ from qns.utils import log
 if TYPE_CHECKING:
     from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 
+
 class LinkLayer(Application):
     """This is the network function reponsible for creating elementary entanglements over qchannels.
     It equips a QNode and is activated from the forwarding function (e.g., ProactiveForwarder).
     """
 
-    def __init__(self,
-                 attempt_rate: float = 1e6,
-                 alpha_db_per_km: float = 0.2,
-                 eta_d: float = 1.0,
-                 eta_s: float = 1.0,
-                 frequency: float = 80e6,
-                 init_fidelity: float = 0.99,
-                 light_speed_kms: float = 2 * 10**5):
+    def __init__(
+        self,
+        attempt_rate: float = 1e6,
+        alpha_db_per_km: float = 0.2,
+        eta_d: float = 1.0,
+        eta_s: float = 1.0,
+        frequency: float = 80e6,
+        init_fidelity: float = 0.99,
+        light_speed_kms: float = 2 * 10**5,
+    ):
         """This constructor sets up the entanglement generation layer of a quantum node with key hardware parameters.
         It also initializes data structures for managing quantum channels, entanglement attempts,
         and synchronization.
@@ -71,20 +74,20 @@ class LinkLayer(Application):
         self.attempt_rate = attempt_rate
         self.light_speed_kms = light_speed_kms
 
-        self.own: QNode                      # Quantum node this LinkLayer equips
-        self.memory: QuantumMemory           # Quantum memory of the node
-        self.forwarder: "ProactiveForwarder" # Forwarder function of the node
+        self.own: QNode  # Quantum node this LinkLayer equips
+        self.memory: QuantumMemory  # Quantum memory of the node
+        self.forwarder: "ProactiveForwarder"  # Forwarder function of the node
 
         # stores the qchannels activated by the forwarding function at path installation
         self.active_channels = {}
 
-        self.pending_init_reservation = {}          # stores reservation requests sent by this node
-        self.fifo_reservation_req = []              # stores received reservations requests awaiting for qubits
+        self.pending_init_reservation = {}  # stores reservation requests sent by this node
+        self.fifo_reservation_req = []  # stores received reservations requests awaiting for qubits
 
-        self.etg_count = 0                          # counts number of generated entanglements
-        self.decoh_count = 0                        # counts number of decohered qubits never swapped
+        self.etg_count = 0  # counts number of generated entanglements
+        self.decoh_count = 0  # counts number of decohered qubits never swapped
 
-        self.sync_current_phase = SignalTypeEnum.EXTERNAL      # for SYNC and LSYNC timing modes
+        self.sync_current_phase = SignalTypeEnum.EXTERNAL  # for SYNC and LSYNC timing modes
 
         # In LSYNC mode: stores the qchannels that have all their qubits waiting for the next EXTERNAL phase
         self.waiting_channels = {}
@@ -95,7 +98,6 @@ class LinkLayer(Application):
         self.add_handler(self.RecvQubitHandler, [RecvQubitPacket])
         self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])
 
-
     # called at initialization of the node
     def install(self, node: Node, simulator: Simulator):
         super().install(node, simulator)
@@ -103,6 +105,7 @@ class LinkLayer(Application):
         self.memory = self.own.get_memory()
 
         from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+
         self.forwarder = self.own.get_app(ProactiveForwarder)
 
     def RecvQubitHandler(self, node: QNode, event: RecvQubitPacket):
@@ -136,16 +139,14 @@ class LinkLayer(Application):
         for i, (qb, data) in enumerate(qubits):
             if data is None:
                 t = simulator.tc + i * 1 / self.attempt_rate
-                event = func_to_event(t, self.start_reservation, by=self,
-                                      next_hop=next_hop, qchannel=qchannel,
-                                      qubit=qb, path_id=qb.path_id)
+                event = func_to_event(
+                    t, self.start_reservation, by=self, next_hop=next_hop, qchannel=qchannel, qubit=qb, path_id=qb.path_id
+                )
                 simulator.add_event(event)
             else:
                 raise Exception(f"{self.own}: --> PROBLEM {data}")
 
-
-    def start_reservation(self, next_hop: Node, qchannel: QuantumChannel,
-                          qubit: MemoryQubit, path_id: int|None = None):
+    def start_reservation(self, next_hop: Node, qchannel: QuantumChannel, qubit: MemoryQubit, path_id: int | None = None):
         """This method starts the exchange with neighbor node for reserving a qubit for entanglement
         generation over a specified quantum channel. It performs the following steps:
 
@@ -179,13 +180,12 @@ class LinkLayer(Application):
         qubit.active = key
         self.pending_init_reservation[key] = (qchannel, next_hop, qubit.addr)
         cchannel = self.own.get_cchannel(next_hop)
-        classic_packet = ClassicPacket(msg={"cmd": "RESERVE_QUBIT", "path_id": path_id, "key": key},
-                                       src=self.own, dest=next_hop)
+        classic_packet = ClassicPacket(
+            msg={"cmd": "RESERVE_QUBIT", "path_id": path_id, "key": key}, src=self.own, dest=next_hop
+        )
         cchannel.send(classic_packet, next_hop=next_hop)
 
-
-    def generate_entanglement(self, qchannel: QuantumChannel, next_hop: Node,
-                              address: int, key: str):
+    def generate_entanglement(self, qchannel: QuantumChannel, next_hop: Node, address: int, key: str):
         """Schedule a successful entanglement attempt using skip-ahead sampling.
         A `do_successful_attempt` event is scheduled to handle the result of this attempt.
 
@@ -218,13 +218,19 @@ class LinkLayer(Application):
 
         succ_attempt_time, attempts = self._skip_ahead_entanglement(qchannel.length)
         t_event = simulator.tc + succ_attempt_time
-        event = func_to_event(t_event, self.do_successful_attempt, by=self, qchannel=qchannel,
-                              next_hop=next_hop, address=address, attempts=attempts, key=key)
+        event = func_to_event(
+            t_event,
+            self.do_successful_attempt,
+            by=self,
+            qchannel=qchannel,
+            next_hop=next_hop,
+            address=address,
+            attempts=attempts,
+            key=key,
+        )
         simulator.add_event(event)
 
-
-    def do_successful_attempt(self, qchannel: QuantumChannel, next_hop: Node,
-                              address, attempts: int, key: str):
+    def do_successful_attempt(self, qchannel: QuantumChannel, next_hop: Node, address, attempts: int, key: str):
         """This method is invoked after a scheduled successful entanglement attempt. It:
             - Generates a new EPR pair between the current node and the next hop.
             - Stores the EPR locally at the specified memory address, accounting for the qubit initialization time.
@@ -244,7 +250,7 @@ class LinkLayer(Application):
         """
         epr = WernerStateEntanglement(fidelity=self.init_fidelity, name=uuid.uuid4().hex)
         # qubit init at 2tau and we are at 6tau
-        epr.creation_time = self.simulator.tc - Time(sec=4*qchannel.delay_model.calculate())
+        epr.creation_time = self.simulator.tc - Time(sec=4 * qchannel.delay_model.calculate())
         epr.src = self.own
         epr.dst = next_hop
         epr.attempts = attempts
@@ -256,10 +262,11 @@ class LinkLayer(Application):
             raise Exception(f"{self.own}: (sender) Do succ EPR -> memory full, key ({key})")
 
         epr.path_id = local_qubit.path_id
-        qchannel.send(epr, next_hop)    # no drop
-        self.etg_count+=1
-        self.notify_entangled_qubit(neighbor=next_hop, qubit=local_qubit, \
-            delay=qchannel.delay_model.calculate())   # wait 1tau to notify
+        qchannel.send(epr, next_hop)  # no drop
+        self.etg_count += 1
+        self.notify_entangled_qubit(
+            neighbor=next_hop, qubit=local_qubit, delay=qchannel.delay_model.calculate()
+        )  # wait 1tau to notify
 
     def receive_quit(self, packet: RecvQubitPacket):
         """This method is called when a quantum channel delivers an entangled qubit (half of an EPR pair)
@@ -281,8 +288,7 @@ class LinkLayer(Application):
             return
 
         qchannel: QuantumChannel = packet.qchannel
-        from_node: Node = qchannel.node_list[0] \
-            if qchannel.node_list[1] == self.own else qchannel.node_list[1]
+        from_node: Node = qchannel.node_list[0] if qchannel.node_list[1] == self.own else qchannel.node_list[1]
 
         epr = packet.qubit
         assert isinstance(epr, WernerStateEntanglement)
@@ -302,15 +308,14 @@ class LinkLayer(Application):
         self.notify_entangled_qubit(neighbor=from_node, qubit=local_qubit)
 
     def notify_entangled_qubit(self, neighbor: QNode, qubit: MemoryQubit, delay: float = 0):
-        """Schedule an event to notify the forwarder about a new entangled qubit
-        """
+        """Schedule an event to notify the forwarder about a new entangled qubit"""
         simulator = self.simulator
         from qns.network.protocol.event import QubitEntangledEvent
+
         qubit.fsm.to_entangled()
         t = simulator.tc + delay
         event = QubitEntangledEvent(forwarder=self.forwarder, neighbor=neighbor, qubit=qubit, t=t, by=self)
         simulator.add_event(event)
-
 
     def handle_event(self, event: Event) -> None:
         """Handles the following external events:
@@ -319,6 +324,7 @@ class LinkLayer(Application):
         - `QubitReleasedEvent` from the forwarder informing that an entangled qubit has released and can be re-entangled.
         """
         from qns.network.protocol.event import ManageActiveChannels, QubitDecoheredEvent, QubitReleasedEvent, TypeEnum
+
         if isinstance(event, ManageActiveChannels):
             log.debug(f"{self.own}: start qchannel with {event.neighbor}")
             qchannel = self.own.get_qchannel(event.neighbor)
@@ -327,14 +333,14 @@ class LinkLayer(Application):
                     self.active_channels[qchannel.name] = (qchannel, event.neighbor)
                     if self.own.timing_mode == TimingModeEnum.ASYNC:
                         self.handle_active_channel(qchannel, event.neighbor)
-                    elif self.own.timing_mode == TimingModeEnum.LSYNC:     # LSYNC
+                    elif self.own.timing_mode == TimingModeEnum.LSYNC:  # LSYNC
                         self.waiting_channels[qchannel.name] = (qchannel, event.neighbor)
                 else:
                     raise Exception("Qchannel already handled")
             else:
                 self.active_channels.pop(qchannel.name, "Not Found")
         elif isinstance(event, QubitDecoheredEvent):
-            self.decoh_count+=1
+            self.decoh_count += 1
             # check if this node is the EPR initiator of the qchannel associated with the memory of this qubit
             if event.qubit.qchannel.name:
                 if event.qubit.qchannel.name in self.active_channels:
@@ -343,8 +349,7 @@ class LinkLayer(Application):
                     if self.own.timing_mode == TimingModeEnum.SYNC:
                         raise Exception(f"{self.own}: UNEXPECTED -> (t_ext + t_int) too short")
                     qchannel, next_hop = self.active_channels[event.qubit.qchannel.name]
-                    self.start_reservation(next_hop=next_hop, qchannel=qchannel,
-                                           qubit=event.qubit, path_id=event.qubit.path_id)
+                    self.start_reservation(next_hop=next_hop, qchannel=qchannel, qubit=event.qubit, path_id=event.qubit.path_id)
                 else:
                     event.qubit.active = None
                     self.check_reservation_req()
@@ -353,12 +358,13 @@ class LinkLayer(Application):
         elif isinstance(event, QubitReleasedEvent):
             # check if this node is the EPR initiator of the qchannel associated with the memory of this qubit
             if event.qubit.qchannel.name:
-                if event.qubit.qchannel.name in self.active_channels:     # i.e., this node is primary
+                if event.qubit.qchannel.name in self.active_channels:  # i.e., this node is primary
                     qchannel, next_hop = self.active_channels[event.qubit.qchannel.name]
                     if self.own.timing_mode == TimingModeEnum.ASYNC:
-                        self.start_reservation(next_hop=next_hop, qchannel=qchannel,
-                                               qubit=event.qubit, path_id=event.qubit.path_id)
-                    elif self.own.timing_mode == TimingModeEnum.LSYNC:    # LSYNC
+                        self.start_reservation(
+                            next_hop=next_hop, qchannel=qchannel, qubit=event.qubit, path_id=event.qubit.path_id
+                        )
+                    elif self.own.timing_mode == TimingModeEnum.LSYNC:  # LSYNC
                         entry = (qchannel, next_hop, event.qubit.qchannel.name, event.qubit.addr)
                         self.waiting_qubits.add(entry)
                 else:
@@ -366,7 +372,6 @@ class LinkLayer(Application):
                     self.check_reservation_req()
             else:
                 raise Exception("TODO")
-
 
     def handle_reservation(self, packet: RecvClassicPacket):
         """Handle classical control messages related to qubit reservation.
@@ -405,8 +410,9 @@ class LinkLayer(Application):
             if avail_qubits:
                 log.debug(f"{self.own}: direct found available qubit for {key}")
                 avail_qubits[0].active = key
-                classic_packet = ClassicPacket(msg={"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key},
-                                               src=self.own, dest=from_node)
+                classic_packet = ClassicPacket(
+                    msg={"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}, src=self.own, dest=from_node
+                )
                 cchannel.send(classic_packet, next_hop=from_node)
             else:
                 log.debug(f"{self.own}: didn't find available qubit for {key}")
@@ -437,15 +443,14 @@ class LinkLayer(Application):
             if avail_qubits:
                 log.debug(f"{self.own}: found available qubit for {key}")
                 avail_qubits[0].active = key
-                classic_packet = ClassicPacket(msg={"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key},
-                                               src=self.own, dest=from_node)
+                classic_packet = ClassicPacket(
+                    msg={"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}, src=self.own, dest=from_node
+                )
                 cchannel.send(classic_packet, next_hop=from_node)
                 self.fifo_reservation_req.pop(0)
 
-
     def handle_sync_signal(self, signal_type: SignalTypeEnum):
-        """Handles timing synchronization signals for SYNC and LSYNC modes (not very reliable at this time).
-        """
+        """Handles timing synchronization signals for SYNC and LSYNC modes (not very reliable at this time)."""
         log.debug(f"{self.own}:[{self.own.timing_mode}] TIMING SIGNAL <{signal_type}>")
         if self.own.timing_mode == TimingModeEnum.LSYNC and signal_type == SignalTypeEnum.EXTERNAL_START:
             # clear all qubits and retry all active_channels until INTERNAL signal
@@ -460,7 +465,6 @@ class LinkLayer(Application):
                 for channel_name, (qchannel, next_hop) in self.active_channels.items():
                     self.handle_active_channel(qchannel, next_hop)
 
-
     def _loss_based_success_prob(self, link_length_km):
         """Compute success probability from fiber loss model for heralded entanglement."""
         p_bsa = 0.5
@@ -474,12 +478,12 @@ class LinkLayer(Application):
 
         # probability assumes that each attempt has always 2-rounds
         p = self._loss_based_success_prob(link_length_km)
-        k = np.random.geometric(p)     # k-th attempt will succeed
+        k = np.random.geometric(p)  # k-th attempt will succeed
 
-        attempt_duration = max(5.5*tau, reset_time)    # includes 1*tau between attempts (not rounds)
+        attempt_duration = max(5.5 * tau, reset_time)  # includes 1*tau between attempts (not rounds)
 
         # calculate time right before the successful attempt
         # the last 1-tau of the successful attempt will be executed
         # substract 2tau consumed for reservation (just to alignt with sequence)
-        t_success = ((k-1) * attempt_duration) + (4*tau)
+        t_success = ((k - 1) * attempt_duration) + (4 * tau)
         return t_success, k
