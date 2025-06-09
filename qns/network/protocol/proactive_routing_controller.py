@@ -15,11 +15,10 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from qns.entity.cchannel.cchannel import ClassicPacket
-from qns.entity.node.app import Application
-from qns.entity.node.controller import Controller
+from qns.entity.cchannel import ClassicPacket
+from qns.entity.node import Application, Controller, Node
 from qns.network import QuantumNetwork
-from qns.simulator.simulator import Simulator
+from qns.simulator import Simulator
 from qns.utils import log
 
 # from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -97,7 +96,7 @@ class ProactiveRoutingControllerApp(Application):
     #         self.end_headers()
     #         self.wfile.write(b"Test function executed")
 
-    def install(self, node: Controller, simulator: Simulator):
+    def install(self, node: Node, simulator: Simulator):
         super().install(node, simulator)
         self.own = self.get_node(node_type=Controller)
         self.net = self.own.network
@@ -136,15 +135,9 @@ class ProactiveRoutingControllerApp(Application):
 
         """
         self.net.build_route()
-        network_nodes = self.net.get_nodes()
 
-        src = None
-        dst = None
-        for qn in network_nodes:
-            if qn.name == "S":
-                src = qn
-            if qn.name == "D":
-                dst = qn
+        src = self.net.get_node("S")
+        dst = self.net.get_node("D")
 
         route_result = self.net.query_route(src, dst)
         path_nodes = route_result[0][2]
@@ -159,7 +152,7 @@ class ProactiveRoutingControllerApp(Application):
             )
 
         m_v = []
-        src_capacity = self.net.get_node(path_nodes[0].name).memory.capacity
+        src_capacity = self.net.get_node(path_nodes[0].name).get_memory().capacity
         for i in range(len(path_nodes) - 1):
             m_v.append(src_capacity)
 
