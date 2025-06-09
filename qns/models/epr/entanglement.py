@@ -68,6 +68,8 @@ class BaseEntanglement(Generic[EntanglementT]):
         """to know when both end-nodes are aware of the EPR"""
         self.key: str | None = None
         """to store the EPR in the right negotiated qubit at the dst node"""
+        self.attempts: int | None = None
+        self.path_id: int | None = None
 
     def set_decoherenced(self, value: bool):
         self.is_decoherenced = value
