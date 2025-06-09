@@ -1,6 +1,7 @@
 import argparse
 import itertools
 import logging
+from copy import deepcopy
 from multiprocessing import Pool, freeze_support
 from typing import cast
 
@@ -18,32 +19,33 @@ from qns.utils.rnd import set_seed
 
 log.logger.setLevel(logging.CRITICAL)
 
-# Configuration parameters
-# (some parameters can be overridden through command line arguments)
 
-SEED_BASE = 100
+class ParameterSet:
+    def __init__(self):
+        self.seed_base = 100
 
-light_speed = 2 * 10**5  # km/s
+        self.light_speed = 2 * 10**5  # km/s
 
-sim_duration = 5  # 9
+        self.sim_duration = 5
 
-fiber_alpha = 0.2
-eta_d = 0.95
-eta_s = 0.95
-frequency = 1e3  # memory frequency
-entg_attempt_rate = 50e6  # From fiber max frequency (50 MHz) AND detectors count rate (60 MHz)
+        self.fiber_alpha = 0.2
+        self.eta_d = 0.95
+        self.eta_s = 0.95
+        self.frequency = 1e3  # memory frequency
+        self.entg_attempt_rate = 50e6  # From fiber max frequency (50 MHz) AND detectors count rate (60 MHz)
 
-channel_qubits = 25
-init_fidelity = 0.99
-t_coherence = 0.01  # sec
-p_swap = 0.5
+        self.channel_qubits = 25
+        self.init_fidelity = 0.99
+        self.t_coherence = 0.01  # sec
+        self.p_swap = 0.5
 
-TOTAL_DISTANCE = 150  # km
+        self.total_distance = 150  # km
 
-N_RUNS = 10  # 30
-NUM_ROUTERS_OPTIONS = [3, 4, 5]
-DIST_PROPORTIONS = ["decreasing", "increasing", "mid_bottleneck", "uniform"]
-SWAP_CONFIGS = ["asap", "baln", "vora", "l2r"]
+        self.n_runs = 10
+
+        self.number_of_routers: int
+        self.distance_proportion: str
+        self.swapping_config: str
 
 
 def compute_distances_distribution(end_to_end_distance: int, number_of_routers: int, distance_proportion: str) -> list[int]:
@@ -93,56 +95,56 @@ def compute_distances_distribution(end_to_end_distance: int, number_of_routers: 
         raise ValueError(f"Invalid distance proportion type: {distance_proportion}")
 
 
-def generate_topology(number_of_routers: int, distance_proportion: str, swapping_config: str, total_distance: int) -> Topo:
+def generate_topology(p: ParameterSet) -> Topo:
     # Generate nodes
     nodes: list[TopoQNode] = []
     nodes.append(
         {
             "name": "S",
-            "memory": {"decoherence_rate": 1 / t_coherence, "capacity": channel_qubits},
+            "memory": {"decoherence_rate": 1 / p.t_coherence, "capacity": p.channel_qubits},
             "apps": [
                 LinkLayer(
-                    attempt_rate=entg_attempt_rate,
-                    init_fidelity=init_fidelity,
-                    alpha_db_per_km=fiber_alpha,
-                    eta_d=eta_d,
-                    eta_s=eta_s,
-                    frequency=frequency,
+                    attempt_rate=p.entg_attempt_rate,
+                    init_fidelity=p.init_fidelity,
+                    alpha_db_per_km=p.fiber_alpha,
+                    eta_d=p.eta_d,
+                    eta_s=p.eta_s,
+                    frequency=p.frequency,
                 ),
                 ProactiveForwarder(),
             ],
         }
     )
-    for i in range(1, number_of_routers + 1):
+    for i in range(1, p.number_of_routers + 1):
         nodes.append(
             {
                 "name": f"R{i}",
-                "memory": {"decoherence_rate": 1 / t_coherence, "capacity": channel_qubits * 2},
+                "memory": {"decoherence_rate": 1 / p.t_coherence, "capacity": p.channel_qubits * 2},
                 "apps": [
                     LinkLayer(
-                        attempt_rate=entg_attempt_rate,
-                        init_fidelity=init_fidelity,
-                        alpha_db_per_km=fiber_alpha,
-                        eta_d=eta_d,
-                        eta_s=eta_s,
-                        frequency=frequency,
+                        attempt_rate=p.entg_attempt_rate,
+                        init_fidelity=p.init_fidelity,
+                        alpha_db_per_km=p.fiber_alpha,
+                        eta_d=p.eta_d,
+                        eta_s=p.eta_s,
+                        frequency=p.frequency,
                     ),
-                    ProactiveForwarder(ps=p_swap),
+                    ProactiveForwarder(ps=p.p_swap),
                 ],
             }
         )
     nodes.append(
         {
             "name": "D",
-            "memory": {"decoherence_rate": 1 / t_coherence, "capacity": channel_qubits},
+            "memory": {"decoherence_rate": 1 / p.t_coherence, "capacity": p.channel_qubits},
             "apps": [
                 LinkLayer(
-                    attempt_rate=entg_attempt_rate,
-                    init_fidelity=init_fidelity,
-                    alpha_db_per_km=fiber_alpha,
-                    eta_d=eta_d,
-                    eta_s=eta_s,
-                    frequency=frequency,
+                    attempt_rate=p.entg_attempt_rate,
+                    init_fidelity=p.init_fidelity,
+                    alpha_db_per_km=p.fiber_alpha,
+                    eta_d=p.eta_d,
+                    eta_s=p.eta_s,
+                    frequency=p.frequency,
                 ),
                 ProactiveForwarder(),
             ],
@@ -150,7 +152,7 @@ def generate_topology(number_of_routers: int, distance_proportion: str, swapping
     )
 
     # Compute distances
-    distances = compute_distances_distribution(total_distance, number_of_routers, distance_proportion)
+    distances = compute_distances_distribution(p.total_distance, p.number_of_routers, p.distance_proportion)
 
     # Generate qchannels and cchannels
     qchannels: list[TopoQChannel] = []
@@ -161,31 +163,29 @@ def generate_topology(number_of_routers: int, distance_proportion: str, swapping
             {
                 "node1": names[i],
                 "node2": names[i + 1],
-                "capacity": channel_qubits,
-                "parameters": {"length": ch_len, "delay": ch_len / light_speed},
+                "capacity": p.channel_qubits,
+                "parameters": {"length": ch_len, "delay": ch_len / p.light_speed},
             }
         )
         cchannels.append(
-            {"node1": names[i], "node2": names[i + 1], "parameters": {"length": ch_len, "delay": ch_len / light_speed}}
+            {"node1": names[i], "node2": names[i + 1], "parameters": {"length": ch_len, "delay": ch_len / p.light_speed}}
         )
 
     # Add classical channels to controller
     for name in names:
-        cchannels.append({"node1": "ctrl", "node2": name, "parameters": {"length": 1.0, "delay": 1.0 / light_speed}})
+        cchannels.append({"node1": "ctrl", "node2": name, "parameters": {"length": 1.0, "delay": 1.0 / p.light_speed}})
 
     # Define controller
-    controller: TopoController = {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(swapping=swapping_config)]}
+    controller: TopoController = {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(swapping=p.swapping_config)]}
 
     return {"qnodes": nodes, "qchannels": qchannels, "cchannels": cchannels, "controller": controller}
 
 
-def run_simulation(
-    number_of_routers: int, distance_proportion: str, swapping_config: str, total_distance: int, seed: int
-) -> tuple[float, float]:
-    json_topology = generate_topology(number_of_routers, distance_proportion, swapping_config, total_distance)
+def run_simulation(p: ParameterSet, seed: int) -> tuple[float, float]:
+    json_topology = generate_topology(p)
 
     set_seed(seed)
-    s = Simulator(0, sim_duration + 5e-06, accuracy=1000000)
+    s = Simulator(0, p.sim_duration + 5e-06, accuracy=1000000)
     log.install(s)
 
     topology = CustomTopology(json_topology)
@@ -193,7 +193,6 @@ def run_simulation(
         topo=topology, route=DijkstraRouteAlgorithm(), timing_mode=TimingModeEnum.ASYNC, t_slot=0, t_ext=0, t_int=0
     )
 
-    sim_run = sim_duration
     net.install(s)
     s.run()
 
@@ -206,22 +205,26 @@ def run_simulation(
         total_decohered += ll_app.decoh_count
     e2e_count = net.get_node("S").get_app(ProactiveForwarder).e2e_count
 
-    return e2e_count / sim_run, total_decohered / e2e_count if e2e_count > 0 else 0
+    return e2e_count / p.sim_duration, total_decohered / e2e_count if e2e_count > 0 else 0
 
 
-def run_row(num_routers: int, dist_prop: str, swap_conf: str) -> dict:
+def run_row(p: ParameterSet, num_routers: int, dist_prop: str, swap_conf: str) -> dict:
     """
-    Run simulations for one set of parameters.
+    Run simulations for one parameter set.
     """
-    full_swapping_config = f"swap_{num_routers}_{swap_conf}"
+    p = deepcopy(p)
+    p.number_of_routers = num_routers
+    p.distance_proportion = dist_prop
+    p.swapping_config = f"swap_{num_routers}_{swap_conf}"
     if swap_conf == "vora":
-        full_swapping_config += f"_{dist_prop}"
+        p.swapping_config += f"_{dist_prop}"
+
     entanglements = []
     expired = []
-    for i in range(N_RUNS):
+    for i in range(p.n_runs):
         print(f"Simulation: {num_routers} routers | {dist_prop} " + f"distances | {swap_conf} | run #{i + 1}")
-        seed = SEED_BASE + i
-        e2e_count, expired_count = run_simulation(num_routers, dist_prop, full_swapping_config, TOTAL_DISTANCE, seed)
+        seed = p.seed_base + i
+        e2e_count, expired_count = run_simulation(p, seed)
         # print(f"==> expired_count: {expired_count}")
         entanglements.append(e2e_count)
         expired.append(expired_count)
@@ -303,23 +306,29 @@ def save_results(results: list[dict], *, save_csv: str | None, save_plt: str | N
     plt.show()
 
 
+NUM_ROUTERS_OPTIONS = [3, 4, 5]
+DIST_PROPORTIONS = ["decreasing", "increasing", "mid_bottleneck", "uniform"]
+SWAP_CONFIGS = ["asap", "baln", "vora", "l2r"]
+
+
 if __name__ == "__main__":
     freeze_support()
+    p = ParameterSet()
 
     # Command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--runs", default=N_RUNS, type=int, help="Number of trials per parameter set.")
+    parser.add_argument("--runs", default=p.n_runs, type=int, help="Number of trials per parameter set.")
     parser.add_argument("--routers", action="append", type=int, help="Number of routers between source and destination.")
     parser.add_argument("--csv", type=str, help="Save results as CSV file.")
     parser.add_argument("--plt", type=str, help="Save plot as image file.")
     parser.add_argument("-j", default=1, type=int, help="Number of workers for parallel execution.")
     args = parser.parse_args()
-    N_RUNS = cast(int, args.runs)
+    p.n_runs = args.runs
     if args.routers is not None:
         NUM_ROUTERS_OPTIONS = cast(list[int], args.routers)
 
     # Simulator loop with process-based parallelism
     with Pool(processes=cast(int, args.j)) as pool:
-        results = pool.starmap(run_row, itertools.product(NUM_ROUTERS_OPTIONS, DIST_PROPORTIONS, SWAP_CONFIGS))
+        results = pool.starmap(run_row, itertools.product([p], NUM_ROUTERS_OPTIONS, DIST_PROPORTIONS, SWAP_CONFIGS))
 
     save_results(results, save_csv=args.csv, save_plt=args.plt)
