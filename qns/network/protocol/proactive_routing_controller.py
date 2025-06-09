@@ -78,13 +78,15 @@ class ProactiveRoutingControllerApp(Application):
 
         """
         super().__init__()
-        self.net: QuantumNetwork  # contains QN physical topology and classical topology
-        self.own: Controller  # controller node running this app
+        self.net: QuantumNetwork
+        """QN physical topology and classical topology"""
+        self.own: Controller
+        """controller node running this app"""
 
-        if swapping not in swapping_settings:
-            raise Exception(f"{self.own}: Swapping {swapping} not configured")
-
-        self.swapping = swapping
+        try:
+            self.swapping_order = swapping_settings[swapping]
+        except KeyError:
+            raise KeyError(f"{self.own}: Swapping {swapping} not configured")
 
         # self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])
         # self.server = HTTPServer(('', 8080), self.RequestHandler)
@@ -127,7 +129,7 @@ class ProactiveRoutingControllerApp(Application):
             Exception: If the computed route does not match the length expected by the current swapping configuration.
 
         Notes:
-            - The `swapping_settings[self.swapping]` provides the expected swapping instructions.
+            - `self.swapping_order` provides the expected swapping instructions.
             - Multiplexing strategy is hardcoded as "B" (buffer-space).
             - Path instructions are transmitted over classical channels using the `"install_path"` command.
             - This method is primarily intended for test or static configuration scenarios, not dynamic routing.
@@ -145,9 +147,9 @@ class ProactiveRoutingControllerApp(Application):
 
         route = [n.name for n in path_nodes]
 
-        if len(route) != len(swapping_settings[self.swapping]):
+        if len(route) != len(self.swapping_order):
             raise Exception(
-                f"{self.own}: Swapping {swapping_settings[self.swapping]} \
+                f"{self.own}: Swapping {self.swapping_order} \
                 does not correspond to computed route: {route}"
             )
 
@@ -159,7 +161,7 @@ class ProactiveRoutingControllerApp(Application):
         for qnode in path_nodes:
             instructions = {
                 "route": route,
-                "swap": swapping_settings[self.swapping],
+                "swap": self.swapping_order,
                 "mux": "B",
                 "m_v": m_v,
                 # "purif": { 'S-R':1, 'R-D':1 },
