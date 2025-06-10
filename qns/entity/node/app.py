@@ -83,8 +83,21 @@ class Application:
                     return skip
         return False
 
+    @overload
+    def add_handler(self, handler: Callable[[NodeT, EventT], bool | None], EventTypeList: type[EventT], ByList: list[Any] = []):
+        pass
+
+    @overload
     def add_handler(
         self, handler: Callable[[NodeT, EventT], bool | None], EventTypeList: list[type[EventT]] = [], ByList: list[Any] = []
+    ):
+        pass
+
+    def add_handler(
+        self,
+        handler: Callable[[NodeT, EventT], bool | None],
+        EventTypeList: type[EventT] | list[type[EventT]] = [],
+        ByList: list[Any] = [],
     ):
         """Add a handler function to the dispatcher.
 
@@ -96,6 +109,7 @@ class Application:
                 An empty list meaning to match all entities.
 
         """
+        EventTypeList = EventTypeList if isinstance(EventTypeList, list) else [EventTypeList]
         self._dispatch_dict.append((EventTypeList, ByList, cast(Any, handler)))
 
     @overload
