@@ -262,16 +262,18 @@ class LinkLayer(Application):
         epr.attempts = attempts
         epr.key = key
 
+        log.debug(f"{self.own}: send half-EPR {epr.name} to {next_hop} | reservation key {epr.key}")
+
         local_qubit = self.memory.write(qm=epr, address=address)
 
         if not local_qubit:
-            raise Exception(f"{self.own}: (sender) Do succ EPR -> memory full, key ({key})")
+            raise Exception(f"{self.own}: (sender) Failed to store EPR {epr.name}")
 
         epr.path_id = local_qubit.path_id
         qchannel.send(epr, next_hop)    # no drop
         self.etg_count+=1
         self.notify_entangled_qubit(neighbor=next_hop, qubit=local_qubit, \
-            delay=qchannel.delay_model.calculate())   # wait 1tau to notify
+            delay=qchannel.delay_model.calculate() + 1e-6)   # wait 1tau to notify (+ a small delay to ensure events order)
 
     def receive_quit(self, packet: RecvQubitPacket):
         """This method is called when a quantum channel delivers an entangled qubit (half of an EPR pair)
@@ -307,7 +309,7 @@ class LinkLayer(Application):
         local_qubit = self.memory.write(qm=epr, path_id=epr.path_id, key=epr.key)
 
         if local_qubit is None:
-            raise Exception(f"{self.own}: Failed to store rcvd EPR due to full memory")
+            raise Exception(f"{self.own}: (receiver) Failed to store EPR {epr.name}")
 
         self.notify_entangled_qubit(neighbor=from_node, qubit=local_qubit)
 
