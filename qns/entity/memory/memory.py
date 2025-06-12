@@ -294,6 +294,7 @@ class QuantumMemory(Entity):
         """
 
         if self.is_full():
+            log.debug(f"{self.node.name}: Memory full!")
             return None
 
         idx = -1
