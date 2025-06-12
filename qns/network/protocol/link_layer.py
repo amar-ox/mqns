@@ -179,7 +179,11 @@ class LinkLayer(Application):
             - The reservation is communicated via a classical message using the `RESERVE_QUBIT` command.
 
         """
-        key = f"{self.own.name}_{next_hop.name}_{path_id}_{qubit.addr}"
+        key = self.own.name +"_"+ next_hop.name
+        if path_id is not None:
+            key = key+"_"+str(path_id)
+        key = key+"_"+str(qubit.addr)+"_"+uuid.uuid4().hex
+
         if key in self.pending_init_reservation:
             raise Exception(f"{self.own}: reservation already started for {key}")
 
