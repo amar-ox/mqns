@@ -15,11 +15,16 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from typing import TYPE_CHECKING
+
 from qns.entity.cchannel import ClassicPacket
 from qns.entity.node import Application, Controller, Node
 from qns.network import QuantumNetwork
 from qns.simulator import Simulator
 from qns.utils import log
+
+if TYPE_CHECKING:
+    from qns.network.protocol.proactive_forwarder import InstallPathInstructions, InstallPathMsg
 
 # from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -153,13 +158,13 @@ class ProactiveRoutingControllerApp(Application):
                 does not correspond to computed route: {route}"
             )
 
-        m_v = []
+        m_v: list[int] = []
         src_capacity = self.net.get_node(path_nodes[0].name).get_memory().capacity
         for i in range(len(path_nodes) - 1):
             m_v.append(src_capacity)
 
         for qnode in path_nodes:
-            instructions = {
+            instructions: "InstallPathInstructions" = {
                 "route": route,
                 "swap": self.swapping_order,
                 "mux": "B",
@@ -167,13 +172,11 @@ class ProactiveRoutingControllerApp(Application):
                 # "purif": { 'S-R':1, 'R-D':1 },
                 "purif": {},
             }
+            msg: "InstallPathMsg" = {"cmd": "install_path", "path_id": 0, "instructions": instructions}
 
             cchannel = self.own.get_cchannel(qnode)
-            classic_packet = ClassicPacket(
-                msg={"cmd": "install_path", "path_id": 0, "instructions": instructions}, src=self.own, dest=qnode
-            )
-            cchannel.send(classic_packet, next_hop=qnode)
-            log.debug(f"{self.own}: send {classic_packet.msg} to {qnode}")
+            cchannel.send(ClassicPacket(msg, src=self.own, dest=qnode), next_hop=qnode)
+            log.debug(f"{self.own}: send {msg} to {qnode}")
 
     # def RecvClassicPacketHandler(self, node: Controller, event: Event):
     #     self.handle_request(event)

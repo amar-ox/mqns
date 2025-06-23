@@ -16,11 +16,11 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 import numpy as np
 
-from qns.entity.cchannel import ClassicPacket, RecvClassicPacket
+from qns.entity.cchannel import ClassicChannel, ClassicPacket, RecvClassicPacket
 from qns.entity.memory import MemoryQubit, QuantumMemory
 from qns.entity.node import Application, Node, QNode
 from qns.entity.qchannel import QuantumChannel, RecvQubitPacket
@@ -38,6 +38,12 @@ from qns.utils import log
 
 if TYPE_CHECKING:
     from qns.network.protocol.proactive_forwarder import ProactiveForwarder
+
+
+class ReserveMsg(TypedDict):
+    cmd: Literal["RESERVE_QUBIT", "RESERVE_QUBIT_OK"]
+    path_id: int
+    key: str
 
 
 class LinkLayer(Application):
@@ -89,7 +95,8 @@ class LinkLayer(Application):
         self.active_channels = {}
 
         self.pending_init_reservation = {}  # stores reservation requests sent by this node
-        self.fifo_reservation_req = []  # stores received reservations requests awaiting for qubits
+        self.fifo_reservation_req: list[tuple[str, int, ClassicChannel, QNode]] = []
+        """stores received reservations requests awaiting for qubits"""
 
         self.etg_count = 0  # counts number of generated entanglements
         self.decoh_count = 0  # counts number of decohered qubits never swapped
@@ -190,11 +197,9 @@ class LinkLayer(Application):
         log.debug(f"{self.own}: start reservation with key={key}")
         qubit.active = key
         self.pending_init_reservation[key] = (qchannel, next_hop, qubit.addr)
+        msg: ReserveMsg = {"cmd": "RESERVE_QUBIT", "path_id": path_id, "key": key}
         cchannel = self.own.get_cchannel(next_hop)
-        classic_packet = ClassicPacket(
-            msg={"cmd": "RESERVE_QUBIT", "path_id": path_id, "key": key}, src=self.own, dest=next_hop
-        )
-        cchannel.send(classic_packet, next_hop=next_hop)
+        cchannel.send(ClassicPacket(msg, src=self.own, dest=next_hop), next_hop=next_hop)
 
     def generate_entanglement(self, qchannel: QuantumChannel, next_hop: QNode, address: int, key: str):
         """Schedule a successful entanglement attempt using skip-ahead sampling.
@@ -408,7 +413,7 @@ class LinkLayer(Application):
             - FIFO buffering allows for deferred reservation attempts when memory is temporarily unavailable.
 
         """
-        msg = packet.packet.get()
+        msg: ReserveMsg = packet.packet.get()
         cchannel = packet.cchannel
         from_node = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
         assert isinstance(from_node, QNode)
@@ -423,10 +428,8 @@ class LinkLayer(Application):
             if avail_qubits:
                 log.debug(f"{self.own}: direct found available qubit for {key}")
                 avail_qubits[0].active = key
-                classic_packet = ClassicPacket(
-                    msg={"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}, src=self.own, dest=from_node
-                )
-                cchannel.send(classic_packet, next_hop=from_node)
+                msg: ReserveMsg = {"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}
+                cchannel.send(ClassicPacket(msg, src=self.own, dest=from_node), next_hop=from_node)
             else:
                 log.debug(f"{self.own}: didn't find available qubit for {key}")
                 self.fifo_reservation_req.append((key, path_id, cchannel, from_node))
@@ -449,18 +452,20 @@ class LinkLayer(Application):
             - This method is triggered when a qubit is released or decohered.
 
         """
-        if self.fifo_reservation_req:
-            (key, path_id, cchannel, from_node) = self.fifo_reservation_req[0]
-            log.debug(f"{self.own}: handle pending negoc {key}")
-            avail_qubits = self.memory.search_available_qubits(path_id=path_id)
-            if avail_qubits:
-                log.debug(f"{self.own}: found available qubit for {key}")
-                avail_qubits[0].active = key
-                classic_packet = ClassicPacket(
-                    msg={"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}, src=self.own, dest=from_node
-                )
-                cchannel.send(classic_packet, next_hop=from_node)
-                self.fifo_reservation_req.pop(0)
+        if not self.fifo_reservation_req:
+            return
+
+        (key, path_id, cchannel, from_node) = self.fifo_reservation_req[0]
+        log.debug(f"{self.own}: handle pending negoc {key}")
+        avail_qubits = self.memory.search_available_qubits(path_id=path_id)
+        if not avail_qubits:
+            return
+
+        log.debug(f"{self.own}: found available qubit for {key}")
+        avail_qubits[0].active = key
+        msg: ReserveMsg = {"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}
+        cchannel.send(ClassicPacket(msg, src=self.own, dest=from_node), next_hop=from_node)
+        self.fifo_reservation_req.pop(0)
 
     def handle_sync_signal(self, signal_type: SignalTypeEnum):
         """Handles timing synchronization signals for SYNC and LSYNC modes (not very reliable at this time)."""
