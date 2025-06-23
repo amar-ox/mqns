@@ -26,7 +26,7 @@ from qns.utils.log import logger as log
 
 
 class MPSimulations:
-    """MultiProcessSimulations will help users to perfrom multiple simulations
+    """MultiProcessSimulations will help users to perform multiple simulations
     with different experiment settings and leverage multiple processes.
     """
 

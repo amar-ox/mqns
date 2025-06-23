@@ -187,7 +187,7 @@ class EntanglementDistributionApp(Application):
         if cmd == "swap":
             # check if not source of the request
             if self.own != transmit.src:
-                # perfrom entanglement swapping
+                # perform entanglement swapping
                 first_epr: WernerStateEntanglement = self.memory.read(transmit.first_epr_name)
                 second_epr: WernerStateEntanglement = self.memory.read(transmit.second_epr_name)
                 new_epr = first_epr.swapping(second_epr, name=uuid.uuid4().hex)
