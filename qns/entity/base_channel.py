@@ -71,9 +71,24 @@ class BaseChannel(Entity, Generic[NodeT]):
             log.debug(f"{self}: drop {packet_repr} due to drop rate")
             return True, Time()
 
-        #  add delay
+        # add delay
         recv_time = send_time + (self.delay_model.calculate() + delay)
         return False, recv_time
+
+    def find_peer(self, own: NodeT) -> NodeT:
+        """
+        Return the node in node_list that is not ``own``.
+
+        Raises:
+            ValueError: node_list does not have two nodes, or ``own`` is not one of them.
+        """
+        if len(self.node_list) != 2:
+            raise ValueError(f"{self} does not have exactly 2 nodes")
+        if self.node_list[0] == own:
+            return self.node_list[1]
+        if self.node_list[1] == own:
+            return self.node_list[0]
+        raise ValueError(f"{self} does not connect to {own}")
 
 
 class NextHopNotConnectionException(Exception):

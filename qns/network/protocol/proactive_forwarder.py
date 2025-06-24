@@ -244,7 +244,7 @@ class ProactiveForwarder(Application):
         dest = packet.packet.dest
         msg = packet.packet.get()
         cchannel = packet.cchannel
-        from_node = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
+        from_node = cchannel.find_peer(self.own)
         assert isinstance(from_node, QNode)
         assert isinstance(dest, QNode)
 

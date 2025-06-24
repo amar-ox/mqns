@@ -123,7 +123,7 @@ class LinkLayer(Application):
         self.forwarder = self.own.get_app(ProactiveForwarder)
 
     def RecvQubitHandler(self, node: QNode, event: RecvQubitPacket):
-        self.receive_quit(event)
+        self.receive_qubit(event)
 
     def RecvClassicPacketHandler(self, node: Node, event: RecvClassicPacket):
         if event.packet.get()["cmd"] in ["RESERVE_QUBIT", "RESERVE_QUBIT_OK"]:
@@ -285,7 +285,7 @@ class LinkLayer(Application):
             neighbor=next_hop, qubit=local_qubit, delay=qchannel.delay_model.calculate() + 1e-6
         )  # wait 1tau to notify (+ a small delay to ensure events order)
 
-    def receive_quit(self, packet: RecvQubitPacket):
+    def receive_qubit(self, packet: RecvQubitPacket):
         """This method is called when a quantum channel delivers an entangled qubit (half of an EPR pair)
         to the local node. It performs the following:
 
@@ -304,8 +304,7 @@ class LinkLayer(Application):
             log.debug(f"{self.own}: EXT phase is over -> stop attempts")
             return
 
-        qchannel: QuantumChannel = packet.qchannel
-        from_node: Node = qchannel.node_list[0] if qchannel.node_list[1] == self.own else qchannel.node_list[1]
+        from_node = packet.qchannel.find_peer(self.own)
 
         epr = packet.qubit
         assert isinstance(epr, WernerStateEntanglement)
@@ -415,7 +414,7 @@ class LinkLayer(Application):
         """
         msg: ReserveMsg = packet.packet.get()
         cchannel = packet.cchannel
-        from_node = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
+        from_node = cchannel.find_peer(self.own)
         assert isinstance(from_node, QNode)
         qchannel = self.own.get_qchannel(from_node)
 
