@@ -139,7 +139,7 @@ class EntanglementDistributionApp(Application):
 
     def response_distribution(self, packet: RecvQubitPacket):
         qchannel: QuantumChannel = packet.qchannel
-        from_node: QNode = qchannel.node_list[0] if qchannel.node_list[1] == self.own else qchannel.node_list[1]
+        from_node: QNode = qchannel.find_peer(self.own)
 
         cchannel = self.own.get_cchannel(from_node)
 
@@ -176,7 +176,7 @@ class EntanglementDistributionApp(Application):
         msg = packet.packet.get()
         cchannel = packet.cchannel
 
-        from_node: QNode = cchannel.node_list[0] if cchannel.node_list[1] == self.own else cchannel.node_list[1]
+        from_node: QNode = cchannel.find_peer(self.own)
 
         log.debug(f"{self.own}: recv {msg} from {from_node}")
 
@@ -187,7 +187,7 @@ class EntanglementDistributionApp(Application):
         if cmd == "swap":
             # check if not source of the request
             if self.own != transmit.src:
-                # perfrom entanglement swapping
+                # perform entanglement swapping
                 first_epr: WernerStateEntanglement = self.memory.read(transmit.first_epr_name)
                 second_epr: WernerStateEntanglement = self.memory.read(transmit.second_epr_name)
                 new_epr = first_epr.swapping(second_epr, name=uuid.uuid4().hex)

@@ -58,7 +58,7 @@ class WernerStateEntanglement(BaseEntanglement["WernerStateEntanglement"], Quant
     def swapping(
         self, epr: "WernerStateEntanglement", *, name: str | None = None, ps: float = 1
     ) -> "WernerStateEntanglement|None":
-        """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
+        """Use `self` and `epr` to perform swapping and distribute a new entanglement
 
         Args:
             epr (WernerEntanglement): another entanglement

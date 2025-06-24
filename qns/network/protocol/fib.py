@@ -27,7 +27,7 @@ class FIBEntry(TypedDict):
     path_id: int
     path_vector: list[str]
     swap_sequence: list[int]
-    purification_scheme: dict[tuple[str, str], int]
+    purification_scheme: dict[str, int]
     qubit_addresses: list[int]
 
 

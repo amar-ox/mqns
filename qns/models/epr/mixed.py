@@ -73,7 +73,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
     def swapping(
         self, epr: "MixedStateEntanglement", *, name: str | None = None, ps: float = 1
     ) -> "MixedStateEntanglement|None":
-        """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
+        """Use `self` and `epr` to perform swapping and distribute a new entanglement
 
         Args:
             epr (MixedEntanglement): another entanglement
@@ -100,7 +100,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         return ne
 
     def distillation(self, epr: "MixedStateEntanglement", name: str | None = None):
-        """Use `self` and `epr` to perfrom distillation and distribute a new entanglement.
+        """Use `self` and `epr` to perform distillation and distribute a new entanglement.
         Using BBPSSW protocol.
 
         Args:

@@ -75,7 +75,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         self.is_decoherenced = value
 
     def swapping(self, epr: EntanglementT, *, name: str | None = None, ps: float = 1) -> EntanglementT | None:
-        """Use `self` and `epr` to perfrom swapping and distribute a new entanglement
+        """Use `self` and `epr` to perform swapping and distribute a new entanglement
 
         Args:
             epr (BaseEntanglement): another entanglement
@@ -86,7 +86,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         raise NotImplementedError
 
     def distillation(self, epr: EntanglementT) -> EntanglementT | None:
-        """Use `self` and `epr` to perfrom distillation and distribute a new entanglement
+        """Use `self` and `epr` to perform distillation and distribute a new entanglement
 
         Args:
             epr (BaseEntanglement): another entanglement
@@ -119,7 +119,7 @@ class BaseEntanglement(Generic[EntanglementT]):
         return [q0, q1]
 
     def teleportion(self, qubit: Qubit) -> Qubit:
-        """Use `self` and `epr` to perfrom distillation and distribute a new entanglement
+        """Use `self` and `epr` to perform distillation and distribute a new entanglement
 
         Args:
             epr (BaseEntanglement): another entanglement
