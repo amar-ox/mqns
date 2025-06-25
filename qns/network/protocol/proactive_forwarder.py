@@ -15,7 +15,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import copy
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from qns.entity.cchannel import ClassicPacket, RecvClassicPacket
@@ -77,13 +76,12 @@ class SwapUpdateMsg(TypedDict):
     partner: str
     epr: str
     new_epr: WernerStateEntanglement | None
-    fwd: bool
 
 
 class ProactiveForwarder(Application):
     """ProactiveForwarder is the forwarder of QNodes and receives routing instructions from the controller.
     It implements the forwarding phase (i.e., entanglement generation and swapping) while the centralized
-    routing is done at the controller. Purification will be moved to a sepeare network function.
+    routing is done at the controller. Purification will be moved to a separate network function.
     """
 
     def __init__(self, ps: float = 1.0):
@@ -352,7 +350,6 @@ class ProactiveForwarder(Application):
                             "partner": partner.name,
                             "epr": my_new_epr.name,
                             "new_epr": None,
-                            "fwd": True,
                         }
                         self.send_msg(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"], delay=True)
                         self.parallel_swappings.pop(msg["epr"], None)
@@ -378,7 +375,6 @@ class ProactiveForwarder(Application):
                             "partner": partner,
                             "epr": my_new_epr.name,
                             "new_epr": merged_epr,
-                            "fwd": True,
                         }
                         self.send_msg(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"], delay=True)
                         self.parallel_swappings.pop(msg["epr"], None)
@@ -394,10 +390,8 @@ class ProactiveForwarder(Application):
                 log.debug(f"### {self.own}: VERIFY -> rcvd SU from higher-rank node")
         # node is not destination of this SU: forward message
         elif own_rank <= sender_rank:
-            msg_copy = copy.deepcopy(msg)
             log.debug(f"{self.own}: FWD SWAP_UPDATE")
-            msg_copy["fwd"] = True
-            self.send_msg(dest=dest_node, msg=msg_copy, route=fib_entry["path_vector"])
+            self.send_msg(dest=dest_node, msg=msg, route=fib_entry["path_vector"])
         else:
             log.debug(f"### {self.own}: VERIFY -> not the swapping dest and did not swap")
 
