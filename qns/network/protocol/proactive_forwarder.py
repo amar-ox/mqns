@@ -631,103 +631,138 @@ class ProactiveForwarder(Application):
             log.debug(f"{self.own}: INT phase is over -> stop swaps")
             return
 
-        simulator = self.simulator
         _, sender_rank = find_index_and_swapping_rank(fib_entry, msg["swapping_node"])
         _, own_rank = find_index_and_swapping_rank(fib_entry, self.own.name)
-
-        # this node is the destination, which means:
-        # - the node needs to update its local qubit wrt remote node (partner)
-        # - this etg **side** becomes ready to purify/swap
-        if own_rank > sender_rank:  # this node didn't swap yet
-            qubit = self.get_memory_qubit(msg["epr"])
-            if qubit:
-                # swap failed or oldest pair decohered -> release qubit
-                if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= simulator.tc:
-                    if msg["new_epr"]:
-                        log.debug(f"{self.own}: NEW EPR {msg['new_epr']} decohered during SU transmissions")
-                    self.memory.read(address=qubit.addr)
-                    qubit.fsm.to_release()
-                    event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=simulator.tc, by=self)
-                    simulator.add_event(event)
-                else:  # update old EPR with new EPR (fidelity and partner)
-                    updated = self.memory.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
-                    if not updated:
-                        log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
-                    if updated and self.eval_qubit_eligibility(fib_entry, msg["partner"]):
-                        qubit.fsm.to_purif()
-                        partner = self.own.network.get_node(msg["partner"])
-                        self.purif(qubit, fib_entry, partner)
-            else:  # epr decohered -> release qubit
-                log.debug(f"{self.own}: EPR {msg['epr']} decohered during SU transmissions")
-        elif own_rank == sender_rank:  # the two nodes may have swapped
-            # log.debug(f"### {self.own}: rcvd SU from same-rank node {msg['new_epr']}")
-            qubit = self.get_memory_qubit(msg["epr"])
-            if qubit:  # there was no parallel swap
-                self.parallel_swappings.pop(msg["epr"], None)  # clean parallel_swappings
-                if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= simulator.tc:
-                    self.memory.read(address=qubit.addr)
-                    qubit.fsm.to_release()
-                    event = QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=simulator.tc, by=self)
-                    simulator.add_event(event)
-                else:  # update old EPR with new EPR (fidelity and partner)
-                    updated = self.memory.update(old_qm=msg["epr"], new_qm=msg["new_epr"])
-                    if not updated:
-                        log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
-            elif msg["epr"] in self.parallel_swappings:
-                (shared_epr, other_epr, my_new_epr) = self.parallel_swappings[msg["epr"]]
-                if msg["new_epr"] is None or msg["new_epr"].decoherence_time <= simulator.tc:
-                    if other_epr.dst == self.own:
-                        destination = other_epr.src
-                        partner = shared_epr.dst
-                    else:
-                        destination = other_epr.dst
-                        partner = shared_epr.src
-                    fwd_msg = {
-                        "cmd": "SWAP_UPDATE",
-                        "path_id": msg["path_id"],
-                        "swapping_node": msg["swapping_node"],
-                        "partner": partner.name,
-                        "epr": my_new_epr.name,
-                        "new_epr": None,
-                    }
-                    self.send_msg(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"], delay=True)
-                    self.parallel_swappings.pop(msg["epr"], None)
-                else:  # a neighbor successfully swapped in parallel with this node
-                    new_epr = msg["new_epr"]  # is the epr from neighbor swap
-                    merged_epr = new_epr.swapping(epr=other_epr)  # merge the two swaps (physically already happened)
-                    if other_epr.dst == self.own:
-                        if merged_epr is not None:
-                            merged_epr.src = other_epr.src
-                            merged_epr.dst = new_epr.dst
-                        partner = new_epr.dst.name
-                        destination = other_epr.src
-                    else:
-                        if merged_epr is not None:
-                            merged_epr.src = new_epr.src
-                            merged_epr.dst = other_epr.dst
-                        partner = new_epr.src.name
-                        destination = other_epr.dst
-                    fwd_msg: SwapUpdateMsg = {
-                        "cmd": "SWAP_UPDATE",
-                        "path_id": msg["path_id"],
-                        "swapping_node": msg["swapping_node"],
-                        "partner": partner,
-                        "epr": my_new_epr.name,
-                        "new_epr": merged_epr,
-                    }
-                    self.send_msg(dest=destination, msg=fwd_msg, route=fib_entry["path_vector"], delay=True)
-                    self.parallel_swappings.pop(msg["epr"], None)
-
-                    # update parallel swappings for next potential cases:
-                    _, p_rank = find_index_and_swapping_rank(fib_entry, partner)
-                    if (own_rank == p_rank) and (merged_epr is not None):
-                        self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
-            else:
-                log.debug(f"### {self.own}: EPR {msg['epr']} decohered after swapping [parallel]")
-        else:
+        if own_rank < sender_rank:
             log.debug(f"### {self.own}: VERIFY -> rcvd SU from higher-rank node")
+            return
+
+        qubit = self.get_memory_qubit(msg["epr"])
+        if qubit is not None:
+            self.parallel_swappings.pop(msg["epr"], None)
+            self.su_sequential(msg, fib_entry, qubit, maybe_purif=(own_rank > sender_rank))
+            return
+        elif own_rank == sender_rank and msg["epr"] in self.parallel_swappings:
+            self.su_parallel(msg, fib_entry, own_rank)
+        else:
+            log.debug(f"### {self.own}: EPR {msg['epr']} decohered during SU transmissions")
 
     CLASSIC_SIGNALING_HANDLERS["SWAP_UPDATE"] = handle_swap_update
+
+    def su_sequential(self, msg: SwapUpdateMsg, fib_entry: FIBEntry, qubit: MemoryQubit, maybe_purif: bool):
+        """
+        Process SWAP_UPDATE message where the local MemoryQubit still exists.
+        This means the swapping was performed sequentially and local MemoryQubit has not decohered.
+
+        Args:
+            maybe_purif: whether the new EPR may enter PURIF state.
+                         Set to True if own rank is higher than sender rank.
+        """
+        simulator = self.simulator
+        new_epr = msg["new_epr"]
+        if (
+            new_epr is None  # swapping failed
+            or new_epr.decoherence_time <= simulator.tc  # oldest pair decohered
+        ):
+            if new_epr:
+                log.debug(f"{self.own}: NEW EPR {new_epr} decohered during SU transmissions")
+            # Destructively read the qubit (removing it from memory).
+            self.memory.read(address=qubit.addr)
+            qubit.fsm.to_release()
+            # Inform LinkLayer that the memory qubit has been released.
+            simulator.add_event(QubitReleasedEvent(link_layer=self.link_layer, qubit=qubit, t=simulator.tc, by=self))
+            return
+
+        # Update old EPR with new EPR (fidelity and partner).
+        updated = self.memory.update(old_qm=msg["epr"], new_qm=new_epr)
+        if not updated:
+            log.debug(f"### {self.own}: VERIFY -> EPR update {updated}")
+            return
+
+        if maybe_purif and self.eval_qubit_eligibility(fib_entry, msg["partner"]):
+            # If own rank is higher than sender rank but lower than new partner rank,
+            # it is our turn to purify the qubit and progress toward swapping.
+            qubit.fsm.to_purif()
+            partner = self.own.network.get_node(msg["partner"])
+            self.purif(qubit, fib_entry, partner)
+
+    def su_parallel(self, msg: SwapUpdateMsg, fib_entry: FIBEntry, own_rank: int):
+        """
+        Process SWAP_UPDATE message during parallel swapping.
+        """
+        simulator = self.simulator
+        new_epr = msg["new_epr"]  # is the epr from neighbor swap
+        (shared_epr, other_epr, my_new_epr) = self.parallel_swappings.pop(msg["epr"])
+        _ = shared_epr
+
+        # msg["swapping_node"] is the node that performed swapping and sent this message.
+        # Assuming swapping_node is to the right of own node, various nodes and EPRs are as follows:
+        #
+        # destination-------own--------swapping_node----partner
+        #      |             |~~shared_epr~~|            |
+        #      |             |                           |
+        #      |             |~~~~~~~~~~new_epr~~~~~~~~~~|
+        #      |             |                           |
+        #      |~~other_epr~~|                           |
+        #      |                                         |
+        #      |~~~~~~~~~~~~~~~merged_epr~~~~~~~~~~~~~~~~|
+
+        if (
+            new_epr is None  # swapping failed
+            or new_epr.decoherence_time <= simulator.tc  # oldest pair decohered
+        ):
+            # Determine the "destination".
+            if other_epr.dst == self.own:  # destination is to the left of own node
+                destination = other_epr.src
+            else:  # destination is to the right of own node
+                destination = other_epr.dst
+
+            # Inform the "destination" that swapping has failed.
+            su_msg: SwapUpdateMsg = {
+                "cmd": "SWAP_UPDATE",
+                "path_id": msg["path_id"],
+                "swapping_node": msg["swapping_node"],
+                "partner": msg["partner"],
+                "epr": my_new_epr.name,
+                "new_epr": None,
+            }
+            self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"], delay=True)
+            return
+
+        # The swapping_node successfully swapped in parallel with this node.
+        # Merge the two swaps (physically already happened).
+        merged_epr = new_epr.swapping(epr=other_epr)
+
+        # Determine the "destination" and "partner".
+        if other_epr.dst == self.own:  # destination is to the left of own node
+            if merged_epr is not None:
+                merged_epr.src = other_epr.src
+                merged_epr.dst = new_epr.dst
+            partner = new_epr.dst
+            destination = other_epr.src
+        else:  # destination is to the right of own node
+            if merged_epr is not None:
+                merged_epr.src = new_epr.src
+                merged_epr.dst = other_epr.dst
+            partner = new_epr.src
+            destination = other_epr.dst
+        assert partner.name == msg["partner"]
+
+        # Inform the "destination" of the swap result and new "partner".
+        su_msg: SwapUpdateMsg = {
+            "cmd": "SWAP_UPDATE",
+            "path_id": msg["path_id"],
+            "swapping_node": msg["swapping_node"],
+            "partner": partner.name,
+            "epr": my_new_epr.name,
+            "new_epr": merged_epr,
+        }
+        self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"], delay=True)
+
+        # Update records to support potential parallel swapping with "partner".
+        _, p_rank = find_index_and_swapping_rank(fib_entry, partner.name)
+        if own_rank == p_rank and merged_epr is not None:
+            self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
 
     def send_msg(self, dest: Node, msg: dict, route: list[str], delay: bool = False):
         own_idx = route.index(self.own.name)
