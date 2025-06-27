@@ -728,7 +728,7 @@ class ProactiveForwarder(Application):
                 "epr": my_new_epr.name,
                 "new_epr": None,
             }
-            self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"], delay=True)
+            self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"])
             return
 
         # The swapping_node successfully swapped in parallel with this node.
@@ -759,14 +759,14 @@ class ProactiveForwarder(Application):
             "epr": my_new_epr.name,
             "new_epr": merged_epr,
         }
-        self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"], delay=True)
+        self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"])
 
         # Update records to support potential parallel swapping with "partner".
         _, p_rank = find_index_and_swapping_rank(fib_entry, partner.name)
         if own_rank == p_rank and merged_epr is not None:
             self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
 
-    def send_msg(self, dest: Node, msg: dict, route: list[str], delay: bool = False):
+    def send_msg(self, dest: Node, msg: dict, route: list[str]):
         own_idx = route.index(self.own.name)
         dest_idx = route.index(dest.name)
 
@@ -777,10 +777,7 @@ class ProactiveForwarder(Application):
 
         cchannel = self.own.get_cchannel(next_hop)
         classic_packet = ClassicPacket(msg=msg, src=self.own, dest=dest)
-        if delay:
-            cchannel.send(classic_packet, next_hop=next_hop, delay=cchannel.delay_model.calculate())
-        else:
-            cchannel.send(classic_packet, next_hop=next_hop)
+        cchannel.send(classic_packet, next_hop=next_hop)
 
     def handle_event(self, event: Event) -> None:
         """Handles external simulator events, specifically QubitEntangledEvent instances.
