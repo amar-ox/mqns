@@ -1,4 +1,4 @@
-from qns.entity import Application
+from qns.entity import Application, Controller
 from qns.network.network import QuantumNetwork, SignalTypeEnum, TimingModeEnum
 from qns.network.topology import BasicTopology
 from qns.simulator import Simulator
@@ -18,11 +18,14 @@ class SyncCheckApp(Application):
 
 
 def test_timing_mode_sync():
+    topo = BasicTopology(2, nodes_apps=[SyncCheckApp()])
+    topo.controller = Controller("ctrl", apps=[SyncCheckApp()])
+    net = QuantumNetwork(topo=topo, timing_mode=TimingModeEnum.SYNC, t_ext=4, t_int=1)
+
     simulator = Simulator(start_second=0.0, end_second=29.9)
-    net = QuantumNetwork(topo=BasicTopology(2, nodes_apps=[SyncCheckApp()]), timing_mode=TimingModeEnum.SYNC, t_ext=4, t_int=1)
     net.install(simulator)
     simulator.run()
 
-    for node in net.get_nodes():
+    for node in net.get_nodes() + [net.get_controller()]:
         app = node.get_app(SyncCheckApp)
         assert app.changes == 12

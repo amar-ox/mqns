@@ -131,14 +131,16 @@ class QuantumNetwork:
         signal_seq.append(this_phase)
         phase_signal, phase_duration = this_phase
 
+        # schedule next sync signal
         self._simulator.add_event(
             func_to_event(self._simulator.tc + phase_duration, self.send_sync_signal, signal_seq=signal_seq, by=self)
         )
 
-        log.debug(f"TIME_SYNC: signal {phase_signal} phase")
-        # TODO: add controller
+        log.debug(f"TIME_SYNC: signal {phase_signal.name} phase")
         for node in self.nodes:
             node.handle_sync_signal(phase_signal)
+        if self.controller:
+            self.controller.handle_sync_signal(phase_signal)
 
     def get_nodes(self):
         return self.nodes
