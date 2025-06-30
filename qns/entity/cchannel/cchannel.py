@@ -93,16 +93,6 @@ class ClassicChannel(BaseChannel[Node]):
     """ClassicChannel is the channel for classic message"""
 
     def __init__(self, name: str, **kwargs: Unpack[ClassicChannelInitKwargs]):
-        """Args:
-        name (str): the name of this channel
-        bandwidth (int): the byte per second on this channel. 0 represents unlimited
-        delay (Union[float, DelayModel]): the time delay for transmitting a packet. It is a float number or a ``DelayModel``
-        length (float): the length of this channel
-        drop_rate (float): the drop rate
-        max_buffer_size (int): the max buffer size.
-            If it is full, the next coming packet will be dropped. 0 represents unlimited.
-
-        """
         super().__init__(name, **kwargs)
 
     def send(self, packet: ClassicPacket, next_hop: Node, delay: float = 0):

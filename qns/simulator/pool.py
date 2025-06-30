@@ -50,7 +50,7 @@ class DefaultEventPool:
             if the event is inserted successfully
 
         """
-        if event.t is None or event.t < self.tc or event.t > self.te:
+        if event.t < self.tc or event.t > self.te:
             return False
 
         heapq.heappush(self.event_list, event)

@@ -40,7 +40,7 @@ from qns.entity.node import QNode
 from qns.models.core import QuantumModel
 from qns.models.delay import DelayInput, parseDelay
 from qns.models.epr import BaseEntanglement
-from qns.simulator import Event, Simulator, Time, func_to_event
+from qns.simulator import Event, Simulator, func_to_event
 from qns.utils import log
 
 try:
@@ -50,7 +50,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     from qns.entity.qchannel import QuantumChannel
-    from qns.network.protocol.link_layer import LinkLayer
 
 
 class QuantumMemoryInitKwargs(TypedDict, total=False):
@@ -95,21 +94,11 @@ class QuantumMemory(Entity):
         self.decoherence_rate = kwargs.get("decoherence_rate", 0.0)
         self.store_error_model_args = kwargs.get("store_error_model_args", {})
 
-        self.link_layer: "LinkLayer|None" = None
-
         self.pending_decohere_events: dict[str, Event] = {}
         """map of future qubit decoherence events"""
 
     def install(self, simulator: Simulator) -> None:
         super().install(simulator)
-        assert self.node is not None
-
-        from qns.network.protocol.link_layer import LinkLayer  # noqa: PLC0415
-
-        try:
-            self.link_layer = self.node.get_app(LinkLayer)
-        except IndexError:
-            pass
 
     def _search(self, key: QuantumModel | str | None = None, address: int | None = None) -> int:
         """This method searches through the internal storage for a matching qubit based on either
@@ -318,7 +307,7 @@ class QuantumMemory(Entity):
 
         # schedule an event at T_coh to decohere the qubit
         if self.decoherence_rate:
-            decoherence_t = qm.creation_time + Time(sec=1 / self.decoherence_rate)
+            decoherence_t = qm.creation_time + (1 / self.decoherence_rate)
             event = func_to_event(decoherence_t, self.decohere_qubit, by=self, qubit=qubit, qm=qm)
             self.pending_decohere_events[qm.name] = event
             self.simulator.add_event(event)
@@ -582,18 +571,13 @@ class QuantumMemory(Entity):
         if self.read(key=qm):
             log.debug(f"{self.node}: EPR decohered -> {qm.name} {qm.src}-{qm.dst}")
             qubit.fsm.to_release()
-            if self.link_layer is not None:
-                self._emit_decohered_event(qubit)
+            self._emit_decohered_event(qubit)
 
     def _emit_decohered_event(self, qubit: MemoryQubit):
-        assert self.link_layer is not None
         from qns.network.protocol.event import QubitDecoheredEvent  # noqa: PLC0415
 
         simulator = self.simulator
-
-        t = simulator.tc
-        event = QubitDecoheredEvent(link_layer=self.link_layer, qubit=qubit, t=t, by=self)
-        simulator.add_event(event)
+        simulator.add_event(QubitDecoheredEvent(qubit=qubit, t=simulator.tc, by=self))
 
     def count_unallocated_qubits(self) -> int:
         """Return the number of qubits not allocated to any path ID"""

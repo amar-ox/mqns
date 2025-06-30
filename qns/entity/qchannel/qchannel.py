@@ -41,26 +41,15 @@ except ImportError:
 
 class QuantumChannelInitKwargs(BaseChannelInitKwargs, total=False):
     decoherence_rate: float
+    """Decoherence rate passed to transfer_error_model."""
     transfer_error_model_args: dict
+    """Parameters passed to transfer_error_model."""
 
 
 class QuantumChannel(BaseChannel[QNode]):
     """QuantumChannel is the channel for transmitting qubit"""
 
     def __init__(self, name: str, **kwargs: Unpack[QuantumChannelInitKwargs]):
-        """Args:
-        name (str): the name of this channel
-        bandwidth (int): the qubit per second on this channel. 0 represents unlimited
-        delay (float): the time delay for transmitting a packet, or a ``DelayModel``
-        drop_rate (float): probability of photon loss. 0 means never, 1 means always.
-        max_buffer_size (int): the max buffer size.
-            If it is full, the next coming packet will be dropped. 0 represents unlimited.
-
-        length (float): the length of this channel
-        decoherence_rate: the decoherence rate that will pass to the transfer_error_model
-        transfer_error_model_args (dict): the parameters that pass to the transfer_error_model
-
-        """
         super().__init__(name, **kwargs)
         self.decoherence_rate = kwargs.get("decoherence_rate", 0.0)
         self.transfer_error_model_args = kwargs.get("transfer_error_model_args", {})

@@ -35,7 +35,7 @@ class MemoryReadRequestEvent(Event):
         memory: "QuantumMemory",
         key: QuantumModel | str,
         *,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any = None,
     ):
@@ -56,7 +56,7 @@ class MemoryReadResponseEvent(Event):
         *,
         result: tuple[MemoryQubit, QuantumModel | None] | None,
         request: MemoryReadRequestEvent,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any = None,
     ):
@@ -72,9 +72,7 @@ class MemoryReadResponseEvent(Event):
 class MemoryWriteRequestEvent(Event):
     """``MemoryWriteRequestEvent`` is the event that request a memory write"""
 
-    def __init__(
-        self, memory: "QuantumMemory", qubit: QuantumModel, *, t: Time | None = None, name: str | None = None, by: Any = None
-    ):
+    def __init__(self, memory: "QuantumMemory", qubit: QuantumModel, *, t: Time, name: str | None = None, by: Any = None):
         super().__init__(t=t, name=name, by=by)
         self.memory = memory
         self.qubit = qubit
@@ -92,7 +90,7 @@ class MemoryWriteResponseEvent(Event):
         *,
         result: MemoryQubit | None = None,
         request: MemoryWriteRequestEvent,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any = None,
     ):

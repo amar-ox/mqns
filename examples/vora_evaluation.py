@@ -24,8 +24,6 @@ class ParameterSet:
     def __init__(self):
         self.seed_base = 100
 
-        self.light_speed = 2 * 10**5  # km/s
-
         self.sim_duration = 5
 
         self.fiber_alpha = 0.2
@@ -164,16 +162,14 @@ def generate_topology(p: ParameterSet) -> Topo:
                 "node1": names[i],
                 "node2": names[i + 1],
                 "capacity": p.channel_qubits,
-                "parameters": {"length": ch_len, "delay": ch_len / p.light_speed},
+                "parameters": {"length": ch_len},
             }
         )
-        cchannels.append(
-            {"node1": names[i], "node2": names[i + 1], "parameters": {"length": ch_len, "delay": ch_len / p.light_speed}}
-        )
+        cchannels.append({"node1": names[i], "node2": names[i + 1], "parameters": {"length": ch_len}})
 
     # Add classical channels to controller
     for name in names:
-        cchannels.append({"node1": "ctrl", "node2": name, "parameters": {"length": 1.0, "delay": 1.0 / p.light_speed}})
+        cchannels.append({"node1": "ctrl", "node2": name, "parameters": {"length": 1.0}})
 
     # Define controller
     controller: TopoController = {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(swapping=p.swapping_config)]}

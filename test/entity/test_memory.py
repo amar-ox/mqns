@@ -13,8 +13,6 @@ from qns.models.epr import BaseEntanglement, WernerStateEntanglement
 from qns.models.qubit import Qubit
 from qns.simulator import Simulator
 
-light_speed = 2 * 10**5  # km/s
-
 
 def test_write_and_read_with_path_and_key():
     mem = QuantumMemory("mem", capacity=2, decoherence_rate=1)
@@ -66,7 +64,7 @@ def test_channel_qubit_assignment_and_search():
     sim = Simulator(0, 10)
     node.install(sim)
 
-    ch = QuantumChannel("qch", length=10, delay=10 / light_speed)
+    ch = QuantumChannel("qch", length=10)
     addr = mem.assign(ch)
     assert addr != -1
 
@@ -81,7 +79,7 @@ def test_channel_qubit_assignment_and_search():
 def test_decoherence_event_removes_qubit():
     mem = QuantumMemory("mem", decoherence_rate=1)
 
-    ch = QuantumChannel("qch", length=10, delay=10 / light_speed)
+    ch = QuantumChannel("qch", length=10)
     mem.assign(ch)
 
     node = QNode("n3")

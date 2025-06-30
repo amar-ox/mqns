@@ -24,7 +24,7 @@ from qns.simulator.ts import Time
 class Event:
     """Basic event class in simulator"""
 
-    def __init__(self, t: Time | None = None, name: str | None = None, by: Any = None):
+    def __init__(self, t: Time, name: str | None = None, by: Any = None):
         """Args:
         t (Time): the time slot of this event
         by: the entity or application that causes this event
@@ -59,8 +59,6 @@ class Event:
         return not self == other
 
     def __lt__(self, other: "Event") -> bool:
-        if self.t is None or other.t is None:
-            return other.t is not None
         return self.t < other.t
 
     def __le__(self, other: "Event") -> bool:
@@ -95,10 +93,10 @@ def func_to_event(t: Time, fn: Callable, name: str | None = None, by: Any = None
     """
 
     class WrapperEvent(Event):
-        def __init__(self, t: Time | None = t, name_event=name):
-            super().__init__(t=t, name=name_event, by=by)
+        def __init__(self, t: Time, name: str | None, by: Any):
+            super().__init__(t, name, by)
 
         def invoke(self) -> None:
             fn(*args, **kwargs)
 
-    return WrapperEvent(t)
+    return WrapperEvent(t, name, by)

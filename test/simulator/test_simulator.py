@@ -17,10 +17,6 @@ class TimerEvent(Event):
 
 def test_simulator_with_log():
     s = Simulator(0, 15, 1000)
-
-    e = TimerEvent(t=None, name="t0")
-    s.add_event(e)
-    # t0 is not scheduled because it does not have a timestamp
     assert s.total_events == 0
 
     t = 0
