@@ -16,8 +16,6 @@ log.logger.setLevel(logging.DEBUG)
 
 SEED_BASE = 100
 
-light_speed = 2 * 10**5  # km/s
-
 # parameters
 sim_duration = 3
 
@@ -111,21 +109,21 @@ def generate_topology(t_coherence: float) -> Topo:
                 "node1": "S",
                 "node2": "R",
                 "capacity": channel_qubits,
-                "parameters": {"length": ch_1, "delay": ch_1 / light_speed},
+                "parameters": {"length": ch_1},
             },
             {
                 "node1": "R",
                 "node2": "D",
                 "capacity": channel_qubits,
-                "parameters": {"length": ch_2, "delay": ch_2 / light_speed},
+                "parameters": {"length": ch_2},
             },
         ],
         "cchannels": [
-            {"node1": "S", "node2": "R", "parameters": {"length": ch_1, "delay": ch_1 / light_speed}},
-            {"node1": "R", "node2": "D", "parameters": {"length": ch_2, "delay": ch_2 / light_speed}},
-            {"node1": "ctrl", "node2": "S", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "R", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "D", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
+            {"node1": "S", "node2": "R", "parameters": {"length": ch_1}},
+            {"node1": "R", "node2": "D", "parameters": {"length": ch_2}},
+            {"node1": "ctrl", "node2": "S", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "R", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "D", "parameters": {"length": 1.0}},
         ],
         "controller": {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(swapping=swapping_config)]},
     }

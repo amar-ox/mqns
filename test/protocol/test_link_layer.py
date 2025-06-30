@@ -97,8 +97,8 @@ def test_link_layer_skip_ahead():
     topo = LinearTopology(
         nodes_number=2,
         nodes_apps=[NetworkLayer(), LinkLayer()],
-        qchannel_args={"delay": 100 / 2e5, "length": 100},
-        cchannel_args={"delay": 100 / 2e5, "length": 100},
+        qchannel_args={"length": 100},
+        cchannel_args={"length": 100},
         memory_args={"decoherence_rate": 1 / 1.0},
     )
     net = QuantumNetwork(topo=topo, classic_topo=ClassicTopology.Follow)
