@@ -34,7 +34,7 @@ class OperateRequestEvent(Event):
         operator: "QuantumOperator",
         qubits: list[QuantumModel] = [],
         *,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any = None,
     ):
@@ -55,7 +55,7 @@ class OperateResponseEvent(Event):
         result: int | list[int] | None = None,
         *,
         request: OperateRequestEvent,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any = None,
     ):

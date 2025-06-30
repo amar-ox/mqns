@@ -34,7 +34,7 @@ AttributionFunc = Callable[[Simulator, "QuantumNetwork|None", Event | None], Any
 class MonitorEvent(Event):
     """the event that notify the monitor to write down network status"""
 
-    def __init__(self, t: Time | None, monitor: "Monitor", name: str | None = None, by: Any = None):
+    def __init__(self, t: Time, monitor: "Monitor", name: str | None = None, by: Any = None):
         super().__init__(t, name, by)
         self.monitor = monitor
 

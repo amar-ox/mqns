@@ -38,10 +38,11 @@ class ManageActiveChannels(Event):
 
     def __init__(
         self,
+        *,
         link_layer: "LinkLayer",
         neighbor: QNode,
         type: TypeEnum,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any | None = None,
     ):
@@ -57,9 +58,7 @@ class ManageActiveChannels(Event):
 class QubitDecoheredEvent(Event):
     """``QubitDecoheredEvent`` is the event that informs LinkLayer about a decohered qubit from Memory"""
 
-    def __init__(
-        self, link_layer: "LinkLayer", qubit: MemoryQubit, t: Time | None = None, name: str | None = None, by: Any | None = None
-    ):
+    def __init__(self, *, link_layer: "LinkLayer", qubit: MemoryQubit, t: Time, name: str | None = None, by: Any | None = None):
         super().__init__(t=t, name=name, by=by)
         self.link_layer = link_layer
         self.qubit = qubit
@@ -73,10 +72,11 @@ class QubitReleasedEvent(Event):
 
     def __init__(
         self,
+        *,
         link_layer: "LinkLayer",
         qubit: MemoryQubit,
         e2e: bool = False,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any | None = None,
     ):
@@ -97,7 +97,7 @@ class QubitEntangledEvent(Event):
         forwarder: "ProactiveForwarder",
         neighbor: QNode,
         qubit: MemoryQubit,
-        t: Time | None = None,
+        t: Time,
         name: str | None = None,
         by: Any | None = None,
     ):

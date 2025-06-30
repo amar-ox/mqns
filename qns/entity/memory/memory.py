@@ -40,7 +40,7 @@ from qns.entity.node import QNode
 from qns.models.core import QuantumModel
 from qns.models.delay import DelayInput, parseDelay
 from qns.models.epr import BaseEntanglement
-from qns.simulator import Event, Simulator, Time, func_to_event
+from qns.simulator import Event, Simulator, func_to_event
 from qns.utils import log
 
 try:
@@ -318,7 +318,7 @@ class QuantumMemory(Entity):
 
         # schedule an event at T_coh to decohere the qubit
         if self.decoherence_rate:
-            decoherence_t = qm.creation_time + Time(sec=1 / self.decoherence_rate)
+            decoherence_t = qm.creation_time + (1 / self.decoherence_rate)
             event = func_to_event(decoherence_t, self.decohere_qubit, by=self, qubit=qubit, qm=qm)
             self.pending_decohere_events[qm.name] = event
             self.simulator.add_event(event)
