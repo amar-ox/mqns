@@ -53,9 +53,7 @@ def test_link_layer_basic():
     net.build_route()
     n1 = net.get_node("n1")
     n2 = net.get_node("n2")
-    qc = net.get_qchannel("l0,1")
-    n1.get_memory().assign(qc)
-    n2.get_memory().assign(qc)
+    net.get_qchannel("l0,1").assign_memory_qubits(capacity=1)
 
     simulator = Simulator(0.0, 10.0)
     net.install(simulator)
@@ -111,8 +109,7 @@ def test_link_layer_skip_ahead():
     n1 = net.get_node("n1")
     n2 = net.get_node("n2")
     qc = net.get_qchannel("l0,1")
-    n1.get_memory().assign(qc)
-    n2.get_memory().assign(qc)
+    qc.assign_memory_qubits(capacity=1)
 
     simulator = Simulator(0.0, 10.0)
     net.install(simulator)
