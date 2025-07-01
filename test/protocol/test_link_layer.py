@@ -1,6 +1,6 @@
 import pytest
 
-from qns.entity import Application, QNode
+from qns.entity import Application, Node, QNode
 from qns.network.network import ClassicTopology, QuantumNetwork
 from qns.network.protocol.event import (
     ManageActiveChannels,
@@ -24,13 +24,17 @@ class NetworkLayer(Application):
         self.add_handler(self.handle_entangle, QubitEntangledEvent)
         self.add_handler(self.handle_decohere, QubitDecoheredEvent)
 
+    def install(self, node: Node, simulator: Simulator):
+        super().install(node, simulator)
+        self.own = self.get_node(node_type=QNode)
+
     def handle_entangle(self, _, event: QubitEntangledEvent):
         self.entangle.append(event.t.sec)
         if not isinstance(self.release_after, float):
             return
-        self.get_node(node_type=QNode).get_memory().read(address=event.qubit.addr)
+        self.own.get_memory().read(address=event.qubit.addr)
         event.qubit.fsm.to_release()
-        self.simulator.add_event(QubitReleasedEvent(qubit=event.qubit, t=event.t + self.release_after, by=self))
+        self.simulator.add_event(QubitReleasedEvent(self.own, event.qubit, t=event.t + self.release_after, by=self))
         self.release_after = None
 
     def handle_decohere(self, _, event: QubitDecoheredEvent):
@@ -60,8 +64,9 @@ def test_link_layer_basic():
     a2 = n2.get_app(NetworkLayer)
     simulator.add_event(
         ManageActiveChannels(
-            neighbor=n2,
-            type=TypeEnum.ADD,
+            n1,
+            n2,
+            TypeEnum.ADD,
             t=simulator.time(sec=0.5),
             by=a1,
         )
@@ -116,8 +121,9 @@ def test_link_layer_skip_ahead():
     a2 = n2.get_app(NetworkLayer)
     simulator.add_event(
         ManageActiveChannels(
-            neighbor=n2,
-            type=TypeEnum.ADD,
+            n1,
+            n2,
+            TypeEnum.ADD,
             t=simulator.time(sec=0.5),
             by=a1,
         )

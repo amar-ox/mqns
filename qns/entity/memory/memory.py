@@ -350,9 +350,8 @@ class QuantumMemory(Entity):
         qubit = self._storage[idx][0]
         self._storage[idx] = (qubit, new_qm)
 
-        old_event = self.pending_decohere_events[old_qm]
+        old_event = self.pending_decohere_events.pop(old_qm)
         old_event.cancel()
-        self.pending_decohere_events.pop(old_qm)
 
         if not isinstance(new_qm, BaseEntanglement):
             return True
@@ -566,18 +565,19 @@ class QuantumMemory(Entity):
             so no event is raised again.
 
         """
-        assert isinstance(qm, BaseEntanglement)
-        qm.is_decoherenced = True
-        if self.read(key=qm):
-            log.debug(f"{self.node}: EPR decohered -> {qm.name} {qm.src}-{qm.dst}")
-            qubit.fsm.to_release()
-            self._emit_decohered_event(qubit)
-
-    def _emit_decohered_event(self, qubit: MemoryQubit):
         from qns.network.protocol.event import QubitDecoheredEvent  # noqa: PLC0415
 
+        assert self.node is not None
         simulator = self.simulator
-        simulator.add_event(QubitDecoheredEvent(qubit=qubit, t=simulator.tc, by=self))
+        assert isinstance(qm, BaseEntanglement)
+
+        qm.is_decoherenced = True
+        if self.read(key=qm) is None:
+            return
+
+        log.debug(f"{self.node}: EPR decohered -> {qm.name} {qm.src}-{qm.dst}")
+        qubit.fsm.to_release()
+        simulator.add_event(QubitDecoheredEvent(self.node, qubit, t=simulator.tc, by=self))
 
     def count_unallocated_qubits(self) -> int:
         """Return the number of qubits not allocated to any path ID"""
@@ -593,10 +593,9 @@ class QuantumMemory(Entity):
         """
         return self.capacity > 0 and self._usage >= self.capacity
 
-    # For channel qubit allocation at topology creation time
     def assign(self, ch: "QuantumChannel") -> int:
         """
-        Assign a qubit to a particular quantum channel
+        Assign a qubit to a particular quantum channel (at topology creation time)
         """
         for qubit, _ in self._storage:
             if qubit.qchannel is None:
@@ -618,20 +617,20 @@ class QuantumMemory(Entity):
         return "<memory " + self.name + ">"
 
     def handle(self, event: Event) -> None:
-        assert isinstance(self.node, QNode)
+        assert self.node is not None
         simulator = self.simulator
 
         if isinstance(event, MemoryReadRequestEvent):
-            key = event.key
-            # operate qubits and get measure results
-            result = self.read(key)
-
-            t = simulator.tc + self.delay_model.calculate()
-            response = MemoryReadResponseEvent(node=self.node, result=result, request=event, t=t, by=self)
-            simulator.add_event(response)
+            result = self.read(event.key)
+            simulator.add_event(
+                MemoryReadResponseEvent(
+                    self.node, result, request=event, t=simulator.tc + self.delay_model.calculate(), by=self
+                )
+            )
         elif isinstance(event, MemoryWriteRequestEvent):
-            qubit = event.qubit
-            result = self.write(qubit)
-            t = simulator.tc + self.delay_model.calculate()
-            response = MemoryWriteResponseEvent(node=self.node, result=result, request=event, t=t, by=self)
-            simulator.add_event(response)
+            result = self.write(event.qubit)
+            simulator.add_event(
+                MemoryWriteResponseEvent(
+                    self.node, result, request=event, t=simulator.tc + self.delay_model.calculate(), by=self
+                )
+            )

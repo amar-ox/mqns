@@ -53,8 +53,8 @@ class MemoryReadResponseEvent(Event):
     def __init__(
         self,
         node: QNode,
-        *,
         result: tuple[MemoryQubit, QuantumModel | None] | None,
+        *,
         request: MemoryReadRequestEvent,
         t: Time,
         name: str | None = None,
@@ -87,8 +87,8 @@ class MemoryWriteResponseEvent(Event):
     def __init__(
         self,
         node: QNode,
-        *,
         result: MemoryQubit | None = None,
+        *,
         request: MemoryWriteRequestEvent,
         t: Time,
         name: str | None = None,
