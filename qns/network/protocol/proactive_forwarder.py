@@ -96,6 +96,7 @@ class ProactiveForwarder(Application):
         super().__init__()
 
         self.ps = ps
+        """Probability of successful entanglement swapping"""
 
         self.net: QuantumNetwork
         """quantum network instance"""
@@ -124,8 +125,8 @@ class ProactiveForwarder(Application):
         self.fidelity = 0.0
         """sum of fidelity of generated EPRs"""
 
-    # called at initialization of the node
     def install(self, node: Node, simulator: Simulator):
+        """called at initialization of the node"""
         super().install(node, simulator)
         self.own = self.get_node(node_type=QNode)
         self.memory = self.own.get_memory()
@@ -212,8 +213,8 @@ class ProactiveForwarder(Application):
             self.own.get_qchannel(right_neighbor)  # ensure qchannel exists
 
         # use mux info to allocate qubits in each memory, keep qubit addresses
-        left_qubits = []
-        right_qubits = []
+        left_qubits: list[int] = []
+        right_qubits: list[int] = []
 
         if instructions["m_v"]:
             num_left, num_next = self.compute_qubit_allocation(instructions["route"], instructions["m_v"], self.own.name)

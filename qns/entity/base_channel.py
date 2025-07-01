@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 default_light_speed: float = 2e5
 """
 Default speed of light in km/s.
-Initial value is 200km/s, the speed of light in fiber optics.
+Initial value is 200000 km/s, the speed of light in fiber optics.
 """
 
 
