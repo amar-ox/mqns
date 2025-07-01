@@ -101,10 +101,7 @@ class CustomTopology(Topology):
                 # Attach quantum channel to nodes
                 qn.add_qchannel(link)
 
-                memory = qn.get_memory()
-                for _ in range(ch["capacity"]):
-                    if memory.assign(link) == -1:
-                        raise RuntimeError("Not enough qubits to assignment")
+            link.assign_memory_qubits(capacity=ch["capacity"])
 
         if "controller" in self.topo:
             self.controller = Controller(name=self.topo["controller"]["name"], apps=self.topo["controller"]["apps"])

@@ -26,8 +26,6 @@ from qns.utils import log
 if TYPE_CHECKING:
     from qns.network.protocol.proactive_forwarder import InstallPathInstructions, InstallPathMsg
 
-# from http.server import BaseHTTPRequestHandler, HTTPServer
-
 swapping_settings = {
     # disable swapping (for studying isolated links)
     "isolation_1": [0, 0, 0],
@@ -70,17 +68,26 @@ swapping_settings = {
     "swap_5_vora_decreasing": [5, 2, 4, 1, 3, 0, 5],  # [3,0,2,0,1,0,3] ~ baln2
     "swap_5_vora_mid_bottleneck": [5, 0, 4, 2, 3, 1, 5],  # [3,0,2,0,1,0,3] ~ baln2
 }
+"""Predefined swapping orders."""
 
 
 class ProactiveRoutingControllerApp(Application):
-    """This is the centralized control plane app for Proactive Routing. Works with Proactive Forwarder on quantum nodes.
-    A predefined swapping order has to be added in `swapping_settings` map and selected through the `swapping` parameter.
+    """
+    Centralized control plane app for Proactive Routing.
+    Works with Proactive Forwarder on quantum nodes.
     """
 
-    def __init__(self, swapping: str):
-        """Args:
-        swapping (str): swapping order to use for the S-D path, chosen from `swapping_settings` map.
+    def __init__(self, *, swapping: str | list[int], purif: dict[str, int] = {}):
+        """
+        Args:
+            swapping: swapping order to use for the S-D path.
+                      If this is a string, it must be a key in `swapping_settings` array.
+                      If this is a list of ints, it is the swapping order vector.
+            purif: purification settings.
+                   Each key identifies a qchannel along the S-D path, written like "S-R1".
+                   Each value indicates the number of purification rounds at this hop.
 
+        To disable automatic installation of a static route from S to D, pass swapping=[].
         """
         super().__init__()
         self.net: QuantumNetwork
@@ -89,30 +96,20 @@ class ProactiveRoutingControllerApp(Application):
         """controller node running this app"""
 
         try:
-            self.swapping_order = swapping_settings[swapping]
+            self.swapping_order = swapping if isinstance(swapping, list) else swapping_settings[swapping]
         except KeyError:
             raise KeyError(f"{self.own}: Swapping {swapping} not configured")
 
-        # self.add_handler(self.RecvClassicPacketHandler, [RecvClassicPacket])
-        # self.server = HTTPServer(('', 8080), self.RequestHandler)
-        # self.RequestHandler.test = self.test  # Pass test method to handler
-
-    # class RequestHandler(BaseHTTPRequestHandler):
-    #     def do_GET(self):
-    #         self.send_response(200)
-    #         self.end_headers()
-    #         self.wfile.write(b"Test function executed")
+        self.purif = purif
 
     def install(self, node: Node, simulator: Simulator):
         super().install(node, simulator)
         self.own = self.get_node(node_type=Controller)
         self.net = self.own.network
 
-        # print("Starting server on port 8080...")
-        # self.server.serve_forever()
-
-        # install the test path on QNodes
-        self.install_static_path()
+        if len(self.swapping_order) > 0:
+            # install the test path on QNodes
+            self.install_static_path()
 
     def install_static_path(self):
         """Install a static path between nodes "S" (source) and "D" (destination) of the network topology.
@@ -131,7 +128,8 @@ class ProactiveRoutingControllerApp(Application):
             - Sends installation instructions to each node along the path using classical channels.
 
         Raises:
-            Exception: If the computed route does not match the length expected by the current swapping configuration.
+            RuntimeError - no route from S to D.
+            ValueError - computed route length does not match swapping order vector.
 
         Notes:
             - `self.swapping_order` provides the expected swapping instructions.
@@ -147,63 +145,38 @@ class ProactiveRoutingControllerApp(Application):
         dst = self.net.get_node("D")
 
         route_result = self.net.query_route(src, dst)
+        if len(route_result) == 0:
+            raise RuntimeError(f"{self.own}: No route from {src} to {dst}")
         path_nodes = route_result[0][2]
         log.debug(f"{self.own}: Computed path: {path_nodes}")
 
         route = [n.name for n in path_nodes]
+        self.install_path_on_route(route, path_id=0, swap=self.swapping_order, purif=self.purif)
 
-        if len(route) != len(self.swapping_order):
-            raise Exception(
-                f"{self.own}: Swapping {self.swapping_order} \
-                does not correspond to computed route: {route}"
-            )
+    def install_path_on_route(self, route: list[str], *, path_id: int, swap: list[int], purif: dict[str, int] = {}):
+        if len(route) != len(swap) or len(route) == 0:
+            raise ValueError("swapping order does not match route length")
+        for key in purif.keys():
+            tokens = key.split("-")
+            if len(tokens) != 2 or tokens[0] not in route or tokens[1] not in route:
+                raise ValueError(f"purification instruction {key} does not exist in route")
 
         m_v: list[int] = []
-        src_capacity = self.net.get_node(path_nodes[0].name).get_memory().capacity
-        for i in range(len(path_nodes) - 1):
+        src_capacity = self.net.get_node(route[0]).get_memory().capacity
+        for i in range(len(route) - 1):
             m_v.append(src_capacity)
 
-        for qnode in path_nodes:
+        for node_name in route:
+            qnode = self.net.get_node(node_name)
             instructions: "InstallPathInstructions" = {
                 "route": route,
-                "swap": self.swapping_order,
+                "swap": swap,
                 "mux": "B",
                 "m_v": m_v,
-                # "purif": { 'S-R':1, 'R-D':1 },
-                "purif": {},
+                "purif": purif,
             }
-            msg: "InstallPathMsg" = {"cmd": "install_path", "path_id": 0, "instructions": instructions}
+            msg: "InstallPathMsg" = {"cmd": "install_path", "path_id": path_id, "instructions": instructions}
 
             cchannel = self.own.get_cchannel(qnode)
             cchannel.send(ClassicPacket(msg, src=self.own, dest=qnode), next_hop=qnode)
             log.debug(f"{self.own}: send {msg} to {qnode}")
-
-    # def RecvClassicPacketHandler(self, node: Controller, event: Event):
-    #     self.handle_request(event)
-
-    # def handle_request(self, event: RecvClassicPacket):
-    #     msg = event.packet.get()
-    #     cchannel = event.cchannel
-
-    #     from_node: Node = cchannel.node_list[0] \
-    #         if cchannel.node_list[1] == self.own else cchannel.node_list[1]
-
-    #     log.debug(f"{self.own}: recv {msg} from {from_node}")
-
-    #     cmd = msg["cmd"]
-    #     request_id = msg["request_id"]
-
-    #     if cmd == "submit":
-    #         # process new request submitted and send instructions to QNodes
-    #         # can model processing time with events
-    #         nodes_in_path = []
-    #         for qnode in nodes_in_path:
-    #             classic_packet = ClassicPacket(
-    #                 msg={"cmd": "install_path", "request_id": request_id}, src=self.own, dest=qnode)
-    #             cchannel.send(classic_packet, next_hop=qnode)
-    #             log.debug(f"{self.own}: send {classic_packet.msg} to {qnode}")
-    #     elif cmd == "withdraw":
-    #         # remove request and send instructions to QNodes
-    #         pass
-    #     else:
-    #         pass

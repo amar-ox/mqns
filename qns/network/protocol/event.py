@@ -16,10 +16,10 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from enum import Enum, auto
-from typing import cast
+from typing import Any
 
-from qns.entity.memory import MemoryQubit, QuantumMemory
-from qns.entity.node import Application, QNode
+from qns.entity.memory import MemoryQubit
+from qns.entity.node import QNode
 from qns.simulator.event import Event
 from qns.simulator.ts import Time
 
@@ -36,19 +36,21 @@ class ManageActiveChannels(Event):
 
     def __init__(
         self,
-        *,
+        node: QNode,
         neighbor: QNode,
         type: TypeEnum,
+        *,
         t: Time,
         name: str | None = None,
-        by: Application,
+        by: Any = None,
     ):
         super().__init__(t=t, name=name, by=by)
+        self.node = node
         self.neighbor = neighbor
         self.type = type
 
     def invoke(self) -> None:
-        cast(Application, self.by).get_node().handle(self)
+        self.node.handle(self)
 
 
 class QubitDecoheredEvent(Event):
@@ -56,12 +58,13 @@ class QubitDecoheredEvent(Event):
     Event sent by Memory to inform LinkLayer about a decohered qubit.
     """
 
-    def __init__(self, *, qubit: MemoryQubit, t: Time, name: str | None = None, by: QuantumMemory):
+    def __init__(self, node: QNode, qubit: MemoryQubit, *, t: Time, name: str | None = None, by: Any = None):
         super().__init__(t=t, name=name, by=by)
+        self.node = node
         self.qubit = qubit
 
     def invoke(self) -> None:
-        cast(QNode, self.by.node).handle(self)
+        self.node.handle(self)
 
 
 class QubitReleasedEvent(Event):
@@ -71,19 +74,21 @@ class QubitReleasedEvent(Event):
 
     def __init__(
         self,
-        *,
+        node: QNode,
         qubit: MemoryQubit,
+        *,
         e2e: bool = False,
         t: Time,
         name: str | None = None,
-        by: Application,
+        by: Any = None,
     ):
         super().__init__(t=t, name=name, by=by)
+        self.node = node
         self.qubit = qubit
         self.e2e = e2e
 
     def invoke(self) -> None:
-        cast(Application, self.by).get_node().handle(self)
+        self.node.handle(self)
 
 
 class QubitEntangledEvent(Event):
@@ -93,16 +98,18 @@ class QubitEntangledEvent(Event):
 
     def __init__(
         self,
-        *,
+        node: QNode,
         neighbor: QNode,
         qubit: MemoryQubit,
+        *,
         t: Time,
         name: str | None = None,
-        by: Application,
+        by: Any = None,
     ):
         super().__init__(t=t, name=name, by=by)
+        self.node = node
         self.neighbor = neighbor
         self.qubit = qubit
 
     def invoke(self) -> None:
-        cast(Application, self.by).get_node().handle(self)
+        self.node.handle(self)

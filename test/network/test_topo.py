@@ -260,5 +260,5 @@ def test_custom_topo_low_memory():
             "cchannels": [],
         }
     )
-    with pytest.raises(RuntimeError, match="Not enough qubits to assignment"):
+    with pytest.raises(RuntimeError, match="insufficient qubits"):
         _ = QuantumNetwork(topo=topo)

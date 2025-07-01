@@ -144,11 +144,17 @@ class LinkLayer(Application):
         log.debug(f"{self.own}: {qchannel.name} has assigned qubits: {qubits}")
         for i, (qb, data) in enumerate(qubits):
             if data is None:
-                t = simulator.tc + i * 1 / self.attempt_rate
-                event = func_to_event(
-                    t, self.start_reservation, by=self, next_hop=next_hop, qchannel=qchannel, qubit=qb, path_id=qb.path_id
+                simulator.add_event(
+                    func_to_event(
+                        simulator.tc + i * 1 / self.attempt_rate,
+                        self.start_reservation,
+                        by=self,
+                        next_hop=next_hop,
+                        qchannel=qchannel,
+                        qubit=qb,
+                        path_id=qb.path_id,
+                    )
                 )
-                simulator.add_event(event)
             else:
                 raise Exception(f"{self.own}: --> PROBLEM {data}")
 
@@ -219,18 +225,18 @@ class LinkLayer(Application):
             raise Exception("Qchannel too long for entanglement attempt.")
 
         succ_attempt_time, attempts = self._skip_ahead_entanglement(qchannel.length)
-        t_event = simulator.tc + succ_attempt_time
-        event = func_to_event(
-            t_event,
-            self.do_successful_attempt,
-            by=self,
-            qchannel=qchannel,
-            next_hop=next_hop,
-            address=address,
-            attempts=attempts,
-            key=key,
+        simulator.add_event(
+            func_to_event(
+                simulator.tc + succ_attempt_time,
+                self.do_successful_attempt,
+                by=self,
+                qchannel=qchannel,
+                next_hop=next_hop,
+                address=address,
+                attempts=attempts,
+                key=key,
+            )
         )
-        simulator.add_event(event)
 
     def do_successful_attempt(self, qchannel: QuantumChannel, next_hop: QNode, address: int, attempts: int, key: str):
         """This method is invoked after a scheduled successful entanglement attempt. It:
@@ -315,9 +321,7 @@ class LinkLayer(Application):
         simulator = self.simulator
 
         qubit.fsm.to_entangled()
-        t = simulator.tc + delay
-        event = QubitEntangledEvent(neighbor=neighbor, qubit=qubit, t=t, by=self)
-        simulator.add_event(event)
+        simulator.add_event(QubitEntangledEvent(self.own, neighbor, qubit, t=simulator.tc + delay, by=self))
 
     def handle_manage_active_channels(self, _: QNode, event: ManageActiveChannels) -> bool:
         log.debug(f"{self.own}: start qchannel with {event.neighbor}")

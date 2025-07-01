@@ -96,6 +96,7 @@ class ProactiveForwarder(Application):
         super().__init__()
 
         self.ps = ps
+        """Probability of successful entanglement swapping"""
 
         self.net: QuantumNetwork
         """quantum network instance"""
@@ -124,8 +125,8 @@ class ProactiveForwarder(Application):
         self.fidelity = 0.0
         """sum of fidelity of generated EPRs"""
 
-    # called at initialization of the node
     def install(self, node: Node, simulator: Simulator):
+        """called at initialization of the node"""
         super().install(node, simulator)
         self.own = self.get_node(node_type=QNode)
         self.memory = self.own.get_memory()
@@ -212,8 +213,8 @@ class ProactiveForwarder(Application):
             self.own.get_qchannel(right_neighbor)  # ensure qchannel exists
 
         # use mux info to allocate qubits in each memory, keep qubit addresses
-        left_qubits = []
-        right_qubits = []
+        left_qubits: list[int] = []
+        right_qubits: list[int] = []
 
         if instructions["m_v"]:
             num_left, num_next = self.compute_qubit_allocation(instructions["route"], instructions["m_v"], self.own.name)
@@ -246,7 +247,7 @@ class ProactiveForwarder(Application):
 
         # call network function responsible for generating EPRs on right qchannel
         if right_neighbor:
-            simulator.add_event(ManageActiveChannels(neighbor=right_neighbor, type=TypeEnum.ADD, t=simulator.tc, by=self))
+            simulator.add_event(ManageActiveChannels(self.own, right_neighbor, TypeEnum.ADD, t=simulator.tc, by=self))
 
         # TODO: remove path, type=TypeEnum.REMOVE
         return True
@@ -355,7 +356,7 @@ class ProactiveForwarder(Application):
         assert other_epr.name is not None
 
         other_qubit.fsm.to_release()
-        simulator.add_event(QubitReleasedEvent(qubit=other_qubit, t=simulator.tc, by=self))
+        simulator.add_event(QubitReleasedEvent(self.own, other_qubit, t=simulator.tc, by=self))
 
         qubit.fsm.to_pending()  # epr to keep goes to pending
 
@@ -420,11 +421,11 @@ class ProactiveForwarder(Application):
 
             self.memory.read(address=qubit.addr)  # destructive reading
             qubit.fsm.to_release()
-            simulator.add_event(QubitReleasedEvent(qubit=qubit, t=simulator.tc, by=self))
+            simulator.add_event(QubitReleasedEvent(self.own, qubit, t=simulator.tc, by=self))
 
         # measured qubit already released
         meas_qubit.fsm.to_release()
-        simulator.add_event(QubitReleasedEvent(qubit=meas_qubit, t=simulator.tc, by=self))
+        simulator.add_event(QubitReleasedEvent(self.own, meas_qubit, t=simulator.tc, by=self))
 
         # TODO: if qubits in PURIF -> do purif, release consumed qubit,
         # update pair + increment rounds (if succ, else release), reply
@@ -458,7 +459,7 @@ class ProactiveForwarder(Application):
         else:  # purif failed -> release qubit
             self.memory.read(address=qubit.addr)  # destructive reading
             qubit.fsm.to_release()
-            simulator.add_event(QubitReleasedEvent(qubit=qubit, t=simulator.tc, by=self))
+            simulator.add_event(QubitReleasedEvent(self.own, qubit, t=simulator.tc, by=self))
 
     CLASSIC_SIGNALING_HANDLERS["PURIF_RESPONSE"] = handle_purif_response
 
@@ -505,7 +506,7 @@ class ProactiveForwarder(Application):
 
         self.e2e_count += 1
         self.fidelity += qm.fidelity
-        simulator.add_event(QubitReleasedEvent(qubit=qubit, e2e=self.own.name == "S", t=simulator.tc, by=self))
+        simulator.add_event(QubitReleasedEvent(self.own, qubit, e2e=self.own.name == "S", t=simulator.tc, by=self))
 
     def do_swapping(self, mq0: MemoryQubit, mq1: MemoryQubit, fib_entry: FIBEntry):
         """
@@ -588,7 +589,7 @@ class ProactiveForwarder(Application):
         # Release old qubits.
         for i, qubit in enumerate((prev_qubit, next_qubit)):
             qubit.fsm.to_release()
-            simulator.add_event(QubitReleasedEvent(qubit=qubit, t=(simulator.tc + i * 1e-6), by=self))
+            simulator.add_event(QubitReleasedEvent(self.own, qubit, t=(simulator.tc + i * 1e-6), by=self))
 
     def handle_swap_update(self, msg: SwapUpdateMsg, fib_entry: FIBEntry):
         """Processes an SWAP_UPDATE signaling message from a neighboring node, updating local
@@ -645,7 +646,7 @@ class ProactiveForwarder(Application):
             self.memory.read(address=qubit.addr)  # destructive reading
             qubit.fsm.to_release()
             # Inform LinkLayer that the memory qubit has been released.
-            simulator.add_event(QubitReleasedEvent(qubit=qubit, t=simulator.tc, by=self))
+            simulator.add_event(QubitReleasedEvent(self.own, qubit, t=simulator.tc, by=self))
             return
 
         # Update old EPR with new EPR (fidelity and partner).
