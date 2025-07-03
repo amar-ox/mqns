@@ -17,6 +17,10 @@
 
 import logging
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from qns.simulator import Simulator
 
 logger = logging.getLogger("qns")
 """
@@ -28,49 +32,49 @@ handle = logging.StreamHandler(sys.stdout)
 logger.addHandler(handle)
 
 
-def install(s):
+def install(simulator: "Simulator"):
     """Install the logger to the simulator
 
     Args:
         s (Simulator): the simulator
 
     """
-    logger._simulator = s
+    logger._simulator = simulator
 
 
 def debug(msg, *args):
     if hasattr(logger, "_simulator"):
-        logger.debug(f"[{logger._simulator.tc}] " + msg, *args)
+        logger.debug(f"[{logger._simulator.tc}] " + msg, *args, stacklevel=2)
     else:
-        logger.debug(msg, *args)
+        logger.debug(msg, *args, stacklevel=2)
 
 
 def info(msg, *args):
     if hasattr(logger, "_simulator"):
-        logger.info(f"[{logger._simulator.tc}] " + msg, *args)
+        logger.info(f"[{logger._simulator.tc}] " + msg, *args, stacklevel=2)
     else:
-        logger.info(msg, *args)
+        logger.info(msg, *args, stacklevel=2)
 
 
 def error(msg, *args):
     if hasattr(logger, "_simulator"):
-        logger.error(f"[{logger._simulator.tc}] " + msg, *args)
+        logger.error(f"[{logger._simulator.tc}] " + msg, *args, stacklevel=2)
     else:
-        logger.error(msg, *args)
+        logger.error(msg, *args, stacklevel=2)
 
 
 def warn(msg, *args):
     if hasattr(logger, "_simulator"):
-        logger.warn(f"[{logger._simulator.tc}] " + msg, *args)
+        logger.warning(f"[{logger._simulator.tc}] " + msg, *args, stacklevel=2)
     else:
-        logger.warn(msg, *args)
+        logger.warning(msg, *args, stacklevel=2)
 
 
 def critical(msg, *args):
     if hasattr(logger, "_simulator"):
-        logger.critical(f"[{logger._simulator.tc}] " + msg, *args)
+        logger.critical(f"[{logger._simulator.tc}] " + msg, *args, stacklevel=2)
     else:
-        logger.critical(msg, *args)
+        logger.critical(msg, *args, stacklevel=2)
 
 
 def monitor(*args, sep: str = ",", with_time: bool = False):
