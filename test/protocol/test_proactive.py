@@ -36,6 +36,30 @@ def build_linear_network(
     return net, simulator
 
 
+def test_proactive_path_validation():
+    """Test controller path validation logic."""
+    net, _ = build_linear_network(5)
+    ctrl = net.get_controller().get_app(ProactiveRoutingControllerApp)
+
+    with pytest.raises(ValueError, match="swapping order"):
+        ctrl.install_path_on_route([], path_id=0, swap=[])
+
+    with pytest.raises(ValueError, match="swapping order"):
+        ctrl.install_path_on_route(["n1", "n2", "n3", "n4", "n5"], path_id=0, swap=[0, 0, 0])
+
+    with pytest.raises(ValueError, match="purif segment r1-r2"):
+        ctrl.install_path_on_route(["n1", "n2", "n3"], path_id=0, swap=[1, 0, 1], purif={"r1-r2": 1})
+
+    with pytest.raises(ValueError, match="purif segment n1-n2-n3"):
+        ctrl.install_path_on_route(["n1", "n2", "n3"], path_id=0, swap=[1, 0, 1], purif={"n1-n2-n3": 1})
+
+    with pytest.raises(ValueError, match="purif segment n2-n2"):
+        ctrl.install_path_on_route(["n1", "n2", "n3"], path_id=0, swap=[1, 0, 1], purif={"n2-n2": 1})
+
+    with pytest.raises(ValueError, match="purif segment n3-n1"):
+        ctrl.install_path_on_route(["n1", "n2", "n3"], path_id=0, swap=[1, 0, 1], purif={"n3-n1": 1})
+
+
 def test_proactive_isolated():
     """Test isolated links mode where swapping is disabled."""
     net, simulator = build_linear_network(3)

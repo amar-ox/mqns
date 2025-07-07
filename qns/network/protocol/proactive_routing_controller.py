@@ -163,12 +163,27 @@ class ProactiveRoutingControllerApp(Application):
         return [min(c) // 2] * (len(route) - 1)
 
     def install_path_on_route(self, route: list[str], *, path_id: int, swap: list[int], purif: dict[str, int] = {}):
+        """
+        Install an explicitly specified path with the given route.
+
+        Args:
+            route: a list of node names, in the order they appear in the path.
+                   There must a qchannel and a cchannel between adjacent nodes.
+            path_id: numeric identifier to uniquely identify this path within the network.
+            swap: swap sequence.
+                  This list shall have the same length as route.
+                  Each integer is the swapping rank of a node, as explained in `find_index_and_swapping_rank`.
+            purif: purification instructions.
+                   Each key is a segment name consists of two node names concatenated with a hyphen ("-"),
+                   where the nodes appear in the same order as in the route but do not have to be adjacent.
+                   Each value is an integer of the required rounds of purification at this segment.
+                   The default for every segment is zero i.e. no purification is performed.
+        """
         if len(route) != len(swap) or len(route) == 0:
             raise ValueError("swapping order does not match route length")
-        for key in purif.keys():
-            tokens = key.split("-")
-            if len(tokens) != 2 or tokens[0] not in route or tokens[1] not in route:
-                raise ValueError(f"purification instruction {key} does not exist in route")
+        for segment_name in purif.keys():
+            if not check_purif_segment(route, segment_name):
+                raise ValueError(f"purif segment {segment_name} does not exist in route")
 
         m_v = self.compute_m_v(route)
 
@@ -186,3 +201,11 @@ class ProactiveRoutingControllerApp(Application):
             cchannel = self.own.get_cchannel(qnode)
             cchannel.send(ClassicPacket(msg, src=self.own, dest=qnode), next_hop=qnode)
             log.debug(f"{self.own}: send {msg} to {qnode}")
+
+
+def check_purif_segment(route: list[str], segment_name: str) -> bool:
+    try:
+        idx0, idx1 = [route.index(node_name) for node_name in segment_name.split("-")]
+        return idx0 < idx1
+    except ValueError:
+        return False
