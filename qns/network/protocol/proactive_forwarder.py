@@ -16,7 +16,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from collections.abc import Callable
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict, cast
 
 from qns.entity.cchannel import ClassicPacket, RecvClassicPacket
 from qns.entity.memory import QuantumMemory
@@ -132,7 +132,7 @@ class ProactiveForwarder(Application):
         self.memory = self.own.get_memory()
         self.net = self.own.network
 
-    CLASSIC_SIGNALING_HANDLERS: dict[str, Callable[["ProactiveForwarder", dict, FIBEntry], None]] = {}
+    CLASSIC_SIGNALING_HANDLERS: dict[str, Callable[["ProactiveForwarder", Any, FIBEntry], None]] = {}
 
     def RecvClassicPacketHandler(self, _: Node, event: RecvClassicPacket) -> bool:
         """
@@ -147,11 +147,12 @@ class ProactiveForwarder(Application):
         Returns False for unrecognized message types, which allows the classic packet to go to the next application.
 
         """
-        msg = event.packet.get()
+        packet = event.packet
+        msg = packet.get()
         if not (isinstance(msg, dict) and "cmd" in msg):
             return False
         if msg["cmd"] == "install_path":
-            return self.handle_install_path(msg)
+            return self.handle_install_path(cast(InstallPathMsg, msg))
         if msg["cmd"] not in self.CLASSIC_SIGNALING_HANDLERS:
             return False
 
@@ -160,8 +161,9 @@ class ProactiveForwarder(Application):
         if not fib_entry:
             raise IndexError(f"{self.own}: FIB entry not found for path {path_id}")
 
-        if event.packet.dest.name != self.own.name:  # node is not destination: forward message
-            self.send_msg(dest=event.packet.dest, msg=msg, route=fib_entry["path_vector"])
+        assert packet.dest is not None
+        if packet.dest.name != self.own.name:  # node is not destination: forward message
+            self.send_msg(dest=packet.dest, msg=msg, route=fib_entry["path_vector"])
             return True
 
         self.CLASSIC_SIGNALING_HANDLERS[msg["cmd"]](self, msg, fib_entry)
@@ -229,7 +231,7 @@ class ProactiveForwarder(Application):
 
         return neighbor, qubits
 
-    def qubit_is_entangled(self, _: QNode, event: QubitEntangledEvent):
+    def qubit_is_entangled(self, node: QNode, event: QubitEntangledEvent):
         """
         Handle a qubit entering ENTANGLED state.
         QubitEntangledEvent is either delivered from simulator or dequeued from `self.waiting_qubits`.
@@ -248,6 +250,7 @@ class ProactiveForwarder(Application):
             event: Event containing the entangled qubit and its associated metadata (e.g., neighbor).
 
         """
+        _ = node
         if self.own.timing_mode == TimingModeEnum.SYNC and self.sync_current_phase == SignalTypeEnum.EXTERNAL:
             # Accept new etg while we are in EXT phase
             # Assume t_coh > t_ext: QubitEntangledEvent events should correspond to different qubits, no redundancy
@@ -603,11 +606,11 @@ class ProactiveForwarder(Application):
         #
         # Likewise, the other qubit entangled with a partner node to the right is assigned to next_*.
         prev_partner: QNode | None = None
-        prev_qubit: MemoryQubit
-        prev_epr: WernerStateEntanglement
+        prev_qubit: MemoryQubit | None = None
+        prev_epr: WernerStateEntanglement | None = None
         next_partner: QNode | None = None
-        next_qubit: MemoryQubit
-        next_epr: WernerStateEntanglement
+        next_qubit: MemoryQubit | None = None
+        next_epr: WernerStateEntanglement | None = None
         for addr in (mq0.addr, mq1.addr):
             qubit, epr = self.memory.read(address=addr, must=True)
             assert isinstance(epr, WernerStateEntanglement)
@@ -620,7 +623,13 @@ class ProactiveForwarder(Application):
 
         # Make sure both partners are found.
         assert prev_partner is not None
+        assert prev_qubit is not None
+        assert prev_epr is not None
+        assert prev_epr.name is not None
         assert next_partner is not None
+        assert next_qubit is not None
+        assert next_epr is not None
+        assert next_epr.name is not None
 
         # Save ch_index metadata field onto elementary EPR.
         if not prev_epr.orig_eprs:
@@ -657,9 +666,8 @@ class ProactiveForwarder(Application):
                 "path_id": fib_entry["path_id"],
                 "swapping_node": self.own.name,
                 "partner": new_partner.name,
-                "epr": old_epr.name,
+                "epr": cast(str, old_epr.name),
                 "new_epr": new_epr,
-                "fwd": False,
             }
             self.send_msg(dest=partner, msg=su_msg, route=fib_entry["path_vector"])
 
@@ -716,7 +724,7 @@ class ProactiveForwarder(Application):
         new_epr = msg["new_epr"]
         if (
             new_epr is None  # swapping failed
-            or new_epr.decoherence_time <= simulator.tc  # oldest pair decohered
+            or (new_epr.decoherence_time is not None and new_epr.decoherence_time <= simulator.tc)  # oldest pair decohered
         ):
             if new_epr:
                 log.debug(f"{self.own}: NEW EPR {new_epr} decohered during SU transmissions")
@@ -747,28 +755,28 @@ class ProactiveForwarder(Application):
         new_epr = msg["new_epr"]  # is the epr from neighbor swap
         (shared_epr, other_epr, my_new_epr) = self.parallel_swappings.pop(msg["epr"])
         _ = shared_epr
+        assert my_new_epr.name is not None
 
         # msg["swapping_node"] is the node that performed swapping and sent this message.
         # Assuming swapping_node is to the right of own node, various nodes and EPRs are as follows:
         #
         # destination-------own--------swapping_node----partner
         #      |             |~~shared_epr~~|            |
-        #      |             |                           |
+        #      |~~other_epr~~|              |            |
+        #      |~~~~~~~~~~my_new_epr~~~~~~~~|            |
         #      |             |~~~~~~~~~~new_epr~~~~~~~~~~|
-        #      |             |                           |
-        #      |~~other_epr~~|                           |
-        #      |                                         |
         #      |~~~~~~~~~~~~~~~merged_epr~~~~~~~~~~~~~~~~|
 
         if (
             new_epr is None  # swapping failed
-            or new_epr.decoherence_time <= simulator.tc  # oldest pair decohered
+            or (new_epr.decoherence_time is not None and new_epr.decoherence_time <= simulator.tc)  # oldest pair decohered
         ):
             # Determine the "destination".
             if other_epr.dst == self.own:  # destination is to the left of own node
                 destination = other_epr.src
             else:  # destination is to the right of own node
                 destination = other_epr.dst
+            assert destination is not None
 
             # Inform the "destination" that swapping has failed.
             su_msg: SwapUpdateMsg = {
@@ -799,7 +807,9 @@ class ProactiveForwarder(Application):
                 merged_epr.dst = other_epr.dst
             partner = new_epr.src
             destination = other_epr.dst
+        assert partner is not None
         assert partner.name == msg["partner"]
+        assert destination is not None
 
         # Inform the "destination" of the swap result and new "partner".
         su_msg: SwapUpdateMsg = {
@@ -815,9 +825,10 @@ class ProactiveForwarder(Application):
         # Update records to support potential parallel swapping with "partner".
         _, p_rank = find_index_and_swapping_rank(fib_entry, partner.name)
         if own_rank == p_rank and merged_epr is not None:
+            assert new_epr.name is not None
             self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
 
-    def send_msg(self, dest: Node, msg: dict, route: list[str]):
+    def send_msg(self, dest: Node, msg: Any, route: list[str]):
         own_idx = route.index(self.own.name)
         dest_idx = route.index(dest.name)
 
@@ -844,5 +855,5 @@ class ProactiveForwarder(Application):
             # internal phase -> time to handle all entangled qubits
             log.debug(f"{self.own}: there are {len(self.waiting_qubits)} etg qubits to process")
             for event in self.waiting_qubits:
-                self.qubit_is_entangled(event=event)
+                self.qubit_is_entangled(self.own, event)
             self.waiting_qubits = []
