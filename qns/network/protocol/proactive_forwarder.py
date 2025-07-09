@@ -84,8 +84,10 @@ class ProactiveForwarderCounters:
         """how many entanglements completed i-th purif round (zero-based index)"""
         self.n_eligible = 0
         """how many entanglements completed all purif rounds and became eligible"""
-        self.n_swapped = 0
-        """how many swaps succeeded"""
+        self.n_swapped_s = 0
+        """how many swaps succeeded sequentially"""
+        self.n_swapped_p = 0
+        """how many swaps succeeded with parallel merging"""
         self.n_consumed = 0
         """how many entanglements were consumed (either end-to-end or in isolated links mode)"""
         self.consumed_sum_fidelity = 0.0
@@ -97,13 +99,19 @@ class ProactiveForwarderCounters:
         self.n_purif[i] += 1
 
     @property
+    def n_swapped(self) -> int:
+        """how many swaps succeeded"""
+        return self.n_swapped_s + self.n_swapped_p
+
+    @property
     def consumed_avg_fidelity(self) -> float:
         """average fidelity of consumed entanglements"""
         return 0.0 if self.n_consumed == 0 else self.consumed_sum_fidelity / self.n_consumed
 
     def __repr__(self) -> str:
         return (
-            f"entg={self.n_entg} purif={self.n_purif} eligible={self.n_eligible} swapped={self.n_swapped} "
+            f"entg={self.n_entg} purif={self.n_purif} eligible={self.n_eligible} "
+            + f"swapped={self.n_swapped_s}+{self.n_swapped_p} "
             + f"consumed={self.n_consumed} (F={self.consumed_avg_fidelity})"
         )
 
@@ -591,27 +599,6 @@ class ProactiveForwarder(Application):
         if res:  # do swapping
             self.do_swapping(qubit, res, fib_entry)
 
-    def consume_and_release(self, qubit: MemoryQubit):
-        """
-        Consume an entangled qubit.
-
-        Args:
-            e2e: If true, this is an end node and the qubit is entangled with the other end node.
-                 Relevant counters are incremented.
-        """
-        simulator = self.simulator
-
-        _, qm = self.memory.read(address=qubit.addr, must=True)
-        assert isinstance(qm, WernerStateEntanglement)
-        assert qm.src is not None
-        assert qm.dst is not None
-        qubit.fsm.to_release()
-        log.debug(f"{self.own}: consume EPR: {qm.name} -> {qm.src.name}-{qm.dst.name} | F={qm.fidelity}")
-
-        self.cnt.n_consumed += 1
-        self.cnt.consumed_sum_fidelity += qm.fidelity
-        simulator.add_event(QubitReleasedEvent(self.own, qubit, t=simulator.tc, by=self))
-
     def _select_eligible_qubit(self, exc_qchannel: str, path_id: int | None = None) -> MemoryQubit | None:
         """Searches for an eligible qubit in memory that matches the specified path ID and
         is located on a different qchannel than the excluded one. This is used to
@@ -689,7 +676,7 @@ class ProactiveForwarder(Application):
         log.debug(f"{self.own}: SWAP {'SUCC' if new_epr else 'FAILED'} | {prev_qubit} x {next_qubit}")
 
         if new_epr is not None:  # swapping succeeded
-            self.cnt.n_swapped += 1
+            self.cnt.n_swapped_s += 1
 
             # Update properties in newly generated EPR.
             new_epr.src = prev_partner
@@ -862,7 +849,7 @@ class ProactiveForwarder(Application):
         assert destination is not None
 
         if merged_epr is not None:
-            self.cnt.n_swapped += 1
+            self.cnt.n_swapped_p += 1
 
         # Inform the "destination" of the swap result and new "partner".
         su_msg: SwapUpdateMsg = {
@@ -880,6 +867,23 @@ class ProactiveForwarder(Application):
         if own_rank == p_rank and merged_epr is not None:
             assert new_epr.name is not None
             self.parallel_swappings[new_epr.name] = (new_epr, other_epr, merged_epr)
+
+    def consume_and_release(self, qubit: MemoryQubit):
+        """
+        Consume an entangled qubit.
+        """
+        simulator = self.simulator
+
+        _, qm = self.memory.read(address=qubit.addr, must=True)
+        assert isinstance(qm, WernerStateEntanglement)
+        assert qm.src is not None
+        assert qm.dst is not None
+        qubit.fsm.to_release()
+        log.debug(f"{self.own}: consume EPR: {qm.name} -> {qm.src.name}-{qm.dst.name} | F={qm.fidelity}")
+
+        self.cnt.n_consumed += 1
+        self.cnt.consumed_sum_fidelity += qm.fidelity
+        simulator.add_event(QubitReleasedEvent(self.own, qubit, t=simulator.tc, by=self))
 
     def send_msg(self, dest: Node, msg: Any, route: list[str]):
         own_idx = route.index(self.own.name)
