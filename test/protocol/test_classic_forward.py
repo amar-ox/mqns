@@ -33,7 +33,7 @@ class SendApp(Application):
         cchannel.send(packet=packet, next_hop=next_hop)
 
         # calculate the next sending time
-        t = simulator.current_time + 1 / self.send_rate
+        t = simulator.tc + 1 / self.send_rate
 
         # insert the next send event to the simulator
         event = func_to_event(t, self.send_packet, by=self)

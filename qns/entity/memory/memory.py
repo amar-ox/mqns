@@ -240,8 +240,7 @@ class QuantumMemory(Entity):
         assert isinstance(data, BaseEntanglement)
         assert data.creation_time is not None
 
-        t_now = self.simulator.current_time
-        sec_diff = t_now.sec - data.creation_time.sec
+        sec_diff = self.simulator.tc.sec - data.creation_time.sec
 
         # set fidelity at read time
         if not data.read:

@@ -22,7 +22,7 @@ class SendApp(Application):
         qubit = Qubit()
         self.qchannel.send(qubit, next_hop=self.dest)
         self.count += 1
-        simulator.add_event(func_to_event(simulator.current_time + 1 / self.send_rate, self.send, by=self))
+        simulator.add_event(func_to_event(simulator.tc + 1 / self.send_rate, self.send, by=self))
 
 
 class RecvApp(Application):

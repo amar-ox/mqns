@@ -180,7 +180,7 @@ class BB84SendApp(Application):
         #  basis: {basis_msg} , ret: {ret}")
         self.qchannel.send(qubit=qubit, next_hop=self.dest)
 
-        t = simulator.current_time + 1 / self.send_rate
+        t = simulator.tc + 1 / self.send_rate
         event = func_to_event(t, self.send_qubit, by=self)
         simulator.add_event(event)
 

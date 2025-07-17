@@ -58,7 +58,7 @@ class NodeProcessDelayApp(Application):
         # add to list
         self.wait_rehandle_event_list.append(event)
         # get the delay time
-        t = simulator.current_time + self.delay
+        t = simulator.tc + self.delay
         # reset event's occur time
         event.t = t
         event.by = self

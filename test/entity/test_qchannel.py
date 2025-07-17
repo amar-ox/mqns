@@ -19,7 +19,7 @@ class SendApp(Application):
     def send(self):
         self.qchannel.send(qubit=Qubit(), next_hop=self.dest)
         self.count += 1
-        self.simulator.add_event(func_to_event(self.simulator.current_time + self.send_interval, self.send, by=self))
+        self.simulator.add_event(func_to_event(self.simulator.tc + self.send_interval, self.send, by=self))
 
 
 class RecvApp(Application):
