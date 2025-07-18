@@ -4,7 +4,6 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from qns.entity.qchannel import LinkType
 from qns.network import QuantumNetwork, TimingModeEnum
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_forwarder import ProactiveForwarder
@@ -33,16 +32,14 @@ entg_attempt_rate = 50e6  # From fiber max frequency (50 MHz) AND detectors coun
 init_fidelity = 0.99
 p_swap = 0.5
 
-swapping_config = "swap_1"
-
 
 def generate_topology(
     nodes: list[str],
     mem_capacities: list[int],
-    ch_lengths: list[float],
+    channel_lengths: list[float],
     ch_capacities: list[tuple[int, int]],
-    link_architectures: list[str],
     t_coherence: float,
+    swapping_order: str,
 ) -> dict:
     """
     Generate a linear topology with explicit memory and channel configurations.
@@ -58,12 +55,10 @@ def generate_topology(
     """
     if len(nodes) != len(mem_capacities):
         raise ValueError("mem_capacities must match number of nodes")
-    if len(ch_lengths) != len(nodes) - 1:
-        raise ValueError("ch_lengths must be len(nodes) - 1")
+    if len(channel_lengths) != len(nodes) - 1:
+        raise ValueError("channel_lengths must be len(nodes) - 1")
     if len(ch_capacities) != len(nodes) - 1:
         raise ValueError("ch_capacities must be len(nodes) - 1")
-    if len(link_architectures) != len(nodes) - 1:
-        raise ValueError("link_architectures must be len(nodes) - 1")
 
     # Create QNodes
     qnodes = []
@@ -93,9 +88,8 @@ def generate_topology(
     qchannels = []
     for i in range(len(nodes) - 1):
         node1, node2 = nodes[i], nodes[i + 1]
-        length = ch_lengths[i]
+        length = channel_lengths[i]
         cap1, cap2 = ch_capacities[i]
-        link_arch = link_architectures[i]
 
         qchannels.append(
             {
@@ -103,7 +97,7 @@ def generate_topology(
                 "node2": node2,
                 "capacity1": cap1,
                 "capacity2": cap2,
-                "parameters": {"length": length, "link_architecture": link_arch},
+                "parameters": {"length": length},
             }
         )
 
@@ -111,11 +105,11 @@ def generate_topology(
     cchannels = []
     for i in range(len(nodes) - 1):
         node1, node2 = nodes[i], nodes[i + 1]
-        length = ch_lengths[i]
+        length = channel_lengths[i]
         cchannels.append({"node1": node1, "node2": node2, "parameters": {"length": length}})
 
     # Controller and links to all nodes
-    controller = {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(routing_type="SRSP", swapping=swapping_config)]}
+    controller = {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(routing_type="SRSP", swapping=swapping_order)]}
     for node in nodes:
         cchannels.append({"node1": "ctrl", "node2": node, "parameters": {"length": 1.0}})
 
@@ -125,13 +119,13 @@ def generate_topology(
 def run_simulation(
     nodes: list[str],
     mem_capacities: list[int],
-    ch_lengths: list[float],
+    channel_lengths: list[float],
     ch_capacities: list[tuple[int, int]],
-    link_architectures: list[str],
     t_coherence: float,
+    swapping_order: str,
     seed: int,
 ):
-    json_topology = generate_topology(nodes, mem_capacities, ch_lengths, ch_capacities, link_architectures, t_coherence)
+    json_topology = generate_topology(nodes, mem_capacities, channel_lengths, ch_capacities, t_coherence, swapping_order)
     # print(json_topology)
 
     set_seed(seed)
@@ -161,65 +155,54 @@ def run_simulation(
 
 ########################### Main #########################
 
-# Constants
-N_RUNS = 3
-SEED_BASE = 42
+# Define swapping policies to test
+swapping_order_configs = ["swap_4_baln", "swap_4_baln2", "swap_4_l2r", "swap_4_r2l", "swap_4_asap"]
+ch_capacities_configs = {
+    "[3, 3, 3, 3, 3]": [(3, 3), (3, 3), (3, 3), (3, 3), (3, 3)],
+    "[4, 2, 4, 2, 4]": [(4, 4), (2, 2), (4, 4), (2, 2), (4, 4)],
+}
+t_cohere_values = [5e-3, 10e-3, 20e-3]
+
+nodes = ["S", "R1", "R2", "R3", "R4", "D"]
+mem_capacities = [6, 6, 6, 6, 6, 6]
+channel_lengths = [32, 18, 35, 16, 24]
 TOTAL_QUBITS = 6
 
-ch_lengths = [20, 20]
+N_RUNS = 3
+SEED_BASE = 100
 
-# Experiment parameters
-# t_cohere_values = [5e-3, 10e-3, 20e-3]
-t_cohere_values = [1e-3, 10e-3]
-mem_allocs = [(1, 5), (2, 4), (3, 3), (4, 2), (5, 1)]
-mem_labels = [str(m) for m in mem_allocs]
 
-channel_configs = {
-  #  "DIM-DIM": [LinkType.DIM_BK, LinkType.DIM_BK],  # [25, 25]
-    "SR-SR": [LinkType.SR, LinkType.SR],  # [25, 25]
-    "SIM-DIM": [LinkType.SIM, LinkType.DIM_BK],  # [32, 18]
-    "DIM-SIM": [LinkType.DIM_BK, LinkType.SIM],  # [18, 32]
-}
-
-# Store results: results[t_cohere][length_label] = dict of lists
 results = {
-    t: {length_label: {"rate_mean": [], "rate_std": [], "fid_mean": [], "fid_std": []} for length_label in channel_configs}
-    for t in t_cohere_values
+    mem_label: {order: {t: [] for t in t_cohere_values} for order in swapping_order_configs}
+    for mem_label in ch_capacities_configs
 }
 
-for t_cohere in t_cohere_values:
-    for length_label, link_architectures in channel_configs.items():
-        for left, right in mem_allocs:
-            rates = []
-            fids = []
+for mem_label, mem_allocs in ch_capacities_configs.items():
+    for order in swapping_order_configs:
+        print(f"\n>>> Testing order: {order}, Channel Mem allocation: {mem_label}")
+        for t_cohere in t_cohere_values:
+            run_rates = []
             for i in range(N_RUNS):
-                print(f"{length_label}, T_cohere={t_cohere:.3f}, Mem alloc={[left, right]}, run {i + 1}")
                 seed = SEED_BASE + i
+                swapping_config = order
 
-                ch_capacities = [(TOTAL_QUBITS, left), (right, TOTAL_QUBITS)]
+                ch_capacities = mem_allocs
 
-                rate, *_, fidelity = run_simulation(
-                    nodes=["S", "R", "D"],
-                    mem_capacities=[TOTAL_QUBITS, TOTAL_QUBITS, TOTAL_QUBITS],
-                    ch_lengths=ch_lengths,
+                rate, *_ = run_simulation(
+                    nodes=nodes,
+                    mem_capacities=mem_capacities,
+                    channel_lengths=channel_lengths,
                     ch_capacities=ch_capacities,
-                    link_architectures=link_architectures,
                     t_coherence=t_cohere,
+                    swapping_order=swapping_config,
                     seed=seed,
                 )
-                rates.append(rate)
-                fids.append(fidelity)
+                run_rates.append(rate)
 
-            res = results[t_cohere][length_label]
-            res["rate_mean"].append(np.mean(rates))
-            res["rate_std"].append(np.std(rates))
-            res["fid_mean"].append(np.mean(fids))
-            res["fid_std"].append(np.std(fids))
+            results[mem_label][order][t_cohere] = (np.mean(run_rates), np.std(run_rates))
 
 
-import matplotlib as mpl
-
-# Update font and figure styling for academic readability at small dimensions
+# Reapply font and style settings for academic clarity
 mpl.rcParams.update({
     "font.size": 18,
     "axes.titlesize": 20,
@@ -229,41 +212,39 @@ mpl.rcParams.update({
     "ytick.labelsize": 16,
     "figure.titlesize": 22,
     "lines.linewidth": 2,
-    "lines.markersize": 6,
+    "lines.markersize": 7,
     "errorbar.capsize": 4
 })
 
-# Redraw plot with updated font sizes
-fig_combined, axs = plt.subplots(2, 2, figsize=(8, 6), sharex=True)
+# Create plot with updated style
+fig, axs = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
 
-for idx, t_cohere in enumerate(t_cohere_values):
-    row_rate = 0
-    row_fid = 1
-    col = idx
+colors = {"baln": "green", "baln2": "red", "l2r": "purple", "r2l": "brown", "asap": "pink"}
+markers = {"baln": "v", "baln2": "s", "l2r": "^", "r2l": "x", "asap": "d"}
 
-    # Entanglement Rate
-    ax_rate = axs[row_rate][col]
-    for length_label in channel_configs:
-        res = results[t_cohere][length_label]
-        ax_rate.errorbar(mem_labels, res["rate_mean"], yerr=res["rate_std"],
-                         fmt="o--", capsize=4, label=length_label)
-    ax_rate.set_title(f"T_cohere: {int(t_cohere * 1e3)} ms")
-    ax_rate.set_ylabel("Ent. per second")
-    ax_rate.grid(True, which="both", ls="--", lw=0.6, alpha=0.8)
-    if col == 1:
-        ax_rate.legend(loc="lower right")
+for ax_idx, (mem_label, policy_dict) in enumerate(results.items()):
+    ax = axs[ax_idx]
+    for full_policy, t_dict in policy_dict.items():
+        policy = full_policy.replace("swap_4_", "")
+        means = [t_dict[t][0] for t in t_cohere_values]
+        stds = [t_dict[t][1] for t in t_cohere_values]
+        ax.errorbar(
+            [t * 1e3 for t in t_cohere_values],
+            means,
+            yerr=stds,
+            fmt=markers[policy],
+            linestyle="-",
+            capsize=4,
+            label=policy,
+            color=colors[policy],
+        )
+    ax.set_title(f"Mem. Alloc: {mem_label}")
+    ax.set_xlabel("T_cohere (ms)")
+    if ax_idx == 0:
+        ax.set_ylabel("Throughput (eps)")
+    ax.grid(True, linestyle="--", linewidth=0.6, alpha=0.8)
 
-    # Fidelity
-    ax_fid = axs[row_fid][col]
-    for length_label in channel_configs:
-        res = results[t_cohere][length_label]
-        ax_fid.errorbar(mem_labels, res["fid_mean"], yerr=res["fid_std"],
-                        fmt="s--", capsize=4, label=length_label)
-    ax_fid.set_xlabel("Memory Allocation")
-    ax_fid.set_ylabel("Fidelity")
-    ax_fid.grid(True, which="both", ls="--", lw=0.6, alpha=0.8)
-
-# fig_combined.suptitle("Entanglement Rate and Fidelity vs Memory Allocation", fontsize=22)
-fig_combined.tight_layout(rect=[0, 0, 1, 0.95])
+axs[-1].legend(title="Policy", loc="lower right")
+plt.tight_layout()
 plt.show()
 
