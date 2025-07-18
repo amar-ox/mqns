@@ -84,7 +84,7 @@ class Monitor(Entity):
     def handle(self, event: Event) -> None:
         simulator = self.simulator
 
-        record: dict[str, Any] = {"time": simulator.tc.sec}
+        record: dict[str, Any] = {"time": [simulator.tc.sec]}
         for name, calculate_func in self.attributions:
             record[name] = [calculate_func(simulator, self.network, event)]
         record_pd = pd.DataFrame(record)
