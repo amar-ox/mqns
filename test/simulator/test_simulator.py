@@ -1,5 +1,5 @@
+import math
 from collections import defaultdict
-from collections.abc import Callable
 from typing import cast
 
 from qns.simulator import Event, Simulator, Time
@@ -57,33 +57,33 @@ def test_simulator_run():
     assert SimpleEvent.invoke_count["t2"] == 11
 
 
-def do_test_stop(run: Callable[[Simulator], None]):
+def do_test_stop(*, te: float):
     SimpleEvent.invoke_count.clear()
-    simulator = Simulator(0, 15, 1000)
-
-    t = 0
-    while t <= 15:
-        e = SimpleEvent(simulator.time(sec=t), name="t1")
-        simulator.add_event(e)
-        t += 1
-    # 16 instances of t2 scheduled at 0, 1, 2, .., 14, 15
-    assert simulator.total_events == 16
+    simulator = Simulator(0, te, 1000)
 
     e = StopEvent(simulator.time(sec=9.5), name="s0", simulator=simulator)
     simulator.add_event(e)
     # 1 instance of s0 scheduled at 9.5
-    assert simulator.total_events == 16 + 1
+    assert simulator.total_events == 1
 
-    run(simulator)
-    assert simulator.tc < simulator.te
+    t = 1
+    while t <= 60:
+        e = SimpleEvent(simulator.time(sec=t), name="t1")
+        simulator.add_event(e)
+        t += 1
+    # up to 60 instances of t2 scheduled at 1, 2, .., MIN(60, te_sec)
+    assert simulator.total_events == 1 + min(60, te)
 
-    assert SimpleEvent.invoke_count["t1"] == 10
+    simulator.run()
+    assert simulator.tc.sec < te
+
+    assert SimpleEvent.invoke_count["t1"] == 9
     assert SimpleEvent.invoke_count["s0"] == 1
 
 
 def test_simulator_run_stop():
-    do_test_stop(lambda simulator: simulator.run())
+    do_test_stop(te=15)
 
 
 def test_simulator_continuous_stop():
-    do_test_stop(lambda simulator: simulator.run_continuous())
+    do_test_stop(te=math.inf)

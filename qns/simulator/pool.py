@@ -16,7 +16,6 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import heapq
-from typing import cast
 
 from qns.simulator.event import Event
 from qns.simulator.ts import Time
@@ -25,7 +24,7 @@ from qns.simulator.ts import Time
 class DefaultEventPool:
     """The default implement of the event pool"""
 
-    def __init__(self, ts: Time, te: Time):
+    def __init__(self, ts: Time, te: Time | None):
         """Args:
         ts: the start time
         te: the end time
@@ -50,7 +49,7 @@ class DefaultEventPool:
             if the event is inserted successfully
 
         """
-        if event.t < self.tc or event.t > self.te:
+        if event.t < self.tc or (self.te is not None and event.t > self.te):
             return False
 
         heapq.heappush(self.event_list, event)
@@ -65,8 +64,9 @@ class DefaultEventPool:
         """
         try:
             event = heapq.heappop(self.event_list)
-            self.tc = cast(Time, event.t)
+            self.tc = event.t
+            return event
         except IndexError:
-            event = None
-            self.tc = self.te
-        return event
+            if self.te is not None:
+                self.tc = self.te
+            return None
