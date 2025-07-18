@@ -16,9 +16,7 @@ class SendApp(Application):
 
     def install(self, node: Node, simulator: Simulator):
         super().install(node, simulator)
-        t = simulator.ts
-        event = func_to_event(t, self.send_packet, by=self)
-        simulator.add_event(event)
+        simulator.add_event(func_to_event(simulator.ts, self.send_packet, by=self))
 
     def send_packet(self):
         simulator = self.simulator
@@ -35,7 +33,7 @@ class SendApp(Application):
         cchannel.send(packet=packet, next_hop=next_hop)
 
         # calculate the next sending time
-        t = simulator.current_time + 1 / self.send_rate
+        t = simulator.tc + 1 / self.send_rate
 
         # insert the next send event to the simulator
         event = func_to_event(t, self.send_packet, by=self)
@@ -48,10 +46,10 @@ class RecvApp(Application):
         super().__init__()
         self.add_handler(self.RecvClassicPacketHandler, RecvClassicPacket)
 
-    def RecvClassicPacketHandler(self, node: Node, event: RecvClassicPacket):
+    def RecvClassicPacketHandler(self, event: RecvClassicPacket):
         packet = event.packet
         msg = packet.get()
-        output = f"{node} recv packet: {msg} from {packet.src}->{packet.dest}"
+        output = f"{self.get_node()} recv packet: {msg} from {packet.src}->{packet.dest}"
         print(output)
         assert output == "<qnode n10> recv packet: Hello,world from <qnode n1> from <qnode n1>-><qnode n10>"
 

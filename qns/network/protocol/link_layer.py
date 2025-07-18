@@ -115,7 +115,7 @@ class LinkLayer(Application):
         self.own = self.get_node(node_type=QNode)
         self.memory = self.own.get_memory()
 
-    def RecvClassicPacketHandler(self, _: Node, event: RecvClassicPacket) -> bool:
+    def RecvClassicPacketHandler(self, event: RecvClassicPacket) -> bool:
         if event.packet.get()["cmd"] in ["RESERVE_QUBIT", "RESERVE_QUBIT_OK"]:
             self.handle_reservation(event)
             return True
@@ -148,11 +148,11 @@ class LinkLayer(Application):
                     func_to_event(
                         simulator.tc + i * 1 / self.attempt_rate,
                         self.start_reservation,
+                        next_hop,
+                        qchannel,
+                        qb,
+                        qb.path_id,
                         by=self,
-                        next_hop=next_hop,
-                        qchannel=qchannel,
-                        qubit=qb,
-                        path_id=qb.path_id,
                     )
                 )
             else:
@@ -229,12 +229,12 @@ class LinkLayer(Application):
             func_to_event(
                 simulator.tc + succ_attempt_time,
                 self.do_successful_attempt,
+                qchannel,
+                next_hop,
+                address,
+                attempts,
+                key,
                 by=self,
-                qchannel=qchannel,
-                next_hop=next_hop,
-                address=address,
-                attempts=attempts,
-                key=key,
             )
         )
 
@@ -278,7 +278,7 @@ class LinkLayer(Application):
             neighbor=next_hop, qubit=local_qubit, delay=qchannel.delay_model.calculate() + 1e-6
         )  # wait 1tau to notify (+ a small delay to ensure events order)
 
-    def receive_qubit(self, _: QNode, event: RecvQubitPacket):
+    def receive_qubit(self, event: RecvQubitPacket):
         """This method is called when a quantum channel delivers an entangled qubit (half of an EPR pair)
         to the local node. It performs the following:
 
@@ -323,7 +323,7 @@ class LinkLayer(Application):
         qubit.fsm.to_entangled()
         simulator.add_event(QubitEntangledEvent(self.own, neighbor, qubit, t=simulator.tc + delay, by=self))
 
-    def handle_manage_active_channels(self, _: QNode, event: ManageActiveChannels) -> bool:
+    def handle_manage_active_channels(self, event: ManageActiveChannels) -> bool:
         log.debug(f"{self.own}: start qchannel with {event.neighbor}")
         qchannel = self.own.get_qchannel(event.neighbor)
         if event.type == TypeEnum.ADD:
@@ -337,7 +337,7 @@ class LinkLayer(Application):
             self.active_channels.pop(qchannel.name, "Not Found")
         return True
 
-    def handle_decoh_rel(self, _: QNode, event: QubitDecoheredEvent | QubitReleasedEvent) -> bool:
+    def handle_decoh_rel(self, event: QubitDecoheredEvent | QubitReleasedEvent) -> bool:
         is_decoh = isinstance(event, QubitDecoheredEvent)
         if is_decoh:
             self.decoh_count += 1

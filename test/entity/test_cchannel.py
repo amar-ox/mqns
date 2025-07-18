@@ -28,7 +28,7 @@ class ClassicSendNode(Node):
             t += 0.25
 
     def send(self):
-        print(self.simulator.current_time, "send packet")
+        print(self.simulator.tc, "send packet")
         link = self.cchannels[0]
         dest = self.dest
         packet = ClassicPacket(msg="ping", src=self, dest=dest)

@@ -10,7 +10,7 @@ def test_timer():
     trigger_times: list[Time] = []
 
     def trigger_func():
-        trigger_times.append(s.current_time)
+        trigger_times.append(s.tc)
 
     t1 = Timer("t1", 0, 10, 0.5, trigger_func)
     t1.install(s)

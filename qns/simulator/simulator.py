@@ -47,8 +47,11 @@ class Simulator:
         ts.default_accuracy = accuracy
 
         self.ts: Time = self.time(sec=start_second)
+        """Start simulation time."""
         self.te: Time = self.time(sec=end_second)
+        """End simulation time."""
         self.time_spend: float = 0
+        """Wallclock time for entire simulation run."""
 
         self.event_pool = DefaultEventPool(self.ts, self.te)
         self.status = {}
@@ -59,19 +62,9 @@ class Simulator:
         self._running = False
 
     @property
-    def current_time(self) -> Time:
-        """Get the current time of the simulation
-
-        Returns:
-            (Time) the current time
-
-        """
-        return self.event_pool.current_time
-
-    @property
     def tc(self) -> Time:
-        """The alias of `current_time`"""
-        return self.current_time
+        """Current simulator time."""
+        return self.event_pool.current_time
 
     def time(self, time_slot: int | None = None, sec: int | float | None = None) -> Time:
         """Produce a ``Time`` using either ``time_slot`` or ``sec``
@@ -157,4 +150,4 @@ class Simulator:
         if tre - trs == 0:
             log.debug(f"runtime {tre - trs}, {self.total_events} events, xINF")
         else:
-            log.debug(f"runtime {tre - trs}, {self.total_events} events, x{self.current_time.sec / (tre - trs)}")
+            log.debug(f"runtime {tre - trs}, {self.total_events} events, x{self.tc.sec / (tre - trs)}")

@@ -44,7 +44,7 @@ class NodeProcessDelayApp(Application):
             return True
         return isinstance(event, self.delay_event_list)
 
-    def handle(self, node: Node, event: Event) -> bool:
+    def handle(self, event: Event) -> bool:
         simulator = self.simulator
 
         if not self.check_in_delay_event_list(event):
@@ -58,7 +58,7 @@ class NodeProcessDelayApp(Application):
         # add to list
         self.wait_rehandle_event_list.append(event)
         # get the delay time
-        t = simulator.current_time + self.delay
+        t = simulator.tc + self.delay
         # reset event's occur time
         event.t = t
         event.by = self

@@ -62,7 +62,7 @@ class Event:
         return self.t < other.t
 
     def __le__(self, other: "Event") -> bool:
-        return self < other or self == other
+        return self.t <= other.t
 
     def __gt__(self, other: "Event") -> bool:
         return not self <= other
@@ -79,24 +79,28 @@ class Event:
         return "Event()"
 
 
-def func_to_event(t: Time, fn: Callable, name: str | None = None, by: Any = None, *args, **kwargs):
+class WrapperEvent(Event):
+    def __init__(self, t: Time, name: str | None, by: Any, fn: Callable, args: Any, kwargs: Any):
+        super().__init__(t, name, by)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+
+    def invoke(self) -> None:
+        self.fn(*self.args, **self.kwargs)
+
+
+def func_to_event(t: Time, fn: Callable, *args, name: str | None = None, by: Any = None, **kwargs):
     """Convert a function to an event, the function `fn` will be called at `t`.
     It is a simple method to wrap a function to an event.
 
     Args:
-        t (Time): the function will be called at `t`
-        fn (Callable): the function
+        t: the function will be called at `t`
+        fn: the function
+        *args: the function's positional parameters
+        name: event name
         by: the entity or application that will causes this event
-        *args: the function's parameters
-        **kwargs: the function's parameters
+        **kwargs: the function's keyword parameters
 
     """
-
-    class WrapperEvent(Event):
-        def __init__(self, t: Time, name: str | None, by: Any):
-            super().__init__(t, name, by)
-
-        def invoke(self) -> None:
-            fn(*args, **kwargs)
-
-    return WrapperEvent(t, name, by)
+    return WrapperEvent(t, name, by, fn, args, kwargs)
