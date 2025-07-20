@@ -1,6 +1,7 @@
 build
 Cython==0.29.28
 matplotlib==3.*
+networkx==3.3
 numpy<2.0
 pandas[performance,plot]==2.*
 pytest==8.*
