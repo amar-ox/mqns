@@ -16,6 +16,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import uuid
+from collections import deque
 from typing import Literal, TypedDict
 
 import numpy as np
@@ -95,7 +96,7 @@ class LinkLayer(Application):
 
         self.pending_init_reservation: dict[str, tuple[QuantumChannel, QNode, int]] = {}
         """stores reservation requests sent by this node"""
-        self.fifo_reservation_req: list[tuple[str, int | None, ClassicChannel, QNode, QuantumChannel]] = []
+        self.fifo_reservation_req = deque[tuple[str, int | None, ClassicChannel, QNode, QuantumChannel]]()
         """stores received reservations requests awaiting for qubits"""
 
         self.etg_count = 0
@@ -445,7 +446,7 @@ class LinkLayer(Application):
         avail_qubits[0].active = key
         msg: ReserveMsg = {"cmd": "RESERVE_QUBIT_OK", "path_id": path_id, "key": key}
         cchannel.send(ClassicPacket(msg, src=self.own, dest=from_node), next_hop=from_node)
-        self.fifo_reservation_req.pop(0)
+        self.fifo_reservation_req.popleft()
 
     def handle_sync_signal(self, signal_type: SignalTypeEnum):
         """Handles timing synchronization signals for SYNC mode (not very reliable at this time)."""
