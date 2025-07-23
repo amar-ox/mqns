@@ -7,10 +7,10 @@ from tap import Tap
 from qns.network import QuantumNetwork
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_forwarder import ProactiveForwarder
-from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
-from qns.network.topology.customtopo import CustomTopology, Topo, TopoCChannel, TopoController, TopoQChannel, TopoQNode
 from qns.simulator.simulator import Simulator
 from qns.utils import log, set_seed
+
+from examples_common.topo_asymmetric_channel import build_topology
 
 
 # Command line arguments
@@ -30,102 +30,6 @@ SEED_BASE = 100
 # parameters
 sim_duration = 3
 
-fiber_alpha = 0.2
-eta_d = 0.95
-eta_s = 0.95
-frequency = 1e6  # memory frequency
-entg_attempt_rate = 50e6  # From fiber max frequency (50 MHz) AND detectors count rate (60 MHz)
-
-init_fidelity = 0.99
-p_swap = 0.5
-
-swapping_config = "swap_1"
-
-
-def generate_topology(
-    nodes: list[str],
-    mem_capacities: list[int],
-    channel_lengths: list[float],
-    capacities: list[tuple[int, int]],
-    t_coherence: float,
-) -> Topo:
-    """
-    Generate a linear topology with explicit memory and channel configurations.
-
-    Args:
-        nodes (list[str]): List of node names.
-        mem_capacities (list[int]): Number of qubits per node.
-        channel_lengths (list[float]): Lengths of quantum channels between adjacent nodes.
-        capacities (list[tuple[int, int]]): (left, right) qubit allocation per qchannel.
-
-    Returns:
-        dict: A topology dictionary.
-    """
-    if len(nodes) != len(mem_capacities):
-        raise ValueError("mem_capacities must match number of nodes")
-    if len(channel_lengths) != len(nodes) - 1:
-        raise ValueError("channel_lengths must be len(nodes) - 1")
-    if len(capacities) != len(nodes) - 1:
-        raise ValueError("capacities must be len(nodes) - 1")
-
-    # Create QNodes
-    qnodes: list[TopoQNode] = []
-    for i, name in enumerate(nodes):
-        qnodes.append(
-            {
-                "name": name,
-                "memory": {
-                    "decoherence_rate": 1 / t_coherence,
-                    "capacity": mem_capacities[i],
-                },
-                "apps": [
-                    LinkLayer(
-                        attempt_rate=entg_attempt_rate,
-                        init_fidelity=init_fidelity,
-                        alpha_db_per_km=fiber_alpha,
-                        eta_d=eta_d,
-                        eta_s=eta_s,
-                        frequency=frequency,
-                    ),
-                    ProactiveForwarder(ps=p_swap),
-                ],
-            }
-        )
-
-    # Create Quantum Channels
-    qchannels: list[TopoQChannel] = []
-    for i in range(len(nodes) - 1):
-        node1, node2 = nodes[i], nodes[i + 1]
-        length = channel_lengths[i]
-        cap1, cap2 = capacities[i]
-
-        qchannels.append(
-            {
-                "node1": node1,
-                "node2": node2,
-                "capacity1": cap1,
-                "capacity2": cap2,
-                "parameters": {"length": length},
-            }
-        )
-
-    # Classical Channels
-    cchannels: list[TopoCChannel] = []
-    for i in range(len(nodes) - 1):
-        node1, node2 = nodes[i], nodes[i + 1]
-        length = channel_lengths[i]
-        cchannels.append({"node1": node1, "node2": node2, "parameters": {"length": length}})
-
-    # Controller and links to all nodes
-    controller: TopoController = {
-        "name": "ctrl",
-        "apps": [ProactiveRoutingControllerApp(routing_type="SRSP", swapping=swapping_config)],
-    }
-    for node in nodes:
-        cchannels.append({"node1": "ctrl", "node2": node, "parameters": {"length": 1.0}})
-
-    return {"qnodes": qnodes, "qchannels": qchannels, "cchannels": cchannels, "controller": controller}
-
 
 def run_simulation(
     nodes: list[str],
@@ -135,14 +39,18 @@ def run_simulation(
     t_coherence: float,
     seed: int,
 ):
-    json_topology = generate_topology(nodes, mem_capacities, channel_lengths, ch_capacities, t_coherence)
-    # print(json_topology)
-
     set_seed(seed)
     s = Simulator(0, sim_duration + 5e-06, accuracy=1000000)
     log.install(s)
 
-    topo = CustomTopology(json_topology)
+    topo = build_topology(
+        nodes=nodes,
+        mem_capacities=mem_capacities,
+        channel_lengths=channel_lengths,
+        capacities=capacities,
+        t_coherence=t_coherence,
+        swapping_order="swap_1",
+    )
     net = QuantumNetwork(topo=topo)
     net.install(s)
 
