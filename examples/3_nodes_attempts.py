@@ -5,9 +5,8 @@ from tap import Tap
 
 from qns.entity.monitor import Monitor
 from qns.entity.qchannel import RecvQubitPacket
-from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network import QuantumNetwork
 from qns.network.protocol import LinkLayer, ProactiveForwarder, ProactiveRoutingControllerApp
-from qns.network.route import DijkstraRouteAlgorithm
 from qns.network.topology.customtopo import CustomTopology, Topo
 from qns.simulator import Simulator
 from qns.utils import log, set_seed
@@ -129,7 +128,7 @@ def run_simulation(num_qubits, seed):
     log.install(s)
 
     topo = CustomTopology(json_topology)
-    net = QuantumNetwork(topo=topo, route=DijkstraRouteAlgorithm(), timing_mode=TimingModeEnum.ASYNC)
+    net = QuantumNetwork(topo=topo)
     net.install(s)
 
     # attempts rate per second per qchannel

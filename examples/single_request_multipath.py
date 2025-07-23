@@ -1,17 +1,15 @@
-from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network import QuantumNetwork
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
 from qns.network.route.yen import YenRouteAlgorithm
-from qns.network.topology.customtopo import CustomTopology
+from qns.network.topology.customtopo import CustomTopology, Topo, TopoQNode
 from qns.simulator.simulator import Simulator
 from qns.utils import log, set_seed
 
 log.set_default_level("DEBUG")
 
 SEED_BASE = 100
-
-light_speed = 2 * 10**5  # km/s
 
 # parameters
 sim_duration = 3
@@ -46,7 +44,7 @@ ch_S_R5 = 15
 ch_R5_R3 = 15
 
 
-def generate_topology() -> dict:
+def generate_topology() -> Topo:
     """
     Defines the topology with globally declared simulation parameters.
 
@@ -55,8 +53,8 @@ def generate_topology() -> dict:
     """
 
     # Create QNodes
-    qnodes = []
-    for i, name in enumerate(["S", "R1", "R2", "R3", "R4", "R5", "D"]):
+    qnodes: list[TopoQNode] = []
+    for name in ["S", "R1", "R2", "R3", "R4", "R5", "D"]:
         qnodes.append(
             {
                 "name": name,
@@ -86,66 +84,66 @@ def generate_topology() -> dict:
                 "node2": "R1",
                 "capacity1": 2,
                 "capacity2": 2,
-                "parameters": {"length": ch_S_R1, "delay": ch_S_R1 / light_speed},
+                "parameters": {"length": ch_S_R1},
             },
             {
                 "node1": "R1",
                 "node2": "R2",
                 "capacity1": 2,
                 "capacity2": 2,
-                "parameters": {"length": ch_R1_R2, "delay": ch_R1_R2 / light_speed},
+                "parameters": {"length": ch_R1_R2},
             },
             {
                 "node1": "R2",
                 "node2": "R3",
                 "capacity1": 2,
                 "capacity2": 1,
-                "parameters": {"length": ch_R2_R3, "delay": ch_R2_R3 / light_speed},
+                "parameters": {"length": ch_R2_R3},
             },
             {
                 "node1": "R3",
                 "node2": "R4",
                 "capacity1": 2,
                 "capacity2": 2,
-                "parameters": {"length": ch_R3_R4, "delay": ch_R3_R4 / light_speed},
+                "parameters": {"length": ch_R3_R4},
             },
             {
                 "node1": "R4",
                 "node2": "D",
                 "capacity1": 2,
                 "capacity2": 4,
-                "parameters": {"length": ch_R4_D, "delay": ch_R4_D / light_speed},
+                "parameters": {"length": ch_R4_D},
             },
             {
                 "node1": "S",
                 "node2": "R5",
                 "capacity1": 2,
                 "capacity2": 2,
-                "parameters": {"length": ch_S_R5, "delay": ch_S_R5 / light_speed},
+                "parameters": {"length": ch_S_R5},
             },
             {
                 "node1": "R5",
                 "node2": "R3",
                 "capacity1": 2,
                 "capacity2": 1,
-                "parameters": {"length": ch_R5_R3, "delay": ch_R5_R3 / light_speed},
+                "parameters": {"length": ch_R5_R3},
             },
         ],
         "cchannels": [
-            {"node1": "S", "node2": "R1", "parameters": {"length": ch_S_R1, "delay": ch_S_R1 / light_speed}},
-            {"node1": "R1", "node2": "R2", "parameters": {"length": ch_R1_R2, "delay": ch_R1_R2 / light_speed}},
-            {"node1": "R2", "node2": "R3", "parameters": {"length": ch_R2_R3, "delay": ch_R2_R3 / light_speed}},
-            {"node1": "R3", "node2": "R4", "parameters": {"length": ch_R3_R4, "delay": ch_R3_R4 / light_speed}},
-            {"node1": "R4", "node2": "D", "parameters": {"length": ch_R4_D, "delay": ch_R4_D / light_speed}},
-            {"node1": "S", "node2": "R5", "parameters": {"length": ch_S_R5, "delay": ch_S_R5 / light_speed}},
-            {"node1": "R5", "node2": "R3", "parameters": {"length": ch_R5_R3, "delay": ch_R5_R3 / light_speed}},
-            {"node1": "ctrl", "node2": "S", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "R1", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "R2", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "R3", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "R4", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "R5", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
-            {"node1": "ctrl", "node2": "D", "parameters": {"length": 1.0, "delay": 1 / light_speed}},
+            {"node1": "S", "node2": "R1", "parameters": {"length": ch_S_R1}},
+            {"node1": "R1", "node2": "R2", "parameters": {"length": ch_R1_R2}},
+            {"node1": "R2", "node2": "R3", "parameters": {"length": ch_R2_R3}},
+            {"node1": "R3", "node2": "R4", "parameters": {"length": ch_R3_R4}},
+            {"node1": "R4", "node2": "D", "parameters": {"length": ch_R4_D}},
+            {"node1": "S", "node2": "R5", "parameters": {"length": ch_S_R5}},
+            {"node1": "R5", "node2": "R3", "parameters": {"length": ch_R5_R3}},
+            {"node1": "ctrl", "node2": "S", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "R1", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "R2", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "R3", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "R4", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "R5", "parameters": {"length": 1.0}},
+            {"node1": "ctrl", "node2": "D", "parameters": {"length": 1.0}},
         ],
         "controller": {
             "name": "ctrl",
@@ -165,7 +163,6 @@ topo = CustomTopology(json_topology)
 net = QuantumNetwork(
     topo=topo,
     route=YenRouteAlgorithm(),  # Yen's algo is set here!
-    timing_mode=TimingModeEnum.ASYNC,
 )
 net.install(s)
 
@@ -175,11 +172,11 @@ s.run()
 total_etg = 0
 total_decohered = 0
 for node in net.get_nodes():
-    ll_app = node.get_apps(LinkLayer)[0]
+    ll_app = node.get_app(LinkLayer)
     total_etg += ll_app.etg_count
     total_decohered += ll_app.decoh_count
 
-e2e_rate = net.get_node("S").get_apps(ProactiveForwarder)[0].e2e_count / sim_duration
+e2e_rate = net.get_node("S").get_app(ProactiveForwarder).cnt.n_consumed / sim_duration
 
 print(f"E2E etg rate: {e2e_rate}")
 print(f"Expired memories: {total_decohered / total_etg if total_etg > 0 else 0}")

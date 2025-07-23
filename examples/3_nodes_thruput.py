@@ -3,9 +3,8 @@ import numpy as np
 import pandas as pd
 from tap import Tap
 
-from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network import QuantumNetwork
 from qns.network.protocol import LinkLayer, ProactiveForwarder, ProactiveRoutingControllerApp
-from qns.network.route import DijkstraRouteAlgorithm
 from qns.network.topology.customtopo import CustomTopology, Topo
 from qns.simulator import Simulator
 from qns.utils import log, set_seed
@@ -169,7 +168,7 @@ def run_simulation(t_coherence, seed):
     log.install(s)
 
     topo = CustomTopology(json_topology)
-    net = QuantumNetwork(topo=topo, route=DijkstraRouteAlgorithm(), timing_mode=TimingModeEnum.ASYNC)
+    net = QuantumNetwork(topo=topo)
     net.install(s)
 
     s.run()
@@ -182,7 +181,7 @@ def run_simulation(t_coherence, seed):
         total_etg += ll_app.etg_count
         total_decohered += ll_app.decoh_count
 
-    e2e_rate = net.get_node("S").get_app(ProactiveForwarder).e2e_count / sim_duration
+    e2e_rate = net.get_node("S").get_app(ProactiveForwarder).cnt.n_consumed / sim_duration
 
     return e2e_rate, total_decohered / total_etg if total_etg > 0 else 0
 

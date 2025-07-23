@@ -4,12 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tap import Tap
 
-from qns.network import QuantumNetwork, TimingModeEnum
+from qns.network import QuantumNetwork
 from qns.network.protocol.link_layer import LinkLayer
 from qns.network.protocol.proactive_forwarder import ProactiveForwarder
 from qns.network.protocol.proactive_routing_controller import ProactiveRoutingControllerApp
-from qns.network.route.dijkstra import DijkstraRouteAlgorithm
-from qns.network.topology.customtopo import CustomTopology
+from qns.network.topology.customtopo import CustomTopology, Topo, TopoCChannel, TopoController, TopoQChannel, TopoQNode
 from qns.simulator.simulator import Simulator
 from qns.utils import log, set_seed
 
@@ -26,8 +25,6 @@ args = Args().parse_args()
 log.set_default_level("CRITICAL")
 
 SEED_BASE = 100
-
-light_speed = 2 * 10**5  # km/s
 
 # parameters
 sim_duration = 3
@@ -49,7 +46,7 @@ def generate_topology(
     capacities: list[tuple[int, int]],
     t_coherence: float,
     swapping_order: str,
-) -> dict:
+) -> Topo:
     """
     Generate a linear topology with explicit memory and channel configurations.
 
@@ -70,7 +67,7 @@ def generate_topology(
         raise ValueError("capacities must be len(nodes) - 1")
 
     # Create QNodes
-    qnodes = []
+    qnodes: list[TopoQNode] = []
     for i, name in enumerate(nodes):
         qnodes.append(
             {
@@ -94,7 +91,7 @@ def generate_topology(
         )
 
     # Create Quantum Channels
-    qchannels = []
+    qchannels: list[TopoQChannel] = []
     for i in range(len(nodes) - 1):
         node1, node2 = nodes[i], nodes[i + 1]
         length = channel_lengths[i]
@@ -106,21 +103,24 @@ def generate_topology(
                 "node2": node2,
                 "capacity1": cap1,
                 "capacity2": cap2,
-                "parameters": {"length": length, "delay": length / light_speed},
+                "parameters": {"length": length},
             }
         )
 
     # Classical Channels
-    cchannels = []
+    cchannels: list[TopoCChannel] = []
     for i in range(len(nodes) - 1):
         node1, node2 = nodes[i], nodes[i + 1]
         length = channel_lengths[i]
-        cchannels.append({"node1": node1, "node2": node2, "parameters": {"length": length, "delay": length / light_speed}})
+        cchannels.append({"node1": node1, "node2": node2, "parameters": {"length": length}})
 
     # Controller and links to all nodes
-    controller = {"name": "ctrl", "apps": [ProactiveRoutingControllerApp(routing_type="SRSP", swapping=swapping_order)]}
+    controller: TopoController = {
+        "name": "ctrl",
+        "apps": [ProactiveRoutingControllerApp(routing_type="SRSP", swapping=swapping_order)],
+    }
     for node in nodes:
-        cchannels.append({"node1": "ctrl", "node2": node, "parameters": {"length": 1.0, "delay": 1.0 / light_speed}})
+        cchannels.append({"node1": "ctrl", "node2": node, "parameters": {"length": 1.0}})
 
     return {"qnodes": qnodes, "qchannels": qchannels, "cchannels": cchannels, "controller": controller}
 
@@ -142,7 +142,7 @@ def run_simulation(
     log.install(s)
 
     topo = CustomTopology(json_topology)
-    net = QuantumNetwork(topo=topo, route=DijkstraRouteAlgorithm(), timing_mode=TimingModeEnum.ASYNC)
+    net = QuantumNetwork(topo=topo)
     net.install(s)
 
     s.run()
@@ -155,9 +155,9 @@ def run_simulation(
         total_etg += ll_app.etg_count
         total_decohered += ll_app.decoh_count
 
-    e2e_count = net.get_node("S").get_app(ProactiveForwarder).e2e_count
-    e2e_rate = e2e_count / sim_duration
-    mean_fidelity = net.get_node("S").get_app(ProactiveForwarder).fidelity / e2e_count if e2e_count > 0 else 0
+    fw_s = net.get_node("S").get_app(ProactiveForwarder)
+    e2e_rate = fw_s.cnt.n_consumed / sim_duration
+    mean_fidelity = fw_s.cnt.consumed_avg_fidelity
 
     return e2e_rate, total_decohered / total_etg if total_etg > 0 else 0, mean_fidelity
 
@@ -174,7 +174,7 @@ t_cohere_values = [5e-3, 10e-3, 20e-3]
 
 nodes = ["S", "R1", "R2", "R3", "R4", "D"]
 mem_capacities = [6, 6, 6, 6, 6, 6]
-channel_lengths = [32, 18, 35, 16, 24]
+channel_lengths: list[float] = [32, 18, 35, 16, 24]
 TOTAL_QUBITS = 6
 
 SEED_BASE = 100
