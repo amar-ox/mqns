@@ -2,6 +2,7 @@ import pytest
 
 from qns.entity.node import Application, Node, QNode
 from qns.entity.qchannel import LinkType
+from qns.models.epr import BaseEntanglement
 from qns.network.network import ClassicTopology, QuantumNetwork
 from qns.network.protocol.event import (
     ManageActiveChannels,
@@ -20,7 +21,7 @@ class NetworkLayer(Application):
     def __init__(self):
         super().__init__()
         self.release_after: float | None = None
-        self.entangle: list[float] = []
+        self.entangle: list[tuple[float, float]] = []
         self.decohere: list[float] = []
 
         self.add_handler(self.handle_entangle, QubitEntangledEvent)
@@ -31,7 +32,11 @@ class NetworkLayer(Application):
         self.own = self.get_node(node_type=QNode)
 
     def handle_entangle(self, event: QubitEntangledEvent):
-        self.entangle.append(event.t.sec)
+        _, epr = self.own.get_memory().read(address=event.qubit.addr, must=True, destructive=False)
+        assert isinstance(epr, BaseEntanglement)
+        assert epr.creation_time is not None
+        self.entangle.append((event.t.sec, epr.creation_time.sec))
+
         if not isinstance(self.release_after, float):
             return
         self.own.get_memory().read(address=event.qubit.addr)
@@ -43,12 +48,14 @@ class NetworkLayer(Application):
         self.decohere.append(event.t.sec)
 
 
-def test_link_layer_basic():
+def test_link_layer_basic(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(LinkLayer, "_success_prob_dim_bk", lambda *_: 1.0)
+
     topo = LinearTopology(
         nodes_number=2,
         nodes_apps=[NetworkLayer(), LinkLayer()],
-        qchannel_args={"delay": 0.1, "link_architecture": LinkType.DIM_BK_SEQ},
-        cchannel_args={"delay": 0.2},
+        qchannel_args={"delay": 0.1, "link_architecture": LinkType.DIM_BK},
+        cchannel_args={"delay": 0.1},
         memory_args={"decoherence_rate": 1 / 4.1},
     )
     net = QuantumNetwork(topo=topo, classic_topo=ClassicTopology.Follow)
@@ -82,21 +89,26 @@ def test_link_layer_basic():
         assert len(app.entangle) == 3
         assert len(app.decohere) == 1
         # t=0.5, n1 sends RESERVE_QUBIT
-        # t=0.7, n2 receives RESERVE_QUBIT and sends RESERVE_QUBIT_OK
-        # t=0.9, n1 receives RESERVE_QUBIT_OK and sends qubit
-        # t=1.0, n2 receives qubit, entanglement established
-        assert app.entangle[0] == pytest.approx(1.0, abs=1e-3)
-        # t=3.9, n1 releases qubit and sends RESERVE_QUBIT
-        # t=4.0, n2 receives RESERVE_QUBIT but has no qubit available
-        # t=4.2, n2 releases qubit and sends RESERVE_QUBIT_OK
-        # t=4.4, n1 receives RESERVE_QUBIT_OK and sends qubit
-        # t=4.5, n2 receives qubit, entanglement established
-        # t=4.1 is assumed time of entanglement creation, 3x qchannel.delay prior to sending qubit
-        assert app.entangle[1] == pytest.approx(4.5, abs=1e-3)
-        # t=8.2, qubits decohered 4.1 seconds since entanglement creation
-        assert app.decohere[0] == pytest.approx(8.2, abs=1e-3)
-        # t=8.7, entanglement established after 0.5 seconds
-        assert app.entangle[2] == pytest.approx(8.7, abs=1e-3)
+        # t=0.6, n2 receives RESERVE_QUBIT and sends RESERVE_QUBIT_OK
+        # t=0.7, n1 receives RESERVE_QUBIT_OK
+        # t=0.9, entanglement established
+        # t=0.7 is assumed time of entanglement creation
+        assert app.entangle[0] == pytest.approx((0.9, 0.7), abs=1e-3)
+        # t=3.8, n1 releases qubit and sends RESERVE_QUBIT
+        # t=3.9, n2 receives RESERVE_QUBIT but has no qubit available
+        # t=4.1, n2 releases qubit and sends RESERVE_QUBIT_OK
+        # t=4.2, n1 receives RESERVE_QUBIT_OK
+        # t=4.4, entanglement established
+        # t=4.2 is assumed time of entanglement creation
+        assert app.entangle[1] == pytest.approx((4.4, 4.2), abs=1e-3)
+        # t=8.3, qubits decohered 4.1 seconds since entanglement creation
+        assert app.decohere[0] == pytest.approx(8.3, abs=1e-3)
+        # t=8.3, n1 sends RESERVE_QUBIT
+        # t=8.4, n2 receives RESERVE_QUBIT and sends RESERVE_QUBIT_OK
+        # t=8.5, n1 receives RESERVE_QUBIT_OK
+        # t=8.7, entanglement established
+        # t=8.5 is assumed time of entanglement creation
+        assert app.entangle[2] == pytest.approx((8.7, 8.5), abs=1e-3)
 
 
 def test_link_layer_skip_ahead():

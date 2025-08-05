@@ -58,21 +58,18 @@ class LinkLayer(Application):
         eta_s: float = 1.0,
         frequency: float = 80e6,
         init_fidelity: float = 0.99,
-        light_speed_kms: float = 2 * 10**5,
     ):
         """This constructor sets up the entanglement generation layer of a quantum node with key hardware parameters.
         It also initializes data structures for managing quantum channels, entanglement attempts,
         and synchronization.
 
-        Parameters
-        ----------
-            attempt_rate (float): Max entanglement attempts per second (default: 1e6).
-            alpha_db_per_km (float): Fiber loss in dB/km (default: 0.2).
-            eta_d (float): Detector efficiency (default: 1.0).
-            eta_s (float): Source efficiency (default: 1.0).
-            frequency (float): Entanglement source frequency (default: 80e6).
-            init_fidelity (float): Fidelity of generated entangled pairs (default: 0.99).
-            light_speed_kms (float): Speed of light in fiber in km/s (default: 2e5).
+        Args:
+            attempt_rate: Max entanglement attempts per second (default: 1e6).
+            alpha_db_per_km: Fiber loss in dB/km (default: 0.2).
+            eta_d: Detector efficiency (default: 1.0).
+            eta_s: Source efficiency (default: 1.0).
+            frequency: Entanglement source frequency (default: 80e6).
+            init_fidelity: Fidelity of generated entangled pairs (default: 0.99).
 
         """
 
@@ -84,7 +81,6 @@ class LinkLayer(Application):
         self.frequency = frequency
         self.init_fidelity = init_fidelity
         self.attempt_rate = attempt_rate
-        self.light_speed_kms = light_speed_kms
 
         self.own: QNode
         """quantum node this LinkLayer equips"""
@@ -221,7 +217,7 @@ class LinkLayer(Application):
             raise Exception(f"{self.own}: Qchannel not active")
 
         t_mem = 1 / self.memory.decoherence_rate
-        if qchannel.length >= (2 * self.light_speed_kms * t_mem):
+        if 2 * qchannel.delay_model.calculate() >= t_mem:
             raise Exception("Qchannel too long for entanglement attempt.")
 
         log.debug(f"{self.own}: link type = {qchannel.link_architecture}")
@@ -465,7 +461,7 @@ class LinkLayer(Application):
         from primary node to secondary node.
         """
         reset_time = 1 / self.frequency  # minimum time between two consecutive photon excitations/absorptions
-        tau_l = qchannel.length / self.light_speed_kms  # time to send photon/message one way
+        tau_l = qchannel.delay_model.calculate()  # time to send photon/message one way
 
         match qchannel.link_architecture:
             case LinkType.DIM_BK_SEQ:
