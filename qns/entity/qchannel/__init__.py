@@ -16,14 +16,19 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from qns.entity.base_channel import NextHopNotConnectionException
+from qns.entity.qchannel.link_arch import LinkArch, LinkArchDimBk, LinkArchDimBkSeq, LinkArchSim, LinkArchSr
 from qns.entity.qchannel.losschannel import QubitLossChannel
-from qns.entity.qchannel.qchannel import LinkType, QuantumChannel, QuantumChannelInitKwargs, RecvQubitPacket
+from qns.entity.qchannel.qchannel import QuantumChannel, QuantumChannelInitKwargs, RecvQubitPacket
 
 __all__ = [
+    "LinkArch",
+    "LinkArchDimBk",
+    "LinkArchDimBkSeq",
+    "LinkArchSim",
+    "LinkArchSr",
+    "NextHopNotConnectionException",
     "QuantumChannel",
-    "LinkType",
     "QuantumChannelInitKwargs",
     "QubitLossChannel",
     "RecvQubitPacket",
-    "NextHopNotConnectionException",
 ]
