@@ -28,7 +28,7 @@ class LinkArch(ABC):
     @abstractmethod
     def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
         """
-        Compute average duration of a single attempt.
+        Compute protocol delays.
 
         Args:
             k: number of attempts, minimum is 1.
