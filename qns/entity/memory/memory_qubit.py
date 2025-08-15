@@ -24,6 +24,22 @@ if TYPE_CHECKING:
 
 
 class QubitState(Enum):
+    RAW = auto()
+    """
+    Qubit is unused.
+    """
+    ACTIVE = auto()
+    """
+    The link layer has started a reservation on the qubit as the primary node.
+    `qubit.active` contains the reservation key.
+    """
+    RESERVED = auto()
+    """
+    Qubit is part of a reservation in link layer and a remote qubit has been found.
+    `qubit.active` contains the reservation key.
+
+    This state is set on the qubit at both primary and secondary node of the reservation.
+    """
     ENTANGLED = auto()
     """
     Qubit is half of an elementary entanglement delivered from link layer.
@@ -55,11 +71,14 @@ class QubitState(Enum):
 
 
 ALLOWED_STATE_TRANSITIONS: dict[QubitState, tuple[QubitState, ...]] = {
+    QubitState.RAW: (QubitState.ACTIVE,),
+    QubitState.ACTIVE: (QubitState.RESERVED,),
+    QubitState.RESERVED: (QubitState.ENTANGLED,),
     QubitState.ENTANGLED: (QubitState.RELEASE, QubitState.PURIF),
     QubitState.PURIF: (QubitState.RELEASE, QubitState.PENDING, QubitState.ELIGIBLE),
     QubitState.PENDING: (QubitState.RELEASE, QubitState.PURIF),
     QubitState.ELIGIBLE: (QubitState.RELEASE,),
-    QubitState.RELEASE: (QubitState.ENTANGLED,),
+    QubitState.RELEASE: (QubitState.RAW,),
 }
 
 
@@ -86,7 +105,7 @@ class MemoryQubit:
         self.path_direction: PathDirection | None = None
         """Optional end of the path to which the allocated qubit points to (weak solution to avoid loops)"""
 
-        self._state = QubitState.RELEASE
+        self._state = QubitState.RAW
         """state of the qubit according to the FSM"""
         self.active: str | None = None
         """Reservation key if qubit is reserved for entanglement, None otherwise"""

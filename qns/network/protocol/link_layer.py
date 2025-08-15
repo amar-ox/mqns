@@ -213,16 +213,13 @@ class LinkLayer(Application):
         qubits = self.memory.get_channel_qubits(ch_name=qchannel.name)
         log.debug(f"{self.own}: {qchannel.name} has assigned qubits: {qubits}")
         for i, (qb, data) in enumerate(qubits):
-            if qb.path_id != path_id:
+            if qb.path_id != path_id or qb.state != QubitState.RAW:
                 continue
-            if qb.active is None:
-                if data is not None:
-                    raise Exception(f"{self.own}: qubit has data {data}")
-                simulator.add_event(
-                    func_to_event(
-                        simulator.tc + i * self.attempt_interval, self.start_reservation, next_hop, qchannel, qb, by=self
-                    )
-                )
+            assert qb.active is None
+            assert data is None, f"{self.own}: qubit {qb} has data {data}"
+            simulator.add_event(
+                func_to_event(simulator.tc + i * self.attempt_interval, self.start_reservation, next_hop, qchannel, qb, by=self)
+            )
 
     def start_reservation(self, next_hop: QNode, qchannel: QuantumChannel, qubit: MemoryQubit):
         """
@@ -251,7 +248,7 @@ class LinkLayer(Application):
 
         key = uuid.uuid4().hex
         assert key not in self.pending_init_reservation
-        qubit.active = key
+        qubit.state, qubit.active = QubitState.ACTIVE, key
         self.pending_init_reservation[key] = (qchannel, next_hop, qubit)
         log.debug(f"{self.own}: start reservation key={key} dst={next_hop} addr={qubit.addr} path={qubit.path_id}")
 
@@ -289,7 +286,8 @@ class LinkLayer(Application):
         qubit = avail_qubits[0]
 
         log.debug(f"{self.own}: accept reservation key={req.key} src={req.from_node} addr={qubit.addr} path={qubit.path_id}")
-        qubit.active = req.key
+        qubit.state = QubitState.ACTIVE  # cannot go directly from RAW to RESERVED
+        qubit.state, qubit.active = QubitState.RESERVED, req.key
         msg: ReserveMsg = {"cmd": "RESERVE_QUBIT_OK", "path_id": req.path_id, "key": req.key}
         req.cchannel.send(ClassicPacket(msg, src=self.own, dest=req.from_node), next_hop=req.from_node)
         return True
@@ -302,6 +300,7 @@ class LinkLayer(Application):
         key = msg["key"]
         (qchannel, next_hop, qubit) = self.pending_init_reservation.pop(key)
         assert qubit.active == key
+        qubit.state = QubitState.RESERVED
         self.generate_entanglement(qchannel=qchannel, next_hop=next_hop, qubit=qubit)
 
     def generate_entanglement(self, qchannel: QuantumChannel, next_hop: QNode, qubit: MemoryQubit):
@@ -377,7 +376,7 @@ class LinkLayer(Application):
         if qubit is None:
             raise Exception(f"{self.own}: Failed to store EPR {epr.name}")
 
-        qubit.purif_rounds = 0
+        qubit.purif_rounds = 0  # TODO move this to ENTANGLED->PURIF transition
         qubit.state = QubitState.ENTANGLED
         simulator.add_event(QubitEntangledEvent(self.own, neighbor, qubit, t=simulator.tc, by=self))
 
@@ -389,11 +388,12 @@ class LinkLayer(Application):
             log.debug(f"{self.own}: qubit decohered addr={qubit.addr} old-key={qubit.active}")
         else:
             log.debug(f"{self.own}: qubit released addr={qubit.addr} old-key={qubit.active}")
+
+        qubit.state, qubit.active = QubitState.RAW, None
+
         assert qubit.qchannel is not None
         ac = self.active_channels.get((qubit.qchannel.name, qubit.path_id))
         if ac is None:  # this node is not the EPR initiator
-            qubit.active = None
-
             # Check deferred reservation requests and attempt to fulfill the reservation.
             # Only the first (oldest) request in the FIFO is processed per call.
             if self.fifo_reservation_req and self.try_accept_reservation(self.fifo_reservation_req[0]):
