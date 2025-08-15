@@ -19,8 +19,6 @@
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
-from qns.utils import log
-
 if TYPE_CHECKING:
     from qns.entity.qchannel import QuantumChannel
 
@@ -115,8 +113,10 @@ class MemoryQubit:
 
     @state.setter
     def state(self, value: QubitState) -> None:
+        if value == self._state:
+            return
         if value not in ALLOWED_STATE_TRANSITIONS[self._state]:
-            log.debug(f"MemoryQubit: unexpected state transition from <{self._state}> to <{value}>; {self}")
+            raise ValueError(f"MemoryQubit: unexpected state transition from <{self._state}> to <{value}>; {self}")
         self._state = value
 
     def __repr__(self) -> str:
