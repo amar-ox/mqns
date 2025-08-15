@@ -138,6 +138,12 @@ class MemoryQubit:
             raise ValueError(f"MemoryQubit: unexpected state transition from <{self._state}> to <{value}>; {self}")
         self._state = value
 
+    def reset_state(self) -> None:
+        """Reset state to RAW and clear associated fields."""
+        self._state = QubitState.RAW
+        self.active = None
+        self.purif_rounds = 0
+
     def __repr__(self) -> str:
         return (
             f"<memory qubit {self.addr}, ch={self.qchannel}, path_id={self.path_id}, "
