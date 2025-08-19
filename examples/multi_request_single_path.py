@@ -1,6 +1,4 @@
 import json
-import random
-from collections.abc import Callable
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -9,8 +7,15 @@ from tap import Tap
 
 from qns.entity.node import Application
 from qns.network.network import QuantumNetwork
-from qns.network.proactive import LinkLayer, ProactiveForwarder, ProactiveRoutingController
-from qns.network.proactive.fib import FIBEntry
+from qns.network.proactive import (
+    LinkLayer,
+    MuxScheme,
+    MuxSchemeDynamicEpr,
+    MuxSchemeStatistical,
+    ProactiveForwarder,
+    ProactiveRoutingController,
+    select_weighted_by_swaps,
+)
 from qns.network.topology.customtopo import CustomTopology, Topo
 from qns.simulator import Simulator
 from qns.utils import log, set_seed
@@ -54,26 +59,9 @@ ch_S2_R2 = 10
 ch_R3_D2 = 10
 
 
-# path selection strategy for dynamic EPR allocation
-def select_weighted_by_swaps(fibs: list[FIBEntry]) -> int | None:
-    if not fibs:
-        return None
-
-    # Lower swaps = higher weight
-    weights = [1.0 / (1 + len(e["swap_sequence"])) for e in fibs]
-    total = sum(weights)
-    probabilities = [w / total for w in weights]
-    return random.choices(fibs, weights=probabilities, k=1)[0]["path_id"]
-
-
-def generate_topology(
-    t_coherence: float, p_swap: float, statistical_mux: bool, path_select_fn: Callable[[list[FIBEntry]], int] | None
-) -> Topo:
+def generate_topology(t_coherence: float, p_swap: float, mux: MuxScheme) -> Topo:
     """
     Defines the topology with globally declared simulation parameters.
-
-    Returns:
-        dict: the topology definition to be used to build the quantum network.
     """
 
     def make_qnode_apps() -> list[Application]:
@@ -86,7 +74,7 @@ def generate_topology(
                 eta_s=eta_s,
                 frequency=frequency,
             ),
-            ProactiveForwarder(ps=p_swap, statistical_mux=statistical_mux, path_select_fn=path_select_fn),
+            ProactiveForwarder(ps=p_swap, mux=mux),
         ]
 
     return {
@@ -178,10 +166,8 @@ def generate_topology(
     }
 
 
-def run_simulation(
-    t_coherence: float, p_swap: float, statistical_mux: bool, path_select_fn: Callable[[list[FIBEntry]], int] | None, seed: int
-):
-    json_topology = generate_topology(t_coherence, p_swap, statistical_mux, path_select_fn)
+def run_simulation(t_coherence: float, p_swap: float, mux: MuxScheme, seed: int):
+    json_topology = generate_topology(t_coherence, p_swap, mux)
     # print(json_topology)
 
     set_seed(seed)
@@ -210,28 +196,27 @@ p_swap = 0.5
 t_cohere_values = [5e-3, 10e-3, 20e-3]
 
 # Strategy configs
-strategies = {
-    "Statistical Mux.": {"statistical_mux": True, "select_fn": None},
-    "Random Alloc.": {"statistical_mux": False, "select_fn": None},
-    "Swap-weighted Alloc.": {"statistical_mux": False, "select_fn": select_weighted_by_swaps},
+strategies: dict[str, MuxScheme] = {
+    "Statistical Mux.": MuxSchemeStatistical(),
+    "Random Alloc.": MuxSchemeDynamicEpr(),
+    "Swap-weighted Alloc.": MuxSchemeDynamicEpr(path_select_fn=select_weighted_by_swaps),
 }
 
 
 results = {strategy: {0: [], 1: []} for strategy in strategies}
 
 # Run simulation
-for strategy, config in strategies.items():
+for strategy, mux in strategies.items():
     for t_cohere in t_cohere_values:
-        path_rates = [[], []]
-        path_fids = [[], []]
+        path_rates: list[list[float]] = [[], []]
+        path_fids: list[list[float]] = [[], []]
         for i in range(args.runs):
-            print(f"{strategy, config}, T_cohere={t_cohere:.3f}, run #{i}")
+            print(f"{strategy}, T_cohere={t_cohere:.3f}, run #{i}")
             seed = SEED_BASE + i
             (rate1, fid1), (rate2, fid2) = run_simulation(
                 t_coherence=t_cohere,
                 p_swap=p_swap,
-                statistical_mux=config["statistical_mux"],
-                path_select_fn=config["select_fn"],
+                mux=mux,
                 seed=seed,
             )
             path_rates[0].append(rate1)
