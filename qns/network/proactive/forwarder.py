@@ -693,11 +693,10 @@ class ProactiveForwarder(Application):
         prev_partner: QNode | None = None
         prev_qubit: MemoryQubit | None = None
         prev_epr: WernerStateEntanglement | None = None
+        prev_fib_entry: FIBEntry | None = None
         next_partner: QNode | None = None
         next_qubit: MemoryQubit | None = None
         next_epr: WernerStateEntanglement | None = None
-
-        prev_fib_entry: FIBEntry | None = None
         next_fib_entry: FIBEntry | None = None
 
         for addr in (mq0.addr, mq1.addr):

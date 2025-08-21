@@ -1,7 +1,7 @@
 from qns.entity.memory import MemoryQubit, QubitState
 from qns.entity.node import QNode
 from qns.models.epr import WernerStateEntanglement
-from qns.network.proactive.fib import FIBEntry, is_isolated_links
+from qns.network.proactive.fib import FIBEntry, is_swap_disabled
 from qns.network.proactive.message import InstallPathInstructions
 from qns.network.proactive.mux import MuxScheme
 from qns.utils import log
@@ -18,7 +18,7 @@ class MuxSchemeFibBase(MuxScheme):
         assert fib_entry is not None
         assert qubit.qchannel is not None
 
-        if is_isolated_links(fib_entry):  # no swapping in isolated links
+        if is_swap_disabled(fib_entry):  # no swapping in isolated links
             self.fw.consume_and_release(qubit)
             return
 

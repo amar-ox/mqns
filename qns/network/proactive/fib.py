@@ -52,11 +52,13 @@ def find_index_and_swapping_rank(fib_entry: FIBEntry, node_name: str) -> tuple[i
     return idx, fib_entry["swap_sequence"][idx]
 
 
-def is_isolated_links(fib_entry: FIBEntry) -> bool:
+def is_swap_disabled(fib_entry: FIBEntry) -> bool:
     """
-    Determine whether a swap sequence indicates isolated links.
+    Determine whether swapping has been disabled.
 
-    For isolated links, the forwarder will consume entanglement upon completing purification,
+    To disable swapping, set swap_sequence to a list of zeros.
+
+    When swapping is disabled, the forwarder will consume entanglement upon completing purification,
     without attempting entanglement swapping.
 
     Args:
@@ -86,7 +88,6 @@ class ForwardingInformationBase:
         pass
 
     def get_entry(self, path_id: int, *, must: bool | None = None) -> FIBEntry | None:
-        """Retrieve an entry from the table."""
         entry = self.table.get(path_id, None)
         if entry:
             return entry
@@ -99,8 +100,8 @@ class ForwardingInformationBase:
         Add a new path entry to the forwarding table.
 
         Args:
-            replace (bool): If True, existing entry with same path_id is replaced;
-                            Otherwise, existing entry with same path_id causes ValueError.
+            replace: If True, existing entry with same path_id is replaced;
+                     Otherwise, existing entry with same path_id causes ValueError.
         """
         path_id = entry["path_id"]
         if not replace and path_id in self.table:
