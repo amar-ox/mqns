@@ -6,7 +6,7 @@ from qns.entity.node import QNode
 from qns.models.epr import WernerStateEntanglement
 from qns.network.proactive.fib import FIBEntry
 from qns.network.proactive.mux_buffer_space import MuxSchemeFibBase
-from qns.network.proactive.mux_statistical import MuxSchemeDynamicBase
+from qns.network.proactive.mux_statistical import MuxSchemeDynamicBase, has_intersect_tmp_path_ids
 
 try:
     from typing import override
@@ -56,6 +56,22 @@ class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
         self.own.get_qchannel(neighbor)  # ensure qchannel exists
         qubit.state = QubitState.PURIF
         self.fw.qubit_is_purif(qubit, fib_entry, neighbor)
+
+    @override
+    def select_eligible_qubit(self, mq0: MemoryQubit, fib_entry: FIBEntry) -> MemoryQubit | None:
+        assert mq0.path_id is None
+        possible_path_ids = [fib_entry["path_id"]]
+        mq1, _ = next(
+            self.memory.find(
+                lambda q, v: q.state == QubitState.ELIGIBLE  # in ELIGIBLE state
+                and q.qchannel != mq0.qchannel  # assigned to a different channel
+                and has_intersect_tmp_path_ids(v.tmp_path_ids, possible_path_ids),  # has compatible path_id
+                has_epr=True,
+            ),
+            (None, None),
+        )
+        # TODO selection algorithm among found qubits
+        return mq1
 
     @override
     def swapping_succeeded(

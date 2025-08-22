@@ -26,7 +26,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import itertools
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any, Literal, TypedDict, overload
 
 from qns.entity.entity import Entity
@@ -151,16 +151,6 @@ class QuantumMemory(Entity):
 
     @overload
     def find(
-        self, predicate: Callable[[MemoryQubit, QuantumModel], bool], *, has_qm: Literal[True]
-    ) -> Iterator[tuple[MemoryQubit, QuantumModel]]:
-        """
-        Iterable over qubits and associated data that satisfy a predicate.
-        Only used qubits (i.e. have associated data) are considered.
-        """
-        pass
-
-    @overload
-    def find(
         self, predicate: Callable[[MemoryQubit, BaseEntanglement], bool], *, has_epr: Literal[True]
     ) -> Iterator[tuple[MemoryQubit, BaseEntanglement]]:
         """
@@ -169,10 +159,8 @@ class QuantumMemory(Entity):
         """
         pass
 
-    def find(self, predicate: Callable[[MemoryQubit, Any], bool], *, has_qm=False, has_epr=False) -> Iterator[Any]:
+    def find(self, predicate: Callable[[MemoryQubit, Any], bool], *, has_epr=False) -> Iterator[Any]:
         for qubit, qm in self._storage:
-            if has_qm and qm is None:
-                continue
             if has_epr and not isinstance(qm, BaseEntanglement):
                 continue
             if predicate(qubit, qm):
@@ -468,135 +456,6 @@ class QuantumMemory(Entity):
             event.cancel()
         self.pending_decohere_events.clear()
 
-    def search_available_qubits(self, ch_name: str, path_id: int | None = None) -> list[MemoryQubit]:
-        """Search for available (unoccupied and inactive) memory qubits, optionally filtered by path ID.
-
-        This method returns all memory qubits that:
-            - Are currently unoccupied (i.e., no associated `QuantumModel`),
-            - Are not active (i.e., not in use/reserved for operations),
-            - (Optionally) are assigned to the specified path ID.
-
-        Args:
-            ch_name (str): Name of the qchannel the qubits should be assigned to.
-            path_id (Optional[int]): The path ID to filter qubits by. If None, any path ID is accepted.
-
-        Returns:
-            List[MemoryQubit]: A list of available memory qubits satisfying the criteria.
-                           Returns an empty list if no such qubits are found.
-
-        """
-        qubits = []
-        for qubit, data in self._storage:
-            if data is not None:
-                continue
-            if qubit.qchannel and qubit.qchannel.name != ch_name:
-                continue
-            if qubit.active:
-                continue
-            if path_id is not None and qubit.path_id != path_id:
-                continue
-            qubits.append(qubit)
-        return qubits
-
-    def search_eligible_qubits(
-        self,
-        exc_qchannel: str | None = None,
-        exc_direction: PathDirection | None = None,
-        inc_qchannels: list[str] | None = None,
-        path_id: list[int] | None = None,
-        tmp_path_id: Iterable[int] | None = None,
-    ) -> list[tuple[MemoryQubit, QuantumModel]]:
-        """Search for memory qubits that are eligible for use.
-
-        This method scans the memory for qubits that:
-            - Are marked as `ELIGIBLE`,
-            - (Optionally) belong to the specified path ID (`path_id`),
-            - (Optionally) are not associated with the specified quantum channel (`qchannel`).
-
-        Args:
-            exc_qchannel: The name of the quantum channel to exclude.
-                          If None, no exclusion is applied.
-            inc_qchannels: List of qchannel names the qubits should be assigned to.
-            exc_direction: Qubit path direction to exclude.
-                           If None, no exclusion is applied.
-            path_id: The list of path IDs the qubit must be allocated to.
-                     If None, any path ID is accepted.
-            tmp_path_id: List of identifiers for the paths to match against epr.tmp_path_id
-                         in dynamic qubit allocation or statistical multiplexing.
-
-        Returns:
-            A list of tuples containing eligible memory qubits and their associated `QuantumModel` instances.
-            The list is empty if no matching qubits are found.
-        """
-        qubits = []
-        for qubit, data in self._storage:
-            if data is None:
-                continue
-            if qubit.state != QubitState.ELIGIBLE:
-                continue
-            if path_id is not None and qubit.path_id not in path_id:
-                continue
-            if exc_qchannel is not None and (qubit.qchannel is None or qubit.qchannel.name == exc_qchannel):
-                continue
-            if exc_direction is not None and (qubit.path_direction == exc_direction):
-                continue
-            if inc_qchannels is not None and (qubit.qchannel is None or qubit.qchannel.name not in inc_qchannels):
-                continue
-            if tmp_path_id is not None and (
-                not isinstance(data, BaseEntanglement) or data.tmp_path_ids is None or data.tmp_path_ids.isdisjoint(tmp_path_id)
-            ):
-                continue
-            qubits.append((qubit, data))
-        return qubits
-
-    def search_purif_qubits(
-        self, exc_address: int, partner: str, qchannel: str, path_id: int | None = None, purif_rounds: int = 0
-    ) -> list[tuple[MemoryQubit, QuantumModel]]:
-        """Search for memory qubits eligible for purification with a given qubit.
-        Assumes recurrence purification; i.e., input pairs must have undergone the same number of rounds.
-
-        This method searches for qubits in the `PURIF` state that:
-            - Are not the current qubit (by address),
-            - Belong to the same quantum channel,
-            - Are entangled with the specified partner node (either as source or destination),
-            - Have completed the specified number of purification rounds,
-            - (Optionally) belong to the same path ID if `path_id` is specified.
-              This enforces recurrence purification protocols, which require
-        both qubits to have undergone the same number of purification rounds.
-
-        Args:
-            exc_address (int): The address of the qubit to exclude.
-            partner (str): The name of the entanglement partner node (as `src.name` or `dst.name`).
-            qchannel (str): The name of the quantum channel used by the current qubit for entanglement.
-            path_id (Optional[int]): The path ID that eligible qubits must match. If None, any path ID is accepted.
-            purif_rounds (int): The number of purification rounds the eligible qubit must have undergone.
-
-        Returns:
-            List[Tuple[MemoryQubit, QuantumModel]]:
-                A list of eligible qubits (along with their associated quantum models) that match the criteria.
-
-        """
-        qubits = []
-        for qubit, data in self._storage:
-            if qubit.addr == exc_address:
-                continue
-            if data is None:
-                continue
-            if qubit.state != QubitState.PURIF:
-                continue
-            if path_id is not None and qubit.path_id != path_id:
-                continue
-            if qubit.qchannel is None or qubit.qchannel.name != qchannel:
-                continue
-            if not isinstance(data, BaseEntanglement):
-                continue
-            if data.src is None or data.dst is None or partner not in (data.src.name, data.dst.name):
-                continue
-            if qubit.purif_rounds != purif_rounds:
-                continue
-            qubits.append((qubit, data))
-        return qubits
-
     def get_channel_qubits(self, ch_name: str) -> list[tuple[MemoryQubit, QuantumModel | None]]:
         """Retrieve all memory qubits associated with a specific quantum channel.
 
@@ -611,11 +470,7 @@ class QuantumMemory(Entity):
             that are bound to the specified quantum channel.
 
         """
-        qubits: list[tuple[MemoryQubit, QuantumModel | None]] = []
-        for qubit, data in self._storage:
-            if qubit.qchannel and qubit.qchannel.name == ch_name:
-                qubits.append((qubit, data))
-        return qubits
+        return list(self.find(lambda q, _: q.qchannel is not None and q.qchannel.name == ch_name))
 
     def _schedule_decohere(self, qubit: MemoryQubit, epr: BaseEntanglement):
         simulator = self.simulator

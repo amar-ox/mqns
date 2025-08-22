@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 from qns.entity.memory import MemoryQubit, QubitState
 from qns.entity.node import QNode
 from qns.models.epr import WernerStateEntanglement
@@ -30,23 +32,13 @@ class MuxSchemeFibBase(MuxScheme):
 
         # this is an intermediate node
         # look for another eligible qubit
+        mq1 = self.select_eligible_qubit(qubit, fib_entry)
+        if mq1:  # do swapping
+            self.fw.do_swapping(qubit, mq1, fib_entry, fib_entry)
 
-        if qubit.path_id is not None:  # static qubit-path allocation is provided
-            possible_path_ids = [fib_entry["path_id"]]
-            if not self.fw.isolate_paths:
-                # if not isolated paths -> include other paths serving the same request
-                possible_path_ids = self.fw.request_paths_map[fib_entry["request_id"]]
-                log.debug(f"{self.own}: path ids {possible_path_ids}")
-
-            res = self.fw._select_eligible_qubit(
-                exc_qchannel=qubit.qchannel.name, exc_direction=qubit.path_direction, path_id=possible_path_ids
-            )
-        else:  # dynamic EPR-path allocation
-            possible_path_ids = [fib_entry["path_id"]]
-            res = self.fw._select_eligible_qubit(exc_qchannel=qubit.qchannel.name, tmp_path_id=possible_path_ids)
-
-        if res:  # do swapping
-            self.fw.do_swapping(qubit, res, fib_entry, fib_entry)
+    @abstractmethod
+    def select_eligible_qubit(self, mq0: MemoryQubit, fib_entry: FIBEntry) -> MemoryQubit | None:
+        pass
 
 
 class MuxSchemeBufferSpace(MuxSchemeFibBase):
@@ -64,6 +56,28 @@ class MuxSchemeBufferSpace(MuxSchemeFibBase):
         qubit.purif_rounds = 0
         qubit.state = QubitState.PURIF
         self.fw.qubit_is_purif(qubit, fib_entry, neighbor)
+
+    @override
+    def select_eligible_qubit(self, mq0: MemoryQubit, fib_entry: FIBEntry) -> MemoryQubit | None:
+        assert mq0.path_id is not None
+        possible_path_ids = [fib_entry["path_id"]]
+        if not self.fw.isolate_paths:
+            # if not isolated paths -> include other paths serving the same request
+            possible_path_ids = self.fw.request_paths_map[fib_entry["request_id"]]
+            log.debug(f"{self.own}: path ids {possible_path_ids}")
+
+        mq1, _ = next(
+            self.memory.find(
+                lambda q, _: q.state == QubitState.ELIGIBLE  # in ELIGIBLE state
+                and q.qchannel != mq0.qchannel  # assigned to a different channel
+                and q.path_id in possible_path_ids  # allocated to the same path_id or another path_id under the same request_id
+                and q.path_direction != mq0.path_direction,  # in the opposite path direction
+                has_epr=True,
+            ),
+            (None, None),
+        )
+        # TODO selection algorithm among found qubits
+        return mq1
 
     @override
     def swapping_succeeded(

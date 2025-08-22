@@ -16,7 +16,7 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from collections import defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any, cast
 
@@ -411,47 +411,23 @@ class ProactiveForwarder(Application):
             log.debug(f"{self.own}: is not primary node for segment {segment_name} purif")
             return
 
-        candidate = self._select_purif_qubit(
-            exc_address=qubit.addr,
-            partner=partner.name,
-            qchannel=qubit.qchannel.name,
-            path_id=fib_entry["path_id"],
-            purif_rounds=qubit.purif_rounds,
+        mq1, _ = next(
+            self.memory.find(
+                lambda q, v: q.addr != qubit.addr  # not the same qubit
+                and q.state == QubitState.PURIF  # in PURIF state
+                and q.purif_rounds == qubit.purif_rounds  # with same number of purif rounds
+                and partner in (v.src, v.dst)  # with the same partner
+                and q.path_id == fib_entry["path_id"],  # on the same path_id
+                has_epr=True,
+            ),
+            (None, None),
         )
-        if not candidate:
+        # TODO selection algorithm among found qubits
+        if not mq1:
             log.debug(f"{self.own}: no candidate EPR for segment {segment_name} purif round {1 + qubit.purif_rounds}")
             return
 
-        self._send_purif_solicit(qubit, candidate, fib_entry, partner)
-
-    def _select_purif_qubit(
-        self, exc_address: int, partner: str, qchannel: str, path_id: int, purif_rounds: int
-    ) -> MemoryQubit | None:
-        """Searches for a candidate qubit in the PURIF state that is ready for purification
-        with a given qubit. The candidate must be a different qubit with the same path ID,
-        quantum channel, partner, and has undergone the same number of purification rounds
-        (i.e., recurrent purification schedule).
-
-        Parameters
-        ----------
-            exc_address (int): Memory address of the qubit to exclude from the search.
-            partner (str): Name of the partner node entangled with the qubit.
-            qchannel (str): Name of the quantum channel associated with the qubit.
-            path_id (int): Identifier for the entanglement path to match.
-            purif_rounds (int): Number of purification rounds completed.
-
-        Returns
-        -------
-            Optional[MemoryQubit]: A compatible qubit for purification if found, otherwise None.
-
-        """
-        qubits = self.memory.search_purif_qubits(
-            exc_address=exc_address, partner=partner, qchannel=qchannel, path_id=path_id, purif_rounds=purif_rounds
-        )
-        if qubits:
-            return qubits[0][0]  # pick up one qubit
-            # TODO: Other possible qubit selection criteria
-        return None
+        self._send_purif_solicit(qubit, mq1, fib_entry, partner)
 
     def _send_purif_solicit(self, mq0: MemoryQubit, mq1: MemoryQubit, fib_entry: FIBEntry, partner: QNode):
         """
@@ -621,48 +597,6 @@ class ProactiveForwarder(Application):
             return
 
         self.mux.qubit_is_eligible(qubit, fib_entry)
-
-    def _select_eligible_qubit(
-        self,
-        exc_qchannel: str,
-        exc_direction: PathDirection | None = None,
-        inc_qchannels: list[str] | None = None,
-        path_id: list[int] | None = None,
-        tmp_path_id: Iterable[int] | None = None,
-    ) -> MemoryQubit | None:
-        """
-        Searches for an eligible qubit in memory that matches the specified path ID and
-        is located on a different qchannel than the excluded one. This is used to
-        find a swap candidate during entanglement forwarding. Currently returns the first
-        matching result found.
-
-        Args:
-            exc_qchannel: Name of the quantum channel to exclude from the search.
-            exc_direction: Qubit direction to exclude to avoid loops.
-            inc_qchannels: List of qchannel names the qubits should be assigned to.
-                           This is used with statistical mux when no qubit-path allocation is set.
-            path_id: List of identifiers for the paths to match against qubit.path_id in static qubit-path allocation.
-                     A list of path IDs is used to support multiple non-isolated paths serving the same request.
-            tmp_path_id: List of identifiers for the paths to match agains epr.tmp_path_ids
-                         in dynamic qubit allocation or statistical multiplexing.
-
-        Returns:
-            A single eligible memory qubit, if found; otherwise, None.
-
-        """
-        qubits = self.memory.search_eligible_qubits(
-            exc_qchannel=exc_qchannel,
-            exc_direction=exc_direction,
-            inc_qchannels=inc_qchannels,
-            path_id=path_id,
-            tmp_path_id=tmp_path_id,
-        )
-        if qubits:
-            # log.debug(f"{self.own}: eligible qubits: {qubits}")
-            return qubits[0][0]  # pick up one qubit
-            # TODO: Other qubit selection
-            # (for statistical multiplexing, multipath, quasi-local swapping, etc.)
-        return None
 
     def do_swapping(
         self,

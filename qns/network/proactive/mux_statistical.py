@@ -1,8 +1,9 @@
 import random
+from collections.abc import Iterable, Set
 
 from qns.entity.memory import MemoryQubit, QubitState
 from qns.entity.node import QNode
-from qns.models.epr import WernerStateEntanglement
+from qns.models.epr import BaseEntanglement, WernerStateEntanglement
 from qns.network.proactive.fib import FIBEntry
 from qns.network.proactive.message import InstallPathInstructions
 from qns.network.proactive.mux import MuxScheme
@@ -28,7 +29,17 @@ def _can_enter_purif(own_name: str, partner_name: str) -> bool:
     )
 
 
-def _intersect_tmp_path_ids(epr0: WernerStateEntanglement, epr1: WernerStateEntanglement) -> frozenset[int]:
+def has_intersect_tmp_path_ids(epr0: Set[int] | None, epr1: Iterable[int] | None) -> bool:
+    """
+    Determine whether at least one path_id overlaps between tmp_path_ids sets in two EPRs.
+    """
+    return epr0 is not None and epr1 is not None and not epr0.isdisjoint(epr1)
+
+
+def intersect_tmp_path_ids(epr0: BaseEntanglement, epr1: BaseEntanglement) -> frozenset[int]:
+    """
+    Find overlapping path_ids between tmp_path_ids sets in two EPRs.
+    """
     assert epr0.tmp_path_ids is not None
     assert epr1.tmp_path_ids is not None
     path_ids = epr0.tmp_path_ids.intersection(epr1.tmp_path_ids)
@@ -84,27 +95,31 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
         # find qchannels whose qubits may be used with this qubit
         _, epr0 = self.memory.get(qubit.addr, must=True)
         assert isinstance(epr0, WernerStateEntanglement)
-        assert epr0.tmp_path_ids is not None
         # use path_ids to look for acceptable qchannels for swapping, excluding the qubit's qchannel
         matched_channels = {
             channel
             for channel, path_ids in self.fw.qchannel_paths_map.items()
-            if not epr0.tmp_path_ids.isdisjoint(path_ids) and channel != qubit.qchannel.name
+            if channel != qubit.qchannel.name and has_intersect_tmp_path_ids(epr0.tmp_path_ids, path_ids)
         }
 
-        # select qubits based on qchannels only
-        res = self.fw._select_eligible_qubit(
-            exc_qchannel=qubit.qchannel.name, inc_qchannels=list(matched_channels), tmp_path_id=epr0.tmp_path_ids
+        # find another qubit to swap with
+        mq1, epr1 = next(
+            self.memory.find(
+                lambda q, v: q.state == QubitState.ELIGIBLE  # in ELIGIBLE state
+                and (q.qchannel is not None and q.qchannel.name in matched_channels)  # assigned to a matched channel
+                and has_intersect_tmp_path_ids(epr0.tmp_path_ids, v.tmp_path_ids),  # has overlapping tmp_path_ids
+                has_epr=True,
+            ),
+            (None, None),
         )
-
-        if not res:
+        # TODO selection algorithm among found qubits
+        if not mq1:
             return
-
-        _, epr1 = self.memory.get(res.addr, must=True)
         assert isinstance(epr1, WernerStateEntanglement)
-        path_ids = _intersect_tmp_path_ids(epr0, epr1)
+
+        path_ids = intersect_tmp_path_ids(epr0, epr1)
         fib_entry = self.fib.get_entry(random.choice(list(path_ids)), must=True)  # no need to coordinate across the path
-        self.fw.do_swapping(qubit, res, fib_entry, fib_entry)
+        self.fw.do_swapping(qubit, mq1, fib_entry, fib_entry)
 
     @override
     def swapping_succeeded(
@@ -113,7 +128,7 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
         next_epr: WernerStateEntanglement,
         new_epr: WernerStateEntanglement,
     ) -> None:
-        new_epr.tmp_path_ids = _intersect_tmp_path_ids(prev_epr, next_epr)
+        new_epr.tmp_path_ids = intersect_tmp_path_ids(prev_epr, next_epr)
 
     @override
     def su_parallel_avoid_conflict(self, my_new_epr: WernerStateEntanglement, su_path_id: int) -> bool:
@@ -127,4 +142,4 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
     def su_parallel_succeeded(
         self, merged_epr: WernerStateEntanglement, new_epr: WernerStateEntanglement, other_epr: WernerStateEntanglement
     ) -> None:
-        merged_epr.tmp_path_ids = _intersect_tmp_path_ids(new_epr, other_epr)
+        merged_epr.tmp_path_ids = intersect_tmp_path_ids(new_epr, other_epr)
