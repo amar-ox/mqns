@@ -214,7 +214,7 @@ class ProactiveForwarder(Application):
 
         assert packet.dest is not None
         if packet.dest.name != self.own.name:  # node is not destination: forward message
-            self.send_msg(dest=packet.dest, msg=msg, route=fib_entry["path_vector"])
+            self.send_msg(dest=packet.dest, msg=msg, route=fib_entry.route)
             return True
 
         self.CLASSIC_SIGNALING_HANDLERS[msg["cmd"]](self, msg, fib_entry)
@@ -247,15 +247,11 @@ class ProactiveForwarder(Application):
         path_id = msg["path_id"]
         instructions = msg["instructions"]
         self.mux.validate_path_instructions(instructions)
-        request_id = instructions["req_id"]
 
-        route = instructions["route"]
         log.debug(f"{self.own.name}: routing instructions of path {path_id}: {instructions}")
 
-        m_v = None
-        if "m_v" in instructions:
-            m_v = instructions["m_v"]
-            assert len(m_v) + 1 == len(route)
+        route = instructions["route"]
+        m_v = instructions.get("m_v")
 
         # identify left/right neighbors and allocate memory qubits to the path
         # example visualization:
@@ -275,11 +271,13 @@ class ProactiveForwarder(Application):
 
         # populate FIB
         self.fib.insert_or_replace(
-            path_id=path_id,
-            request_id=request_id,
-            path_vector=route,
-            swap_sequence=instructions["swap"],
-            purification_scheme=instructions["purif"],
+            FIBEntry(
+                path_id=path_id,
+                req_id=instructions["req_id"],
+                route=route,
+                swap=instructions["swap"],
+                purif=instructions["purif"],
+            )
         )
 
         # instruct LinkLayer to start generating EPRs on the qchannel toward the right neighbor
@@ -378,7 +376,7 @@ class ProactiveForwarder(Application):
             return
 
         segment_name = f"{self.own.name}-{partner.name}" if own_idx < partner_idx else f"{partner.name}-{self.own.name}"
-        want_rounds = fib_entry["purification_scheme"].get(segment_name, 0)
+        want_rounds = fib_entry.purif.get(segment_name, 0)
         log.debug(
             f"{self.own}: segment {segment_name} (qubit {qubit.addr}) has "
             + f"{qubit.purif_rounds} and needs {want_rounds} purif rounds"
@@ -403,7 +401,7 @@ class ProactiveForwarder(Application):
                 and q.state == QubitState.PURIF  # in PURIF state
                 and q.purif_rounds == qubit.purif_rounds  # with same number of purif rounds
                 and partner in (v.src, v.dst)  # with the same partner
-                and q.path_id == fib_entry["path_id"],  # on the same path_id
+                and q.path_id == fib_entry.path_id,  # on the same path_id
                 has_epr=True,
             ),
             (None, None),
@@ -445,14 +443,14 @@ class ProactiveForwarder(Application):
         # send purif_solicit to partner
         msg: PurifSolicitMsg = {
             "cmd": "PURIF_SOLICIT",
-            "path_id": fib_entry["path_id"],
+            "path_id": fib_entry.path_id,
             "purif_node": self.own.name,
             "partner": partner.name,
             "epr": epr0.name,
             "measure_epr": epr1.name,
             "round": mq0.purif_rounds,
         }
-        self.send_msg(dest=partner, msg=msg, route=fib_entry["path_vector"])
+        self.send_msg(dest=partner, msg=msg, route=fib_entry.route)
 
     def handle_purif_solicit(self, msg: PurifSolicitMsg, fib_entry: FIBEntry):
         """Processes a PURIF_SOLICIT message from a partner node as part of the purification protocol.
@@ -515,7 +513,7 @@ class ProactiveForwarder(Application):
             "cmd": "PURIF_RESPONSE",
             "result": result,
         }
-        self.send_msg(dest=primary, msg=resp, route=fib_entry["path_vector"])
+        self.send_msg(dest=primary, msg=resp, route=fib_entry.route)
 
     CLASSIC_SIGNALING_HANDLERS["PURIF_SOLICIT"] = handle_purif_solicit
 
@@ -616,10 +614,10 @@ class ProactiveForwarder(Application):
             assert isinstance(epr, WernerStateEntanglement)
             if epr.dst == self.own:
                 prev_partner, prev_qubit, prev_epr = epr.src, qubit, epr
-                prev_fib_entry = fib_entry0 if qubit.path_id == fib_entry0["path_id"] else fib_entry1
+                prev_fib_entry = fib_entry0 if qubit.path_id == fib_entry0.path_id else fib_entry1
             elif epr.src == self.own:
                 next_partner, next_qubit, next_epr = epr.dst, qubit, epr
-                next_fib_entry = fib_entry0 if qubit.path_id == fib_entry0["path_id"] else fib_entry1
+                next_fib_entry = fib_entry0 if qubit.path_id == fib_entry0.path_id else fib_entry1
             else:
                 raise Exception(f"Unexpected: swapping EPRs {mq0} x {mq1}")
 
@@ -636,8 +634,8 @@ class ProactiveForwarder(Application):
         prev_own_idx, prev_own_rank = find_index_and_swapping_rank(prev_fib_entry, self.own.name)
         next_own_idx, next_own_rank = find_index_and_swapping_rank(next_fib_entry, self.own.name)
 
-        prev_route = prev_fib_entry["path_vector"]
-        next_route = next_fib_entry["path_vector"]
+        prev_route = prev_fib_entry.route
+        next_route = next_fib_entry.route
 
         # Save ch_index metadata field onto elementary EPR.
         if not prev_epr.orig_eprs:
@@ -683,13 +681,13 @@ class ProactiveForwarder(Application):
 
             su_msg: SwapUpdateMsg = {
                 "cmd": "SWAP_UPDATE",
-                "path_id": fib_entry0["path_id"],
+                "path_id": fib_entry0.path_id,
                 "swapping_node": self.own.name,
                 "partner": new_partner.name,
                 "epr": old_epr.name,
                 "new_epr": None if new_epr is None else new_epr.name,
             }
-            self.send_msg(dest=partner, msg=su_msg, route=fib_e["path_vector"])
+            self.send_msg(dest=partner, msg=su_msg, route=fib_e.route)
 
         # Release old qubits.
         for i, qubit in enumerate((prev_qubit, next_qubit)):
@@ -823,7 +821,7 @@ class ProactiveForwarder(Application):
                 "epr": my_new_epr.name,
                 "new_epr": None,
             }
-            self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"])
+            self.send_msg(dest=destination, msg=su_msg, route=fib_entry.route)
             return
 
         # The swapping_node successfully swapped in parallel with this node.
@@ -879,7 +877,7 @@ class ProactiveForwarder(Application):
             "epr": my_new_epr.name,
             "new_epr": None if merged_epr is None else merged_epr.name,
         }
-        self.send_msg(dest=destination, msg=su_msg, route=fib_entry["path_vector"])
+        self.send_msg(dest=destination, msg=su_msg, route=fib_entry.route)
 
         # Update records to support potential parallel swapping with "partner".
         _, p_rank = find_index_and_swapping_rank(fib_entry, partner.name)

@@ -24,7 +24,7 @@ class MuxSchemeFibBase(MuxScheme):
             self.fw.consume_and_release(qubit)
             return
 
-        route = fib_entry["path_vector"]
+        route = fib_entry.route
         own_idx = route.index(self.own.name)
         if own_idx in (0, len(route) - 1):  # this is an end node
             self.fw.consume_and_release(qubit)
@@ -48,6 +48,8 @@ class MuxSchemeBufferSpace(MuxSchemeFibBase):
     @override
     def validate_path_instructions(self, instructions: InstallPathInstructions) -> None:
         assert instructions["mux"] == "B"
+        assert "m_v" in instructions
+        assert len(instructions["m_v"]) + 1 == len(instructions["route"])
 
     @override
     def qubit_is_entangled(self, qubit: MemoryQubit, neighbor: QNode) -> None:
@@ -60,10 +62,10 @@ class MuxSchemeBufferSpace(MuxSchemeFibBase):
     @override
     def select_eligible_qubit(self, mq0: MemoryQubit, fib_entry: FIBEntry) -> MemoryQubit | None:
         assert mq0.path_id is not None
-        possible_path_ids = {fib_entry["path_id"]}
+        possible_path_ids = {fib_entry.path_id}
         if not self.fw.isolate_paths:
             # if not isolated paths -> include other paths serving the same request
-            possible_path_ids = self.fib.list_path_ids_by_request_id(fib_entry["request_id"])
+            possible_path_ids = self.fib.list_path_ids_by_request_id(fib_entry.req_id)
             log.debug(f"{self.own}: path ids {possible_path_ids}")
 
         mq1, _ = next(

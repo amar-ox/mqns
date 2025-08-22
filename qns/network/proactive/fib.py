@@ -16,20 +16,21 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from collections.abc import Set
-from typing import TypedDict
-
-try:
-    from typing import Unpack
-except ImportError:
-    from typing_extensions import Unpack
+from dataclasses import dataclass
 
 
-class FIBEntry(TypedDict):
+@dataclass
+class FIBEntry:
     path_id: int
-    request_id: int
-    path_vector: list[str]
-    swap_sequence: list[int]
-    purification_scheme: dict[str, int]
+    """Path identifier, identifies end-to-end path."""
+    req_id: int
+    """Request identifier, identifies source-destination pair."""
+    route: list[str]
+    """List of nodes traversed by the path."""
+    swap: list[int]
+    """Swap sequence."""
+    purif: dict[str, int]
+    """Purification scheme."""
 
 
 def find_index_and_swapping_rank(fib_entry: FIBEntry, node_name: str) -> tuple[int, int]:
@@ -48,8 +49,8 @@ def find_index_and_swapping_rank(fib_entry: FIBEntry, node_name: str) -> tuple[i
     Raises:
         IndexError - node does not exist in path_vector.
     """
-    idx = fib_entry["path_vector"].index(node_name)
-    return idx, fib_entry["swap_sequence"][idx]
+    idx = fib_entry.route.index(node_name)
+    return idx, fib_entry.swap[idx]
 
 
 def is_swap_disabled(fib_entry: FIBEntry) -> bool:
@@ -64,7 +65,7 @@ def is_swap_disabled(fib_entry: FIBEntry) -> bool:
     Args:
         fib_entry: a FIB entry.
     """
-    swap = fib_entry["swap_sequence"]
+    swap = fib_entry.swap
     return swap[0] == 0 == swap[-1]
 
 
@@ -95,17 +96,15 @@ class ForwardingInformationBase:
         except KeyError:
             raise IndexError(f"FIB entry not found for path_id={path_id}")
 
-    def insert_or_replace(self, **entry: Unpack[FIBEntry]):
+    def insert_or_replace(self, entry: FIBEntry):
         """
         Insert an entry or replace entry with same path_id.
         """
-        path_id = entry["path_id"]
-        self.erase(path_id)
-        self.table[path_id] = entry
+        self.erase(entry.path_id)
+        self.table[entry.path_id] = entry
 
-        request_id = entry["request_id"]
-        paths = self.req_path_map.setdefault(request_id, set())
-        paths.add(path_id)
+        paths = self.req_path_map.setdefault(entry.req_id, set())
+        paths.add(entry.path_id)
 
     def erase(self, path_id: int):
         """
@@ -118,11 +117,10 @@ class ForwardingInformationBase:
         except KeyError:
             return
 
-        request_id = entry["request_id"]
-        paths = self.req_path_map[request_id]
+        paths = self.req_path_map[entry.req_id]
         paths.remove(path_id)
         if not paths:
-            del self.req_path_map[request_id]
+            del self.req_path_map[entry.req_id]
 
     def list_path_ids_by_request_id(self, request_id: int) -> Set[int]:
         return self.req_path_map.get(request_id, set())
@@ -130,8 +128,7 @@ class ForwardingInformationBase:
     def __repr__(self):
         """Return a string representation of the forwarding table."""
         return "\n".join(
-            f"Path ID: {path_id}, Request ID: {entry['request_id']}, Path: {entry['path_vector']}, "
-            f"Swap Sequence: {entry['swap_sequence']}, "
-            f"Purification: {entry['purification_scheme']}"
+            f"Path ID: {path_id}, Request ID: {entry.req_id}, Path: {entry.route}, "
+            f"Swap Sequence: {entry.swap}, Purification: {entry.purif}"
             for path_id, entry in self.table.items()
         )

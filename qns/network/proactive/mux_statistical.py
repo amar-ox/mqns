@@ -52,6 +52,7 @@ class MuxSchemeDynamicBase(MuxScheme):
     @override
     def validate_path_instructions(self, instructions: InstallPathInstructions):
         assert instructions["mux"] == "S"
+        assert "m_v" not in instructions
 
     def _qubit_is_entangled_0(self, qubit: MemoryQubit) -> list[int]:
         assert qubit.path_id is None

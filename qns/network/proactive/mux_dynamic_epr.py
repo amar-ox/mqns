@@ -18,7 +18,7 @@ def random_path_selector(fibs: list[FIBEntry]) -> int:
     """
     Path selection strategy: random allocation.
     """
-    return random.choice(fibs)["path_id"]
+    return random.choice(fibs).path_id
 
 
 def select_weighted_by_swaps(fibs: list[FIBEntry]) -> int:
@@ -26,8 +26,8 @@ def select_weighted_by_swaps(fibs: list[FIBEntry]) -> int:
     Path selection strategy: swap-weighted allocation.
     """
     # Lower swaps = higher weight
-    weights = [1.0 / (1 + len(e["swap_sequence"])) for e in fibs]
-    return random.choices(fibs, weights=weights, k=1)[0]["path_id"]
+    weights = [1.0 / (1 + len(e.swap)) for e in fibs]
+    return random.choices(fibs, weights=weights, k=1)[0].path_id
 
 
 class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
@@ -60,7 +60,7 @@ class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
     @override
     def select_eligible_qubit(self, mq0: MemoryQubit, fib_entry: FIBEntry) -> MemoryQubit | None:
         assert mq0.path_id is None
-        possible_path_ids = [fib_entry["path_id"]]
+        possible_path_ids = [fib_entry.path_id]
         mq1, _ = next(
             self.memory.find(
                 lambda q, v: q.state == QubitState.ELIGIBLE  # in ELIGIBLE state
