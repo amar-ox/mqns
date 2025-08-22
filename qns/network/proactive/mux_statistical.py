@@ -1,8 +1,11 @@
 import random
+from collections import defaultdict
+from collections.abc import Iterable, Set
 
-from qns.entity.memory import MemoryQubit, QubitState
+from qns.entity.memory import MemoryQubit, PathDirection, QubitState
 from qns.entity.node import QNode
-from qns.models.epr import WernerStateEntanglement
+from qns.entity.qchannel import QuantumChannel
+from qns.models.epr import BaseEntanglement, WernerStateEntanglement
 from qns.network.proactive.fib import FIBEntry
 from qns.network.proactive.message import InstallPathInstructions
 from qns.network.proactive.mux import MuxScheme
@@ -28,7 +31,17 @@ def _can_enter_purif(own_name: str, partner_name: str) -> bool:
     )
 
 
-def _intersect_tmp_path_ids(epr0: WernerStateEntanglement, epr1: WernerStateEntanglement) -> frozenset[int]:
+def has_intersect_tmp_path_ids(epr0: Set[int] | None, epr1: Iterable[int] | None) -> bool:
+    """
+    Determine whether at least one path_id overlaps between tmp_path_ids sets in two EPRs.
+    """
+    return epr0 is not None and epr1 is not None and not epr0.isdisjoint(epr1)
+
+
+def intersect_tmp_path_ids(epr0: BaseEntanglement, epr1: BaseEntanglement) -> frozenset[int]:
+    """
+    Find overlapping path_ids between tmp_path_ids sets in two EPRs.
+    """
     assert epr0.tmp_path_ids is not None
     assert epr1.tmp_path_ids is not None
     path_ids = epr0.tmp_path_ids.intersection(epr1.tmp_path_ids)
@@ -38,16 +51,36 @@ def _intersect_tmp_path_ids(epr0: WernerStateEntanglement, epr1: WernerStateEnta
 
 
 class MuxSchemeDynamicBase(MuxScheme):
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.qchannel_paths_map = defaultdict[str, list[int]](lambda: [])
+        """stores path-qchannel relationship"""
+
     @override
     def validate_path_instructions(self, instructions: InstallPathInstructions):
         assert instructions["mux"] == "S"
+        assert "m_v" not in instructions
+
+    @override
+    def install_path_neighbor(
+        self,
+        instructions: InstallPathInstructions,
+        fib_entry: FIBEntry,
+        direction: PathDirection,
+        neighbor: QNode,
+        qchannel: QuantumChannel,
+    ) -> None:
+        _ = instructions
+        _ = direction
+        _ = neighbor
+        self.qchannel_paths_map[qchannel.name].append(fib_entry.path_id)
 
     def _qubit_is_entangled_0(self, qubit: MemoryQubit) -> list[int]:
         assert qubit.path_id is None
         if qubit.qchannel is None:
             raise Exception(f"{self.own}: No qubit-qchannel assignment. Not supported.")
         try:
-            possible_path_ids = self.fw.qchannel_paths_map[qubit.qchannel.name]
+            possible_path_ids = self.qchannel_paths_map[qubit.qchannel.name]
         except KeyError:
             raise Exception(f"{self.own}: qchannel {qubit.qchannel.name} not mapped to any path.")
         return possible_path_ids
@@ -58,16 +91,33 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
         super().__init__(name)
 
     @override
+    def validate_path_instructions(self, instructions: InstallPathInstructions):
+        super().validate_path_instructions(instructions)
+
+        # swap sequence must be [1, 0, 0, .., 0, 0, 1]
+        s0, *s1, s2 = instructions["swap"]
+        assert s0 == 1 == s2
+        assert all([s == 0 for s in s1])
+
+        # purif scheme must be empty / zeros
+        assert all([r == 0 for r in instructions["purif"].values()])
+
+    @override
     def qubit_is_entangled(self, qubit: MemoryQubit, neighbor: QNode) -> None:
         possible_path_ids = self._qubit_is_entangled_0(qubit)
-        _, epr = self.memory.get(address=qubit.addr, must=True)
+        _, epr = self.memory.get(qubit.addr, must=True)
         assert isinstance(epr, WernerStateEntanglement)
         log.debug(f"{self.own}: qubit {qubit}, set possible path IDs = {possible_path_ids}")
         epr.tmp_path_ids = frozenset(possible_path_ids)  # to coordinate decisions along the path
+
         if _can_enter_purif(self.own.name, neighbor.name):
             self.own.get_qchannel(neighbor)  # ensure qchannel exists
             qubit.state = QubitState.PURIF
-            self.fw.qubit_is_purif(qubit)
+
+            # purif scheme is empty, as checked in validate_path_instructions
+            log.debug(f"{self.own}: no FIB associated to qubit -> set eligible")
+            qubit.state = QubitState.ELIGIBLE
+            self.fw.qubit_is_eligible(qubit, None)
 
     @override
     def qubit_is_eligible(self, qubit: MemoryQubit, fib_entry: FIBEntry | None) -> None:
@@ -82,29 +132,33 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
         # look for another eligible qubit
 
         # find qchannels whose qubits may be used with this qubit
-        _, epr0 = self.memory.get(address=qubit.addr, must=True)
+        _, epr0 = self.memory.get(qubit.addr, must=True)
         assert isinstance(epr0, WernerStateEntanglement)
-        assert epr0.tmp_path_ids is not None
         # use path_ids to look for acceptable qchannels for swapping, excluding the qubit's qchannel
         matched_channels = {
             channel
-            for channel, path_ids in self.fw.qchannel_paths_map.items()
-            if not epr0.tmp_path_ids.isdisjoint(path_ids) and channel != qubit.qchannel.name
+            for channel, path_ids in self.qchannel_paths_map.items()
+            if channel != qubit.qchannel.name and has_intersect_tmp_path_ids(epr0.tmp_path_ids, path_ids)
         }
 
-        # select qubits based on qchannels only
-        res = self.fw._select_eligible_qubit(
-            exc_qchannel=qubit.qchannel.name, inc_qchannels=list(matched_channels), tmp_path_id=epr0.tmp_path_ids
+        # find another qubit to swap with
+        mq1, epr1 = next(
+            self.memory.find(
+                lambda q, v: q.state == QubitState.ELIGIBLE  # in ELIGIBLE state
+                and (q.qchannel is not None and q.qchannel.name in matched_channels)  # assigned to a matched channel
+                and has_intersect_tmp_path_ids(epr0.tmp_path_ids, v.tmp_path_ids),  # has overlapping tmp_path_ids
+                has_epr=True,
+            ),
+            (None, None),
         )
-
-        if not res:
+        # TODO selection algorithm among found qubits
+        if not mq1:
             return
-
-        _, epr1 = self.memory.get(address=res.addr, must=True)
         assert isinstance(epr1, WernerStateEntanglement)
-        path_ids = _intersect_tmp_path_ids(epr0, epr1)
-        fib_entry = self.fib.get_entry(random.choice(list(path_ids)), must=True)  # no need to coordinate across the path
-        self.fw.do_swapping(qubit, res, fib_entry, fib_entry)
+
+        path_ids = intersect_tmp_path_ids(epr0, epr1)
+        fib_entry = self.fib.get(random.choice(list(path_ids)))  # no need to coordinate across the path
+        self.fw.do_swapping(qubit, mq1, fib_entry, fib_entry)
 
     @override
     def swapping_succeeded(
@@ -113,7 +167,7 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
         next_epr: WernerStateEntanglement,
         new_epr: WernerStateEntanglement,
     ) -> None:
-        new_epr.tmp_path_ids = _intersect_tmp_path_ids(prev_epr, next_epr)
+        new_epr.tmp_path_ids = intersect_tmp_path_ids(prev_epr, next_epr)
 
     @override
     def su_parallel_avoid_conflict(self, my_new_epr: WernerStateEntanglement, su_path_id: int) -> bool:
@@ -127,4 +181,4 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
     def su_parallel_succeeded(
         self, merged_epr: WernerStateEntanglement, new_epr: WernerStateEntanglement, other_epr: WernerStateEntanglement
     ) -> None:
-        merged_epr.tmp_path_ids = _intersect_tmp_path_ids(new_epr, other_epr)
+        merged_epr.tmp_path_ids = intersect_tmp_path_ids(new_epr, other_epr)

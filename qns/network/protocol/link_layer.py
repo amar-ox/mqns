@@ -280,10 +280,17 @@ class LinkLayer(Application):
 
         Notes: Caller is responsible for managing `fifo_reservation_req` queue.
         """
-        avail_qubits = self.memory.search_available_qubits(ch_name=req.qchannel.name, path_id=req.path_id)
-        if not avail_qubits:
+        qubit, _ = next(
+            self.memory.find(
+                lambda q, v: v is None  # currently unoccupied
+                and not q.active  # not part of an active reservation
+                and q.qchannel == req.qchannel  # assigned to the quantum channel
+                and q.path_id == req.path_id  # allocated to the path_id, if MuxScheme uses path_id
+            ),
+            (None, None),
+        )
+        if qubit is None:
             return False
-        qubit = avail_qubits[0]
 
         log.debug(f"{self.own}: accept reservation key={req.key} src={req.from_node} addr={qubit.addr} path={qubit.path_id}")
         qubit.state = QubitState.ACTIVE  # cannot go directly from RAW to RESERVED
@@ -375,7 +382,6 @@ class LinkLayer(Application):
         if qubit is None:
             raise Exception(f"{self.own}: Failed to store EPR {epr.name}")
 
-        qubit.purif_rounds = 0  # TODO move this to ENTANGLED->PURIF transition
         qubit.state = QubitState.ENTANGLED0
         simulator.add_event(QubitEntangledEvent(self.own, neighbor, qubit, t=simulator.tc, by=self))
 

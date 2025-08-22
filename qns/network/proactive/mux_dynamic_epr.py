@@ -6,7 +6,7 @@ from qns.entity.node import QNode
 from qns.models.epr import WernerStateEntanglement
 from qns.network.proactive.fib import FIBEntry
 from qns.network.proactive.mux_buffer_space import MuxSchemeFibBase
-from qns.network.proactive.mux_statistical import MuxSchemeDynamicBase
+from qns.network.proactive.mux_statistical import MuxSchemeDynamicBase, has_intersect_tmp_path_ids
 
 try:
     from typing import override
@@ -18,7 +18,7 @@ def random_path_selector(fibs: list[FIBEntry]) -> int:
     """
     Path selection strategy: random allocation.
     """
-    return random.choice(fibs)["path_id"]
+    return random.choice(fibs).path_id
 
 
 def select_weighted_by_swaps(fibs: list[FIBEntry]) -> int:
@@ -26,8 +26,8 @@ def select_weighted_by_swaps(fibs: list[FIBEntry]) -> int:
     Path selection strategy: swap-weighted allocation.
     """
     # Lower swaps = higher weight
-    weights = [1.0 / (1 + len(e["swap_sequence"])) for e in fibs]
-    return random.choices(fibs, weights=weights, k=1)[0]["path_id"]
+    weights = [1.0 / (1 + len(e.swap)) for e in fibs]
+    return random.choices(fibs, weights=weights, k=1)[0].path_id
 
 
 class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
@@ -45,17 +45,33 @@ class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
         possible_path_ids = self._qubit_is_entangled_0(qubit)
         # TODO: if paths have different swap policies
         #       -> consider only paths for which this qubit may be eligible ??
-        _, epr = self.memory.get(address=qubit.addr, must=True)
+        _, epr = self.memory.get(qubit.addr, must=True)
         assert isinstance(epr, WernerStateEntanglement)
         if epr.tmp_path_ids is None:  # whatever neighbor is first
-            fib_entries = [self.fib.get_entry(pid, must=True) for pid in possible_path_ids]
+            fib_entries = [self.fib.get(pid) for pid in possible_path_ids]
             path_id = self.path_select_fn(fib_entries)
             epr.tmp_path_ids = frozenset([path_id])
 
-        fib_entry = self.fib.get_entry(next(epr.tmp_path_ids.__iter__()), must=True)
+        fib_entry = self.fib.get(next(epr.tmp_path_ids.__iter__()))
         self.own.get_qchannel(neighbor)  # ensure qchannel exists
         qubit.state = QubitState.PURIF
         self.fw.qubit_is_purif(qubit, fib_entry, neighbor)
+
+    @override
+    def select_eligible_qubit(self, mq0: MemoryQubit, fib_entry: FIBEntry) -> MemoryQubit | None:
+        assert mq0.path_id is None
+        possible_path_ids = [fib_entry.path_id]
+        mq1, _ = next(
+            self.memory.find(
+                lambda q, v: q.state == QubitState.ELIGIBLE  # in ELIGIBLE state
+                and q.qchannel != mq0.qchannel  # assigned to a different channel
+                and has_intersect_tmp_path_ids(v.tmp_path_ids, possible_path_ids),  # has compatible path_id
+                has_epr=True,
+            ),
+            (None, None),
+        )
+        # TODO selection algorithm among found qubits
+        return mq1
 
     @override
     def swapping_succeeded(
