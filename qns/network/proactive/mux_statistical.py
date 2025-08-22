@@ -135,7 +135,7 @@ class MuxSchemeStatistical(MuxSchemeDynamicBase):
         assert isinstance(epr1, WernerStateEntanglement)
 
         path_ids = intersect_tmp_path_ids(epr0, epr1)
-        fib_entry = self.fib.get_entry(random.choice(list(path_ids)), must=True)  # no need to coordinate across the path
+        fib_entry = self.fib.get(random.choice(list(path_ids)))  # no need to coordinate across the path
         self.fw.do_swapping(qubit, mq1, fib_entry, fib_entry)
 
     @override

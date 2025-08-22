@@ -15,7 +15,8 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Literal, TypedDict, overload
+from collections.abc import Set
+from typing import TypedDict
 
 try:
     from typing import Unpack
@@ -29,7 +30,6 @@ class FIBEntry(TypedDict):
     path_vector: list[str]
     swap_sequence: list[int]
     purification_scheme: dict[str, int]
-    qubit_addresses: list[int]
 
 
 def find_index_and_swapping_rank(fib_entry: FIBEntry, node_name: str) -> tuple[int, int]:
@@ -70,70 +70,68 @@ def is_swap_disabled(fib_entry: FIBEntry) -> bool:
 
 class ForwardingInformationBase:
     def __init__(self):
-        # The FIB table stores multiple path entries
         self.table: dict[int, FIBEntry] = {}
+        """
+        FIB table.
+        Key is path_id.
+        Value is FIB entry.
+        """
+        self.req_path_map: dict[int, set[int]] = {}
+        """
+        Lookup table indexed by request_id.
+        Key is request_id.
+        Value is path_id set.
+        """
 
-    @overload
-    def get_entry(self, path_id: int) -> FIBEntry | None:
+    def get(self, path_id: int) -> FIBEntry:
         """
-        Retrieve an entry, return None if not found.
-        """
-        pass
+        Retrieve an entry by path_id.
 
-    @overload
-    def get_entry(self, path_id: int, *, must: Literal[True]) -> FIBEntry:
+        Raises:
+            IndexError - Entry not found.
         """
-        Retrieve an entry, raise IndexError if not found.
-        """
-        pass
-
-    def get_entry(self, path_id: int, *, must: bool | None = None) -> FIBEntry | None:
-        entry = self.table.get(path_id, None)
-        if entry:
-            return entry
-        if must:
+        try:
+            return self.table[path_id]
+        except KeyError:
             raise IndexError(f"FIB entry not found for path_id={path_id}")
-        return None
 
-    def add_entry(self, *, replace=False, **entry: Unpack[FIBEntry]):
+    def insert_or_replace(self, **entry: Unpack[FIBEntry]):
         """
-        Add a new path entry to the forwarding table.
-
-        Args:
-            replace: If True, existing entry with same path_id is replaced;
-                     Otherwise, existing entry with same path_id causes ValueError.
+        Insert an entry or replace entry with same path_id.
         """
         path_id = entry["path_id"]
-        if not replace and path_id in self.table:
-            raise ValueError(f"Path ID '{path_id}' already exists.")
-
+        self.erase(path_id)
         self.table[path_id] = entry
 
-    def update_entry(self, path_id: int, **kwargs):
-        """Update an existing entry with new data."""
-        try:
-            entry = self.table[path_id]
-        except KeyError:
-            raise KeyError(f"Path ID '{path_id}' not found.")
+        request_id = entry["request_id"]
+        paths = self.req_path_map.setdefault(request_id, set())
+        paths.add(path_id)
 
-        for key, value in kwargs.items():
-            if key in entry:
-                entry[key] = value
-            else:
-                raise KeyError(f"Invalid key '{key}' for update.")
+    def erase(self, path_id: int):
+        """
+        Remove an entry from the table.
 
-    def delete_entry(self, path_id: int):
-        """Remove an entry from the table."""
+        Nonexistent entry is silent ignored.
+        """
         try:
-            del self.table[path_id]
+            entry = self.table.pop(path_id)
         except KeyError:
-            raise KeyError(f"Path ID '{path_id}' not found.")
+            return
+
+        request_id = entry["request_id"]
+        paths = self.req_path_map[request_id]
+        paths.remove(path_id)
+        if not paths:
+            del self.req_path_map[request_id]
+
+    def list_path_ids_by_request_id(self, request_id: int) -> Set[int]:
+        return self.req_path_map.get(request_id, set())
 
     def __repr__(self):
         """Return a string representation of the forwarding table."""
         return "\n".join(
             f"Path ID: {path_id}, Request ID: {entry['request_id']}, Path: {entry['path_vector']}, "
             f"Swap Sequence: {entry['swap_sequence']}, "
-            f"Purification: {entry['purification_scheme']}, Qubit Addresses: {entry['qubit_addresses']}"
+            f"Purification: {entry['purification_scheme']}"
             for path_id, entry in self.table.items()
         )

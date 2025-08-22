@@ -118,9 +118,6 @@ class ProactiveForwarder(Application):
         self.waiting_qubits: list[QubitEntangledEvent] = []
         """stores the qubits waiting for the INTERNAL phase (SYNC mode)"""
 
-        self.request_paths_map = defaultdict[int, list[int]](lambda: [])
-        """stores paths associated with the same S-D request (for non-isolated paths)"""
-
         self.qchannel_paths_map = defaultdict[str, list[int]](lambda: [])
         """stores path-qchannel relationship (for statistical mux)"""
 
@@ -213,7 +210,7 @@ class ProactiveForwarder(Application):
         log.debug(f"{self.own.name}: {msg}")
 
         path_id: int = msg["path_id"]
-        fib_entry = self.fib.get_entry(path_id, must=True)
+        fib_entry = self.fib.get(path_id)
 
         assert packet.dest is not None
         if packet.dest.name != self.own.name:  # node is not destination: forward message
@@ -252,9 +249,6 @@ class ProactiveForwarder(Application):
         self.mux.validate_path_instructions(instructions)
         request_id = instructions["req_id"]
 
-        # maintain map of path ID associated with each request ID
-        self.request_paths_map[request_id].append(path_id)
-
         route = instructions["route"]
         log.debug(f"{self.own.name}: routing instructions of path {path_id}: {instructions}")
 
@@ -280,14 +274,12 @@ class ProactiveForwarder(Application):
             log.debug(f"{self.own}: Allocated qubits: left = {l_qubits} | right = {r_qubits}")
 
         # populate FIB
-        self.fib.add_entry(
-            replace=True,
+        self.fib.insert_or_replace(
             path_id=path_id,
             request_id=request_id,
             path_vector=route,
             swap_sequence=instructions["swap"],
             purification_scheme=instructions["purif"],
-            qubit_addresses=[],
         )
 
         # instruct LinkLayer to start generating EPRs on the qchannel toward the right neighbor

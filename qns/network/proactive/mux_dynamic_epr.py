@@ -48,11 +48,11 @@ class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
         _, epr = self.memory.get(qubit.addr, must=True)
         assert isinstance(epr, WernerStateEntanglement)
         if epr.tmp_path_ids is None:  # whatever neighbor is first
-            fib_entries = [self.fib.get_entry(pid, must=True) for pid in possible_path_ids]
+            fib_entries = [self.fib.get(pid) for pid in possible_path_ids]
             path_id = self.path_select_fn(fib_entries)
             epr.tmp_path_ids = frozenset([path_id])
 
-        fib_entry = self.fib.get_entry(next(epr.tmp_path_ids.__iter__()), must=True)
+        fib_entry = self.fib.get(next(epr.tmp_path_ids.__iter__()))
         self.own.get_qchannel(neighbor)  # ensure qchannel exists
         qubit.state = QubitState.PURIF
         self.fw.qubit_is_purif(qubit, fib_entry, neighbor)
