@@ -2,28 +2,29 @@ import pytest
 
 from qns.entity import Controller
 from qns.network.network import ClassicTopology, QuantumNetwork
-from qns.network.proactive import LinkLayer, ProactiveForwarder, ProactiveRoutingController, RoutingPathStatic
-from qns.network.proactive.message import MultiplexingVector, validate_path_instructions
-from qns.network.topology import LinearTopology
+from qns.network.proactive import (
+    LinkLayer,
+    MuxScheme,
+    MuxSchemeBufferSpace,
+    MuxSchemeDynamicEpr,
+    ProactiveForwarder,
+    ProactiveRoutingController,
+    QubitAllocationType,
+    RoutingPathMulti,
+    RoutingPathSingle,
+    RoutingPathStatic,
+)
+from qns.network.proactive.message import validate_path_instructions
+from qns.network.route import RouteImpl, YenRouteAlgorithm
+from qns.network.topology import GridTopology, LinearTopology, Topology, TreeTopology
 from qns.simulator import Simulator
 from qns.utils import log
 
 
-def build_linear_network(
-    n_nodes: int,
-    *,
-    qchannel_capacity=1,
-) -> tuple[QuantumNetwork, Simulator, MultiplexingVector]:
-    topo = LinearTopology(
-        nodes_number=n_nodes,
-        nodes_apps=[LinkLayer(), ProactiveForwarder(ps=0.5)],
-        qchannel_args={"length": 100},  # delay is 0.0005 seconds
-        cchannel_args={"length": 100},
-        memory_args={"decoherence_rate": 1 / 5.0, "capacity": 2 * qchannel_capacity},
-    )
+def build_network_finish(topo: Topology, qchannel_capacity: int, *, route: RouteImpl | None = None):
     topo.controller = Controller("ctrl", apps=[ProactiveRoutingController()])
 
-    net = QuantumNetwork(topo=topo, classic_topo=ClassicTopology.Follow)
+    net = QuantumNetwork(topo=topo, classic_topo=ClassicTopology.Follow, route=route)
     for qchannel in net.qchannels:
         qchannel.assign_memory_qubits(capacity=qchannel_capacity)
     topo.connect_controller(net.nodes)
@@ -32,8 +33,70 @@ def build_linear_network(
     log.install(simulator)
     net.install(simulator)
 
-    m_v = [(qchannel_capacity, qchannel_capacity)] * (n_nodes - 1)
-    return net, simulator, m_v
+    return net, simulator
+
+
+def build_linear_network(
+    n_nodes: int,
+    *,
+    qchannel_capacity=1,
+    mux: MuxScheme = MuxSchemeBufferSpace(),
+) -> tuple[QuantumNetwork, Simulator]:
+    topo = LinearTopology(
+        n_nodes,
+        nodes_apps=[LinkLayer(), ProactiveForwarder(ps=0.5, mux=mux)],
+        qchannel_args={"length": 100},  # delay is 0.0005 seconds
+        cchannel_args={"length": 100},
+        memory_args={"decoherence_rate": 1 / 5.0, "capacity": 2 * qchannel_capacity},
+    )
+    return build_network_finish(topo, qchannel_capacity)
+
+
+def build_dumbbell_network(
+    *,
+    qchannel_capacity=1,
+    mux: MuxScheme = MuxSchemeBufferSpace(),
+) -> tuple[QuantumNetwork, Simulator]:
+    """
+    Build the following topology:
+
+        n4           n6
+        |            |
+        +n2---n1---n3+
+        |            |
+        n5           n7
+    """
+    topo = TreeTopology(
+        nodes_number=7,
+        children_number=2,
+        nodes_apps=[LinkLayer(), ProactiveForwarder(ps=0.5, mux=mux)],
+        qchannel_args={"length": 100},  # delay is 0.0005 seconds
+        cchannel_args={"length": 100},
+        memory_args={"decoherence_rate": 1 / 5.0, "capacity": 3 * qchannel_capacity},
+    )
+    return build_network_finish(topo, qchannel_capacity)
+
+
+def build_rect_network(
+    *,
+    qchannel_capacity=1,
+    mux: MuxScheme = MuxSchemeBufferSpace(),
+) -> tuple[QuantumNetwork, Simulator]:
+    """
+    Build the following topology:
+
+        n1---n2
+        |     |
+        n3---n4
+    """
+    topo = GridTopology(
+        (2, 2),
+        nodes_apps=[LinkLayer(), ProactiveForwarder(ps=0.5, mux=mux)],
+        qchannel_args={"length": 100},  # delay is 0.0005 seconds
+        cchannel_args={"length": 100},
+        memory_args={"decoherence_rate": 1 / 5.0, "capacity": 2 * qchannel_capacity},
+    )
+    return build_network_finish(topo, qchannel_capacity, route=YenRouteAlgorithm(k_paths=2))
 
 
 def test_path_validation():
@@ -65,15 +128,15 @@ def test_path_validation():
         validate_path_instructions({"req_id": 0, "route": route3, "swap": swap3, "m_v": mv3, "purif": {"n3-n1": 1}})
 
 
-def test_proactive_isolated():
+def test_no_swap():
     """Test isolated links mode where swapping is disabled."""
-    net, simulator, m_v = build_linear_network(3)
+    net, simulator = build_linear_network(3)
     ctrl = net.get_controller().get_app(ProactiveRoutingController)
     f1 = net.get_node("n1").get_app(ProactiveForwarder)
     f2 = net.get_node("n2").get_app(ProactiveForwarder)
     f3 = net.get_node("n3").get_app(ProactiveForwarder)
 
-    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[0, 0, 0], m_v=m_v))
+    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[0, 0, 0]))
     simulator.run()
 
     for app in (f1, f2, f3):
@@ -86,15 +149,15 @@ def test_proactive_isolated():
     assert f1.cnt.n_consumed + f3.cnt.n_consumed == f2.cnt.n_consumed
 
 
-def test_proactive_basic():
-    """Test basic swapping."""
-    net, simulator, m_v = build_linear_network(3)
+def test_swap_1():
+    """Test basic 1-repeater swapping."""
+    net, simulator = build_linear_network(3)
     ctrl = net.get_controller().get_app(ProactiveRoutingController)
     f1 = net.get_node("n1").get_app(ProactiveForwarder)
     f2 = net.get_node("n2").get_app(ProactiveForwarder)
     f3 = net.get_node("n3").get_app(ProactiveForwarder)
 
-    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], m_v=m_v))
+    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1]))
     simulator.run()
 
     for app in (f1, f2, f3):
@@ -116,16 +179,16 @@ def test_proactive_basic():
     assert f2.cnt.n_consumed == 0
 
 
-def test_proactive_parallel():
+def test_swap_parallel():
     """Test parallel swapping."""
-    net, simulator, m_v = build_linear_network(4)
+    net, simulator = build_linear_network(4)
     ctrl = net.get_controller().get_app(ProactiveRoutingController)
     f1 = net.get_node("n1").get_app(ProactiveForwarder)
     f2 = net.get_node("n2").get_app(ProactiveForwarder)
     f3 = net.get_node("n3").get_app(ProactiveForwarder)
     f4 = net.get_node("n4").get_app(ProactiveForwarder)
 
-    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3", "n4"], swap=[1, 0, 0, 1], m_v=m_v))
+    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3", "n4"], swap=[1, 0, 0, 1]))
     simulator.run()
 
     for app in (f1, f2, f3, f4):
@@ -149,15 +212,62 @@ def test_proactive_parallel():
     assert 0.6 <= f1.cnt.consumed_avg_fidelity == pytest.approx(f4.cnt.consumed_avg_fidelity, abs=1e-3)
 
 
-def test_proactive_purif_link1r():
+def test_swap_mr():
+    """Test swapping over multiple requests."""
+    net, simulator = build_dumbbell_network(qchannel_capacity=2, mux=MuxSchemeDynamicEpr())
+    ctrl = net.get_controller().get_app(ProactiveRoutingController)
+    f4 = net.get_node("n4").get_app(ProactiveForwarder)
+    f6 = net.get_node("n6").get_app(ProactiveForwarder)
+    f5 = net.get_node("n5").get_app(ProactiveForwarder)
+    f7 = net.get_node("n7").get_app(ProactiveForwarder)
+
+    # n4-n2-n1-n3-n6
+    ctrl.install_path(RoutingPathSingle("n4", "n6", qubit_allocation=QubitAllocationType.DISABLED, swap="l2r"))
+    # n5-n2-n1-n3-n7
+    ctrl.install_path(RoutingPathSingle("n5", "n7", qubit_allocation=QubitAllocationType.DISABLED, swap="l2r"))
+    simulator.run()
+
+    for app in (f4, f6, f5, f7):
+        print((app.own.name, app.cnt))
+
+    # some end-to-end entanglements should be consumed at n4 and n6
+    assert f4.cnt.n_consumed == f6.cnt.n_consumed > 0
+    # some end-to-end entanglements should be consumed at n5 and n7
+    assert f5.cnt.n_consumed == f7.cnt.n_consumed > 0
+
+
+def test_swap_mp():
+    """Test swapping over multiple paths."""
+    net, simulator = build_rect_network(qchannel_capacity=4)
+    ctrl = net.get_controller().get_app(ProactiveRoutingController)
+    f1 = net.get_node("n1").get_app(ProactiveForwarder)
+    f2 = net.get_node("n2").get_app(ProactiveForwarder)
+    f3 = net.get_node("n3").get_app(ProactiveForwarder)
+    f4 = net.get_node("n4").get_app(ProactiveForwarder)
+
+    # n1-n2-n4 and n1-n3-n4
+    ctrl.install_path(RoutingPathMulti("n1", "n4", swap="swap_1"))
+    simulator.run()
+
+    for app in (f1, f2, f3, f4):
+        print((app.own.name, app.cnt))
+
+    # some end-to-end entanglements should be consumed at n1 and n4
+    assert f1.cnt.n_consumed == f4.cnt.n_consumed > 0
+    # some swaps should occur in n2 and n3
+    assert f2.cnt.n_swapped_s > 0
+    assert f3.cnt.n_swapped_s > 0
+
+
+def test_purif_link1r():
     """Test 1-round purification on each link."""
-    net, simulator, m_v = build_linear_network(3, qchannel_capacity=2)
+    net, simulator = build_linear_network(3, qchannel_capacity=2)
     ctrl = net.get_controller().get_app(ProactiveRoutingController)
     f1 = net.get_node("n1").get_app(ProactiveForwarder)
     f2 = net.get_node("n2").get_app(ProactiveForwarder)
     f3 = net.get_node("n3").get_app(ProactiveForwarder)
 
-    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], m_v=m_v, purif={"n1-n2": 1, "n2-n3": 1}))
+    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], purif={"n1-n2": 1, "n2-n3": 1}))
     simulator.run()
 
     for app in (f1, f2, f3):
@@ -178,15 +288,15 @@ def test_proactive_purif_link1r():
     assert 0.7 <= f1.cnt.consumed_avg_fidelity == pytest.approx(f3.cnt.consumed_avg_fidelity, abs=1e-3)
 
 
-def test_proactive_purif_link2r():
+def test_purif_link2r():
     """Test 2-round purification on each link."""
-    net, simulator, m_v = build_linear_network(3, qchannel_capacity=4)
+    net, simulator = build_linear_network(3, qchannel_capacity=4)
     ctrl = net.get_controller().get_app(ProactiveRoutingController)
     f1 = net.get_node("n1").get_app(ProactiveForwarder)
     f2 = net.get_node("n2").get_app(ProactiveForwarder)
     f3 = net.get_node("n3").get_app(ProactiveForwarder)
 
-    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], m_v=m_v, purif={"n1-n2": 2, "n2-n3": 2}))
+    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], purif={"n1-n2": 2, "n2-n3": 2}))
     simulator.run()
 
     for app in (f1, f2, f3):
@@ -209,15 +319,15 @@ def test_proactive_purif_link2r():
     assert 0.8 <= f1.cnt.consumed_avg_fidelity == pytest.approx(f3.cnt.consumed_avg_fidelity, abs=1e-3)
 
 
-def test_proactive_purif_ee2r():
+def test_purif_ee2r():
     """Test 2-round purification between two end nodes."""
-    net, simulator, m_v = build_linear_network(3, qchannel_capacity=4)
+    net, simulator = build_linear_network(3, qchannel_capacity=4)
     ctrl = net.get_controller().get_app(ProactiveRoutingController)
     f1 = net.get_node("n1").get_app(ProactiveForwarder)
     f2 = net.get_node("n2").get_app(ProactiveForwarder)
     f3 = net.get_node("n3").get_app(ProactiveForwarder)
 
-    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], m_v=m_v, purif={"n1-n3": 2}))
+    ctrl.install_path(RoutingPathStatic(["n1", "n2", "n3"], swap=[1, 0, 1], purif={"n1-n3": 2}))
     simulator.run()
 
     for app in (f1, f2, f3):

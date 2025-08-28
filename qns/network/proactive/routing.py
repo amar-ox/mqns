@@ -171,6 +171,9 @@ class RoutingPathMulti(RoutingPath):
     """
     Compute multiple shortest paths for installing through ProactiveRoutingController.
 
+    This should be used with YenRouteAlgorithm in the QuantumNetwork.
+    The number of paths for each request is determined by the routing algorithm.
+
     This is only compatible with buffer-space multiplexing scheme.
     """
 
