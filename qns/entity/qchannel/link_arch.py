@@ -37,38 +37,39 @@ class LinkArch(ABC):
             tau_0: local operation delay.
 
         Returns:
-            [0]: EPR creation time.
-            [1]: notification time to primary node.
-            [2]: notification time to secondary node.
-            Every value is a duration, in seconds, since RESERVE_QUBIT_OK arrives at primary node.
+            Each value is a duration in seconds.
+            [0]: EPR creation time, since RESERVE_QUBIT_OK arrives at primary node.
+            [1]: notification time to primary node, since EPR creation.
+            [2]: notification time to secondary node, since EPR creation.
         """
         pass
 
 
 class LinkArchDimBk(LinkArch):
     """
-    Detection-in-Midpoint link architecture with Barrett-Kok protocol.
+    Detection-in-Midpoint link architecture with single-rail encoding using Barrett-Kok protocol.
     """
 
     def __init__(self, name="DIM-BK"):
         super().__init__(name)
 
+    @override
     def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
         p_bsa = 0.5
         p_l_sb = 10 ** (-alpha * length / 2 / 10)
         eta_sb = eta_s * eta_d * p_l_sb
         return p_bsa * eta_sb**2
 
+    @override
     def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
-        tau = 2 * (tau_l + tau_0)
-        attempt_duration = max(tau, reset_time)
-        return k * attempt_duration - 2 * tau_l - tau_0, k * attempt_duration, k * attempt_duration
+        attempt_duration = max(2 * (tau_l + tau_0), reset_time)
+        return k * attempt_duration - 2 * tau_l - tau_0, 2 * tau_l + tau_0, 2 * tau_l + tau_0
 
 
 class LinkArchDimBkSeq(LinkArchDimBk):
     """
-    Detection-in-Midpoint link architecture with Barrett-Kok protocol,
-    with reservation logic as implemented by SeQUeNCe simulator.
+    Detection-in-Midpoint link architecture with single-rail encoding using Barrett-Kok protocol,
+    timing adjusted as per reservation logic implemented by SeQUeNCe simulator.
     """
 
     def __init__(self, name="DIM-BK-SeQUeNCe"):
@@ -76,12 +77,11 @@ class LinkArchDimBkSeq(LinkArchDimBk):
 
     @override
     def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
-        tau = tau_l + tau_0
-        attempt_duration = max(5 * tau, reset_time)
+        attempt_duration = max(5 * (tau_l + tau_0), reset_time)
         return (
             (k - 1) * attempt_duration + tau_l + 4 * tau_0,
-            (k - 1) * attempt_duration + 5 * tau,
-            (k - 1) * attempt_duration + 5 * tau,
+            4 * tau_l + tau_0,
+            4 * tau_l + tau_0,
         )
 
 
@@ -93,15 +93,16 @@ class LinkArchSr(LinkArch):
     def __init__(self, name="SR"):
         super().__init__(name)
 
+    @override
     def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
         p_l_sr = 10 ** (-alpha * length / 10)
         eta_sr = eta_s * eta_d * p_l_sr
         return eta_sr
 
+    @override
     def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
-        tau = 2 * (tau_l + tau_0)
-        attempt_duration = max(tau, reset_time)
-        return k * attempt_duration - 2 * tau_l, k * attempt_duration - tau_l, k * attempt_duration
+        attempt_duration = max(2 * (tau_l + tau_0), reset_time)
+        return k * attempt_duration - 2 * tau_l, tau_l, 2 * tau_l
 
 
 class LinkArchSim(LinkArch):
@@ -112,13 +113,14 @@ class LinkArchSim(LinkArch):
     def __init__(self, name="SIM"):
         super().__init__(name)
 
+    @override
     def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
         _ = eta_s
         p_l_sb = 10 ** (-alpha * length / 2 / 10)
         eta_rr = (eta_d * p_l_sb) ** 2
         return eta_rr
 
+    @override
     def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
-        tau = tau_l + tau_0
-        attempt_duration = max(tau, reset_time)
-        return k * attempt_duration - tau_l, k * attempt_duration, k * attempt_duration
+        attempt_duration = max(tau_l + tau_0, reset_time)
+        return k * attempt_duration - tau_l, tau_l, tau_l
