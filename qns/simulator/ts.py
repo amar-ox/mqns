@@ -30,6 +30,10 @@ def set_default_accuracy(time_slots: int):
     default_accuracy = time_slots
 
 
+def _to_time_slot(sec: int | float, accuracy: int) -> int:
+    return round(sec * accuracy)
+
+
 class Time:
     def __init__(self, time_slot: int = 0, sec: int | float = 0, accuracy: int | None = None):
         """Time: the time slot used in the simulator
@@ -44,7 +48,7 @@ class Time:
         if time_slot != 0:
             self.time_slot = time_slot
         else:
-            self.time_slot = int(sec * self.accuracy)
+            self.time_slot = _to_time_slot(sec, self.accuracy)
 
     @property
     def sec(self) -> float:
@@ -92,30 +96,32 @@ class Time:
         return hash(self.time_slot)
 
     def __add__(self, ts: "Time|int|float") -> "Time":
-        """Add an offset to the Time object
+        """
+        Add a duration and returns a new Time object.
 
         Args:
-            ts (Union["Time", float]): a Time object or a float indicating time in second
-
+            ts: either a Time object with same accuracy, or a duration number in seconds.
         """
         if isinstance(ts, Time):
             assert ts.accuracy == self.accuracy
+            time_slot = ts.time_slot
         else:
-            ts = Time(sec=ts, accuracy=self.accuracy)
-        return Time(time_slot=self.time_slot + ts.time_slot, accuracy=self.accuracy)
+            time_slot = _to_time_slot(ts, self.accuracy)
+        return Time(time_slot=self.time_slot + time_slot, accuracy=self.accuracy)
 
     def __sub__(self, ts: "Time|int|float") -> "Time":
-        """Minus an offset to the Time object
+        """
+        Subtract a duration and returns a new Time object.
 
         Args:
-            ts (Union["Time", float]): a Time object or a float indicating time in second
-
+            ts: either a Time object with same accuracy, or a duration number in seconds.
         """
         if isinstance(ts, Time):
             assert ts.accuracy == self.accuracy
+            time_slot = ts.time_slot
         else:
-            ts = Time(sec=ts, accuracy=self.accuracy)
-        return Time(time_slot=self.time_slot - ts.time_slot, accuracy=self.accuracy)
+            time_slot = _to_time_slot(ts, self.accuracy)
+        return Time(time_slot=self.time_slot - time_slot, accuracy=self.accuracy)
 
     def __repr__(self) -> str:
         return str(self.sec)
