@@ -1,6 +1,6 @@
 import pytest
 
-from qns.entity.qchannel import LinkArch, LinkArchDimBk, LinkArchDimBkSeq, LinkArchSim, LinkArchSr
+from qns.entity.qchannel import LinkArch, LinkArchDimBk, LinkArchDimBkSeq, LinkArchDimDual, LinkArchSim, LinkArchSr
 
 DurationMultipliers = tuple[float, float]
 """
@@ -39,6 +39,11 @@ def test_dim_bk():
 def test_dim_bk_seq():
     link_arch = LinkArchDimBkSeq()
     check_link_arch(link_arch, attempt_duration=(5, 2), notify_a=(4, 2), notify_b=(4, 2))
+
+
+def test_dim_dual():
+    link_arch = LinkArchDimDual()
+    check_link_arch(link_arch, attempt_duration=(1, 1), notify_a=(1, 1), notify_b=(1, 1))
 
 
 def test_sr():

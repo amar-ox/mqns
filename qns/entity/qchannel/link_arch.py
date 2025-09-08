@@ -6,6 +6,20 @@ except ImportError:
     from typing_extensions import override
 
 
+def _calc_propagation_loss(length: float, alpha: float) -> float:
+    """
+    Compute fiber propagation loss.
+
+    Args:
+        length: fiber length in kilometers.
+        alpha: fiber loss in dB/km.
+
+    Returns:
+        Probability of a single photon to propagate through the fiber without loss.
+    """
+    return 10 ** (-alpha * length / 10)
+
+
 class LinkArch(ABC):
     """Link architecture."""
 
@@ -55,8 +69,18 @@ class LinkArchDimBk(LinkArch):
 
     @override
     def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
+        # Barrett-Kok uses single-rail encoding where the presence/absence of a photon indicates quantum state.
+        # For a successful attempt, exactly one photon should arrive at the Bell-state analyzer M in each round.
+        #
+        # eta_sb is the probability of a photon triggering a detector, which consists of:
+        # - eta_s: the source at A or B emits a photon.
+        # - p_l_sb: the photon propagates through the fiber without loss.
+        # - eta_d: the detector at M detects the photon.
+        #
+        # p_bsa, set to 50%, is the maximum theoretical coincidence probability for distinguishing two of
+        # the four Bell states at a standard linear optics Bell-state analyzer.
         p_bsa = 0.5
-        p_l_sb = 10 ** (-alpha * length / 2 / 10)
+        p_l_sb = _calc_propagation_loss(length / 2, alpha)
         eta_sb = eta_s * eta_d * p_l_sb
         return p_bsa * eta_sb**2
 
@@ -71,7 +95,7 @@ class LinkArchDimBk(LinkArch):
         # 5. Both A and B emit photons at +τl+2τ0, which arrive at M at +(1 1/2)τl+2τ0
         # 6. M sends heralding results to both A and B, which arrive at +2τl+2τ0
         # If either heralding result indicates failure, the next attempt can immediately start.
-        # The attempt duration is lower bounded by twice of reset_time for two memory excitations.
+        # The attempt interval is lower bounded by twice of reset_time for two memory excitations.
         attempt_duration = 2 * (tau_l + tau_0)
         attempt_interval = max(attempt_duration, 2 * reset_time)
         return (k - 1) * attempt_interval, attempt_duration, attempt_duration
@@ -114,9 +138,47 @@ class LinkArchDimBkSeq(LinkArchDimBk):
         return (k - 1) * attempt_interval, d_notify, d_notify
 
 
+class LinkArchDimDual(LinkArch):
+    """
+    Detection-in-Midpoint link architecture with dual-rail polarization encoding.
+    """
+
+    def __init__(self, name="DIM-dual"):
+        super().__init__(name)
+
+    @override
+    def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
+        # For a successful attempt, one photon from each of A and B should arrive at the Bell-state analyzer M.
+        #
+        # eta_sb is the probability of a photon triggering a detector, which consists of:
+        # - eta_s: the source at A or B emits a photon.
+        # - p_l_sb: the photon propagates through the fiber without loss.
+        # - eta_d: the detector at M detects the photon.
+        #
+        # p_bsa, set to 50%, is the maximum theoretical coincidence probability for distinguishing two of
+        # the four Bell states at a standard linear optics Bell-state analyzer.
+        p_bsa = 0.5
+        p_l_sb = _calc_propagation_loss(length / 2, alpha)
+        eta_sb = eta_s * eta_d * p_l_sb
+        return p_bsa * eta_sb**2
+
+    @override
+    def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
+        # Reservation and setup were completed by LinkLayer.
+        # In each attempt:
+        # 1. Qubits are generated at +0
+        # 2. Both A and B emit photons at +τ0, which arrive at the Bell-state analyzer M at +(1/2)τl+τ0
+        # 3. M sends heralding results to both A and B, which arrive at +τl+τ0
+        # If the heralding result indicates failure, the next attempt can immediately start.
+        # The attempt interval is lower bounded by reset_time for one memory excitation.
+        attempt_duration = tau_l + tau_0
+        attempt_interval = max(attempt_duration, reset_time)
+        return (k - 1) * attempt_interval, attempt_duration, attempt_duration
+
+
 class LinkArchSr(LinkArch):
     """
-    Sender-Receiver link architecture.
+    Sender-Receiver link architecture with dual-rail polarization encoding.
     """
 
     def __init__(self, name="SR"):
@@ -124,7 +186,11 @@ class LinkArchSr(LinkArch):
 
     @override
     def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
-        p_l_sr = 10 ** (-alpha * length / 10)
+        # The success probability consists of:
+        # - eta_s: the source at B emits a photon.
+        # - p_l_sr: the photon propagates through the fiber without loss.
+        # - eta_d: the detector at A detects the photon.
+        p_l_sr = _calc_propagation_loss(length, alpha)
         eta_sr = eta_s * eta_d * p_l_sr
         return eta_sr
 
@@ -137,7 +203,7 @@ class LinkArchSr(LinkArch):
         # 3. A absorbs the photon at +τl+τ0
         # 4. A sends heralding result to B, which arrives at +2τl+τ0
         # If the heralding result indicates failure, the next attempt can immediately start.
-        # The attempt duration is lower bounded by reset_time for one memory excitation.
+        # The attempt interval is lower bounded by reset_time for one memory excitation.
         attempt_duration = 2 * tau_l + tau_0
         attempt_interval = max(attempt_duration, reset_time)
         return (k - 1) * attempt_interval, tau_l + tau_0, attempt_duration
@@ -145,7 +211,7 @@ class LinkArchSr(LinkArch):
 
 class LinkArchSim(LinkArch):
     """
-    Source-in-Midpoint link architecture.
+    Source-in-Midpoint link architecture with dual-rail polarization encoding.
     """
 
     def __init__(self, name="SIM"):
@@ -153,8 +219,15 @@ class LinkArchSim(LinkArch):
 
     @override
     def success_prob(self, *, length: float, alpha: float, eta_s: float, eta_d: float) -> float:
+        # For a successful attempt, A and B must each receive a photon from the pair.
+        #
+        # eta_d*p_l_sb is the probability of a photon reaching either A or B, which consists of:
+        # - p_l_sb: the photon propagates through the fiber without loss.
+        # - eta_d: the detector at A or B detects the photon.
+        #
+        # The overall success probability has `**2` because it requires both photons.
         _ = eta_s
-        p_l_sb = 10 ** (-alpha * length / 2 / 10)
+        p_l_sb = _calc_propagation_loss(length / 2, alpha)
         eta_rr = (eta_d * p_l_sb) ** 2
         return eta_rr
 
@@ -162,12 +235,12 @@ class LinkArchSim(LinkArch):
     def delays(self, k: int, *, reset_time: float, tau_l: float, tau_0: float) -> tuple[float, float, float]:
         # Reservation and setup were completed by LinkLayer.
         # In each attempt:
-        # 1. Qubits are continuously generated by the entangled photon source
+        # 1. Entangled photon pairs are continuously emitted by the entangled photon source
         # 2. Both A and B prepare their local qubits at +0, which completes at +τ0
         # 3. A absorbs a photon at +τ0; B absorbs the paired photon at +τ0
         # 4. A sends heralding result to B, which arrives at +τl+τ0; B does the same in opposite direction
         # If either heralding result indicates failure, the next attempt can immediately start.
-        # The attempt duration is lower bounded by reset_time for one local qubit preparation.
+        # The attempt interval is lower bounded by reset_time for one local qubit preparation.
         attempt_duration = tau_l + tau_0
         attempt_interval = max(attempt_duration, reset_time)
         return (k - 1) * attempt_interval, attempt_duration, attempt_duration
