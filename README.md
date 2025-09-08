@@ -55,11 +55,16 @@ This project is part of an ongoing research effort to evaluate the quantum netwo
 * Elementary link modeled using:
   * Werner states EPR generation.
   * Probability-based sampling.
-  * Estimated duration based on the 2-round Barrett-Kok protocol.
+  * Estimated duration based on entanglement link protocols.
+
+* Link architectures:
+  * Detection-in-Midpoint with single-rail encoding using 2-round Barrett-Kok protocol.
+  * Detection-in-Midpoint with dual-rail polarization encoding.
+  * Sender-Receiver with dual-rail polarization encoding.
+  * Source-in-Midpoint with dual-rail polarization encoding.
 
 ## Roadmap
 
-* WIP: Model alternative **elementary link architectures and protocols**.
 * WIP: Full support of purification scheme with **number of rounds or threshold fidelity**.
 * Make **memory management and qubit selection policies** configurable.
 * Add **log visualization timeline** for better debugging and analysis.

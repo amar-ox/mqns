@@ -178,7 +178,7 @@ class LinkArchDimDual(LinkArch):
 
 class LinkArchSr(LinkArch):
     """
-    Sender-Receiver link architecture.
+    Sender-Receiver link architecture with dual-rail polarization encoding.
     """
 
     def __init__(self, name="SR"):
@@ -211,7 +211,7 @@ class LinkArchSr(LinkArch):
 
 class LinkArchSim(LinkArch):
     """
-    Source-in-Midpoint link architecture.
+    Source-in-Midpoint link architecture with dual-rail polarization encoding.
     """
 
     def __init__(self, name="SIM"):
