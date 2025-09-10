@@ -29,7 +29,7 @@ from collections import deque
 from enum import Enum, auto
 from typing import cast, overload
 
-from qns.entity import ChannelT, ClassicChannel, Controller, QNode, QuantumChannel, QuantumMemory
+from qns.entity import ChannelT, ClassicChannel, Controller, Node, QNode, QuantumChannel, QuantumMemory
 from qns.network.requests import Request
 from qns.network.route import DijkstraRouteAlgorithm, RouteImpl
 from qns.network.topology import ClassicTopology, Topology
@@ -138,18 +138,23 @@ class QuantumNetwork:
             self.set_controller(topo.controller)
 
     def install(self, simulator: Simulator):
-        """Install all nodes (including channels, memories and applications) in this network
+        """
+        Install all nodes (including channels, memories and applications) in this network
 
         Args:
-            simulator (Simulator): the simulator
+            simulator: the simulator
 
         """
-        self._simulator = simulator
+        self.simulator = simulator
 
-        for n in self.nodes:
-            n.install(simulator)
+        self.all_nodes: list[Node] = []
+        """A collection of quantum nodes and the controller (if present)."""
+        self.all_nodes += self.nodes
         if self.controller:
-            self.controller.install(simulator)
+            self.all_nodes.append(self.controller)
+
+        for node in self.all_nodes:
+            node.install(simulator)
 
         if self.timing_mode == TimingModeEnum.SYNC and self.t_ext > 0 and self.t_int > 0:
             signal_seq = SignalSequence(
@@ -158,7 +163,7 @@ class QuantumNetwork:
                     (SignalTypeEnum.INTERNAL, self.t_int),
                 ]
             )
-            simulator.add_event(func_to_event(self._simulator.ts, self.send_sync_signal, signal_seq, by=self))
+            simulator.add_event(func_to_event(self.simulator.ts, self.send_sync_signal, signal_seq, by=self))
 
     def send_sync_signal(self, signal_seq: SignalSequence):
         this_phase = signal_seq.popleft()
@@ -166,15 +171,11 @@ class QuantumNetwork:
         phase_signal, phase_duration = this_phase
 
         # schedule next sync signal
-        self._simulator.add_event(
-            func_to_event(self._simulator.tc + phase_duration, self.send_sync_signal, signal_seq, by=self)
-        )
+        self.simulator.add_event(func_to_event(self.simulator.tc + phase_duration, self.send_sync_signal, signal_seq, by=self))
 
         log.debug(f"TIME_SYNC: signal {phase_signal.name} phase")
-        for node in self.nodes:
+        for node in self.all_nodes:
             node.handle_sync_signal(phase_signal)
-        if self.controller:
-            self.controller.handle_sync_signal(phase_signal)
 
     def add_node(self, node: QNode):
         """
