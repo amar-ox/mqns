@@ -2,16 +2,19 @@
 requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+addopts = "-p no:logging"
+
 [tool.ruff]
 line-length = 128
 # select = ["E", "F"]
 lint.select = [
-  "E",  # pycodestyle (includes missing newline at EOF, etc.)
-  "F",  # pyflakes
-  "W",  # pycodestyle warnings
-  "I",  # isort (import sorting)
- # "D",  # pydocstyle
- # "UP", # pyupgrade
+  "E", # pycodestyle (includes missing newline at EOF, etc.)
+  "F", # pyflakes
+  "W", # pycodestyle warnings
+  "I", # isort (import sorting)
+  # "D",  # pydocstyle
+  # "UP", # pyupgrade
   "PT", # pytest-style
   "Q",  # quote-conventions
   "PL", # pylint (useful for layout, blank lines, etc.)
