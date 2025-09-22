@@ -254,17 +254,10 @@ class QuantumNetwork:
         """Build static route tables for each nodes"""
         # import time
 
-        # Time of the SciPy/adjacency build
         # t0 = time.perf_counter()
         self.route.build(self.nodes, self.qchannels)
         # t1 = time.perf_counter()
-        # log.critical(f"build() Routing table computation took {t1 - t0:.6f} seconds")
-
-        # Time of the old build
-        # t2 = time.perf_counter()
-        # self.route.build2(self.nodes, self.qchannels)
-        # t3 = time.perf_counter()
-        # log.debug(f"build2() Routing table computation took {t3 - t2:.6f} seconds")
+        # log.critical(f"Routing table computation took {t1 - t0:.6f} seconds")
 
     def query_route(self, src: QNode, dest: QNode) -> list[tuple[float, QNode, list[QNode]]]:
         """Query the metric, nexthop and the path

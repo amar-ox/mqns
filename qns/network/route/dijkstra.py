@@ -16,12 +16,12 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import math
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 from scipy.sparse.csgraph import dijkstra
 
-from qns.network.route.route import ChannelT, MetricFunc, NetworkRouteError, NodeT, RouteImpl, make_csr
+from qns.network.route.route import ChannelT, MetricFunc, NodeT, RouteImpl, make_csr
 
 
 class DijkstraRouteAlgorithm(RouteImpl[NodeT, ChannelT]):
@@ -97,67 +97,6 @@ class DijkstraRouteAlgorithm(RouteImpl[NodeT, ChannelT]):
                     dest_entry[dst_node] = [hop, path_nodes]
 
             self.route_table[src_node] = dest_entry
-
-    def build2(self, nodes: list[NodeT], channels: list[ChannelT]):
-        """
-        Build the routing table using a local implementation of Dijkstra algorithm.
-
-        Args:
-            nodes: a list of quantum nodes or classic nodes
-            channels: a list of quantum channels or classic channels
-        """
-
-        self.route_table.clear()
-
-        for source_node in nodes:
-            visited_nodes: list[NodeT] = []
-            unvisited_nodes: list[NodeT] = [node for node in nodes]
-
-            # tentative distance and path table for this source
-            tentative: dict[NodeT, Any] = {}
-            for destination_node in nodes:
-                if destination_node == source_node:
-                    tentative[source_node] = [0.0, []]
-                else:
-                    tentative[destination_node] = [self.INF, [destination_node]]
-
-            # Dijkstra-like loop
-            while unvisited_nodes:
-                # pick one node to init
-                current_node = unvisited_nodes[0]
-                current_distance = tentative[current_node][0]
-
-                for candidate in unvisited_nodes:
-                    if tentative[candidate][0] < current_distance:
-                        current_node = candidate
-                        current_distance = tentative[candidate][0]
-
-                visited_nodes.append(current_node)
-                unvisited_nodes.remove(current_node)
-
-                # relax edges for neighbors
-                for channel in channels:
-                    if current_node not in channel.node_list:
-                        continue
-                    if len(channel.node_list) < 2:
-                        raise NetworkRouteError("broken link")
-
-                    idx_in_channel = cast(list[NodeT], channel.node_list).index(current_node)
-                    neighbor_node = cast(list[NodeT], channel.node_list)[1 - idx_in_channel]
-
-                    if neighbor_node in unvisited_nodes and tentative[neighbor_node][0] > tentative[current_node][
-                        0
-                    ] + self.metric_func(channel):
-                        tentative[neighbor_node] = [
-                            tentative[current_node][0] + self.metric_func(channel),
-                            [current_node] + tentative[current_node][1],
-                        ]
-
-            # finalize paths
-            for destination_node in nodes:
-                tentative[destination_node][1] = [destination_node] + tentative[destination_node][1]
-
-            self.route_table[source_node] = tentative
 
     def query(self, src: NodeT, dest: NodeT) -> list[tuple[float, NodeT, list[NodeT]]]:
         ls = self.route_table.get(src, None)

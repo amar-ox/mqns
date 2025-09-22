@@ -84,16 +84,6 @@ class RouteImpl(Generic[NodeT, ChannelT]):
         """
         raise NotImplementedError
 
-    def build2(self, nodes: list[NodeT], channels: list[ChannelT]) -> None:
-        """Build static route tables for each nodes
-
-        Args:
-            nodes: a list of quantum nodes or classic nodes
-            channels: a list of quantum channels or classic channels
-
-        """
-        raise NotImplementedError
-
     def query(self, src: NodeT, dest: NodeT) -> list[tuple[float, NodeT, list[NodeT]]]:
         """Query the metric, nexthop and the path
 

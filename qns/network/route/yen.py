@@ -16,11 +16,10 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-import networkx as nx
 import numpy as np
 from scipy.sparse.csgraph import yen
 
-from qns.network.route.route import ChannelT, MetricFunc, NetworkRouteError, NodeT, RouteImpl, make_csr
+from qns.network.route.route import ChannelT, MetricFunc, NodeT, RouteImpl, make_csr
 
 
 class YenRouteAlgorithm(RouteImpl[NodeT, ChannelT]):
@@ -106,48 +105,6 @@ class YenRouteAlgorithm(RouteImpl[NodeT, ChannelT]):
                     pred_row = predecessors[i]
                     node_path = _reconstruct_path(pred_row, s_idx, t_idx)
                     route_list.append((cost, node_path))
-
-                self.route_table[src][dst] = route_list
-
-    def build2(self, nodes: list[NodeT], channels: list[ChannelT]):
-        """
-        Build the routing table using Yen's algorithm based on NetworkX's shortest_simple_paths.
-        Up to self.k_paths paths are computred for each (src, dst) pair.
-
-        Args:
-            nodes: a list of quantum nodes or classic nodes
-            channels: a list of quantum channels or classic channels
-        """
-        # Use an undirected graph; no need to add both directions manually
-        G = nx.Graph()
-        G.add_nodes_from(nodes)
-
-        # Add weighted edges (ensure float weights)
-        for ch in channels:
-            if len(ch.node_list) != 2:
-                raise NetworkRouteError("broken link")
-            a, b = ch.node_list
-            w = float(self.metric_func(ch))
-            G.add_edge(a, b, weight=w)
-
-        for src in nodes:
-            self.route_table[src] = {}
-            for dst in nodes:
-                if src == dst:
-                    continue
-                try:
-                    paths_iter = nx.shortest_simple_paths(G, src, dst, weight="weight")
-                except nx.NetworkXNoPath:
-                    self.route_table[src][dst] = []
-                    continue
-
-                # Take up to k paths; reverse each to be dst->src; float cost via path_weight
-                route_list = []
-                for i, path in enumerate(paths_iter):
-                    if i >= self.k_paths:
-                        break
-                    cost = float(nx.path_weight(G, path, weight="weight"))
-                    route_list.append((cost, list(reversed(path))))
 
                 self.route_table[src][dst] = route_list
 
