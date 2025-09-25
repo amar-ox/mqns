@@ -36,7 +36,7 @@ from mqns.network.protocol.event import (
     QubitEntangledEvent,
     QubitReleasedEvent,
 )
-from mqns.simulator import Simulator, func_to_event
+from mqns.simulator import Simulator
 from mqns.utils import log
 
 
@@ -232,7 +232,6 @@ class LinkLayer(Application):
             - Qubit reservations are spaced out in time using a fixed `attempt_rate`.
 
         """
-        simulator = self.simulator
         qubits = self.memory.get_channel_qubits(ch_name=qchannel.name)
         log.debug(f"{self.own}: {qchannel.name} has assigned qubits: {qubits}")
         for qb, data in qubits:
@@ -240,7 +239,7 @@ class LinkLayer(Application):
                 continue
             assert qb.active is None
             assert data is None, f"{self.own}: qubit {qb} has data {data}"
-            simulator.add_event(func_to_event(simulator.tc, self.start_reservation, next_hop, qchannel, qb, by=self))
+            self.start_reservation(next_hop, qchannel, qb)
 
     def start_reservation(self, next_hop: QNode, qchannel: QuantumChannel, qubit: MemoryQubit):
         """
