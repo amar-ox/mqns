@@ -16,12 +16,18 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy as np
+from typing_extensions import override
 
-from mqns.models.core.backend import QuantumModel
+from mqns.models.core import QuantumModel
 from mqns.models.epr.entanglement import BaseEntanglement
 from mqns.models.qubit.const import QUBIT_STATE_0, QUBIT_STATE_P
 from mqns.models.qubit.qubit import QState, Qubit
-from mqns.utils.rnd import get_rand
+from mqns.utils import get_rand
+
+phi_p: np.ndarray = 1 / np.sqrt(2) * np.array([[1], [0], [0], [1]])
+phi_n: np.ndarray = 1 / np.sqrt(2) * np.array([[1], [0], [0], [-1]])
+psi_p: np.ndarray = 1 / np.sqrt(2) * np.array([[0], [1], [1], [0]])
+psi_n: np.ndarray = 1 / np.sqrt(2) * np.array([[0], [1], [-1], [0]])
 
 
 class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], QuantumModel):
@@ -35,6 +41,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
 
     def __init__(
         self,
+        *,
         fidelity: float = 1,
         b: float | None = None,
         c: float | None = None,
@@ -74,6 +81,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         self.c = self.c / total
         self.d = self.d / total
 
+    @override
     def swapping(
         self, epr: "MixedStateEntanglement", *, name: str | None = None, ps: float = 1
     ) -> "MixedStateEntanglement|None":
@@ -103,7 +111,8 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         ne.normalized()
         return ne
 
-    def distillation(self, epr: "MixedStateEntanglement", name: str | None = None):
+    @override
+    def distillation(self, epr: "MixedStateEntanglement"):
         """Use `self` and `epr` to perform distillation and distribute a new entanglement.
         Using BBPSSW protocol.
 
@@ -134,6 +143,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         ne.normalized()
         return ne
 
+    @override
     def store_error_model(self, t: float = 0, decoherence_rate: float = 0, **kwargs):
         """
         The default error model for storing this entangled pair in a quantum memory.
@@ -156,6 +166,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         self.d = 0.25 + (self.d - 0.25) * np.exp(-decoherence_rate * t)
         self.normalized()
 
+    @override
     def transfer_error_model(self, length: float = 0, decoherence_rate: float = 0, **kwargs):
         """
         The default error model for transmitting this entanglement.
@@ -178,6 +189,7 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         self.d = 0.25 + (self.d - 0.25) * np.exp(-decoherence_rate * length)
         self.normalized()
 
+    @override
     def to_qubits(self) -> list[Qubit]:
         if self.is_decoherenced:
             q0 = Qubit(state=QUBIT_STATE_P, name="q0")
@@ -187,10 +199,6 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         q0 = Qubit(state=QUBIT_STATE_0, name="q0")
         q1 = Qubit(state=QUBIT_STATE_0, name="q1")
 
-        phi_p = 1 / np.sqrt(2) * np.array([[1], [0], [0], [1]])
-        phi_n = 1 / np.sqrt(2) * np.array([[1], [0], [0], [-1]])
-        psi_p = 1 / np.sqrt(2) * np.array([[0], [1], [1], [0]])
-        psi_n = 1 / np.sqrt(2) * np.array([[0], [1], [-1], [0]])
         rho = (
             self.a * np.dot(phi_p, phi_p.T.conjugate())
             + self.b * np.dot(psi_p, psi_p.T.conjugate())
