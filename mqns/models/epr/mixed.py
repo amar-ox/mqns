@@ -25,8 +25,12 @@ from mqns.utils.rnd import get_rand
 
 
 class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], QuantumModel):
-    """`MixedStateEntanglement` is a pair of entangled qubits in mixed State with a hidden-variable.
-    rho = A * Phi^+ + B * Psi^+ + C * Psi^- + D * Phi^-
+    """
+    `MixedStateEntanglement` is a pair of entangled qubits in mixed State with a hidden-variable.
+
+    ::
+
+        rho = A * Phi^+ + B * Psi^+ + C * Psi^- + D * Phi^-
     """
 
     def __init__(
@@ -131,8 +135,10 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         return ne
 
     def store_error_model(self, t: float = 0, decoherence_rate: float = 0, **kwargs):
-        """The default error model for storing this entangled pair in a quantum memory.
-        The default behavior is:
+        """
+        The default error model for storing this entangled pair in a quantum memory.
+        The default behavior is::
+
             a = 0.25 + (a-0.25)*e^{decoherence_rate*t}
             b = 0.25 + (b-0.25)*e^{decoherence_rate*t}
             c = 0.25 + (c-0.25)*e^{decoherence_rate*t}
@@ -151,8 +157,10 @@ class MixedStateEntanglement(BaseEntanglement["MixedStateEntanglement"], Quantum
         self.normalized()
 
     def transfer_error_model(self, length: float = 0, decoherence_rate: float = 0, **kwargs):
-        """The default error model for transmitting this entanglement.
-        The success possibility of transmitting is:
+        """
+        The default error model for transmitting this entanglement.
+        The success possibility of transmitting is::
+
             a = 0.25 + (a-0.25)*e^{decoherence_rate*length}
             b = 0.25 + (b-0.25)*e^{decoherence_rate*length}
             c = 0.25 + (c-0.25)*e^{decoherence_rate*length}
