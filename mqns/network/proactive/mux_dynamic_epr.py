@@ -29,6 +29,10 @@ def select_weighted_by_swaps(fibs: list[FibEntry]) -> FibEntry:
 
 
 class MuxSchemeDynamicEpr(MuxSchemeDynamicBase, MuxSchemeFibBase):
+    """
+    Dynamic EPR Affection multiplexing scheme.
+    """
+
     def __init__(
         self,
         name="dynamic EPR affection",

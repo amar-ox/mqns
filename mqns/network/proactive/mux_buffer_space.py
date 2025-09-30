@@ -30,6 +30,10 @@ class MuxSchemeFibBase(MuxScheme):
 
 
 class MuxSchemeBufferSpace(MuxSchemeFibBase):
+    """
+    Buffer-Space multiplexing scheme.
+    """
+
     def __init__(self, name="buffer-space multiplexing"):
         super().__init__(name)
 

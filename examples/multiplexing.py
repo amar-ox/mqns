@@ -268,15 +268,16 @@ def run_simulation(t_coherence: float, mux: MuxScheme, seed: int, active_flows: 
         else:
             stats.append((0, 0))
 
+    total_decoh = sum([node.get_app(LinkLayer).decoh_count for node in net.nodes])
     total_swap_conflict = sum([node.get_app(ProactiveForwarder).cnt.n_swap_conflict for node in net.nodes])
 
-    return stats, total_swap_conflict
+    return stats, total_decoh, total_swap_conflict
 
 
 # ------------------------------
 # Strategies
 STRATEGIES: dict[str, MuxScheme] = {
-    "Statistical": MuxSchemeStatistical(),
+    "Statistical": MuxSchemeStatistical(coordinated_decisions=True),
     "Buffer-Space": MuxSchemeBufferSpace(),
 }
 
@@ -288,8 +289,8 @@ for s_idx, (label, flows) in enumerate(SCENARIOS):
         flow_rates = [[] for _ in range(len(FLOW_ORDER))]
         flow_fids = [[] for _ in range(len(FLOW_ORDER))]
         for i in range(args.runs):
-            flow_stats, total_swap_conflict = run_simulation(t_cohere, mux, SEED_BASE + i, flows)
-            print(f"{strategy}, {label}, run #{i}, swap-conflict={total_swap_conflict}")
+            flow_stats, total_decoh, total_swap_conflict = run_simulation(t_cohere, mux, SEED_BASE + i, flows)
+            print(f"{strategy}, {label}, run #{i}, decoh={total_decoh}, swap-conflict={total_swap_conflict}")
             for idx, (rate, fid) in enumerate(flow_stats):
                 flow_rates[idx].append(rate)
                 flow_fids[idx].append(fid)
