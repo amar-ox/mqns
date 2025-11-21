@@ -22,7 +22,7 @@ class ParameterSet:
     def __init__(self):
         self.seed_base = 100
 
-        self.sim_duration = 5
+        self.sim_duration = 5.0
 
         self.fiber_alpha = 0.2
         self.eta_d = 0.95
@@ -208,8 +208,8 @@ def run_row(p: ParameterSet, num_routers: int, dist_prop: str, swap_conf: str) -
     if swap_conf == "vora":
         p.swapping_config += f"_{dist_prop}"
 
-    entanglements = []
-    expired = []
+    entanglements: list[float] = []
+    expired: list[float] = []
     for i in range(p.n_runs):
         print(f"Simulation: {num_routers} routers | {dist_prop} " + f"distances | {swap_conf} | run #{i + 1}")
         seed = p.seed_base + i
@@ -218,10 +218,10 @@ def run_row(p: ParameterSet, num_routers: int, dist_prop: str, swap_conf: str) -
         entanglements.append(e2e_count)
         expired.append(expired_count)
 
-    mean_entg = np.mean(entanglements)
-    std_entg = np.std(entanglements)
-    mean_exp = np.mean(expired)
-    std_exp = np.std(expired)
+    mean_entg = np.mean(entanglements).item()
+    std_entg = np.std(entanglements).item()
+    mean_exp = np.mean(expired).item()
+    std_exp = np.std(expired).item()
 
     return {
         "Routers": num_routers,
@@ -307,13 +307,14 @@ if __name__ == "__main__":
     # Command line arguments
     class Args(Tap):
         workers: int = 1  # number of workers for parallel execution
-        runs: int = 10  # number of trials per parameter set
+        runs: int = p.n_runs  # number of trials per parameter set
+        sim_duration: float = p.sim_duration  # simulation duration in seconds
         csv: str = ""  # save results as CSV file
         plt: str = ""  # save plot as image file
 
     args = Args().parse_args()
-
     p.n_runs = args.runs
+    p.sim_duration = args.sim_duration
 
     # Simulator loop with process-based parallelism
     with Pool(processes=args.workers) as pool:
