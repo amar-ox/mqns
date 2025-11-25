@@ -1,4 +1,5 @@
 import itertools
+import sys
 from collections.abc import Callable
 from copy import deepcopy
 from multiprocessing import Pool, freeze_support
@@ -78,6 +79,24 @@ class ParameterSet:
         weights = DISTANCE_PROPORTION_WEIGHTS[self.distance_proportion](n_segments)
         sum_weight = sum(weights)
         return [self.total_distance * w / sum_weight for w in weights]
+
+
+def train_attempts_row(p: ParameterSet, num_routers: int, dist_prop: str) -> str:
+    """
+    Generate linear_attempts.py command line for collecting training data for the given topology.
+    """
+    p = deepcopy(p)
+    p.number_of_routers = num_routers
+    p.distance_proportion = dist_prop
+    p.swapping_config = "no_swap"
+
+    distances = p.compute_distances()
+    L = " ".join([str(d) for d in distances])
+    filename = f"{num_routers}-{dist_prop}-{p.channel_qubits}"
+    return (
+        f"python linear_attempts.py --runs {p.n_runs} --L {L} --M {p.channel_qubits} "
+        f"--json $OUTDIR/{filename}.json --csv $OUTDIR/{filename}.csv\n"
+    )
 
 
 def run_simulation(p: ParameterSet, seed: int) -> tuple[float, float]:
@@ -203,15 +222,23 @@ if __name__ == "__main__":
 
     # Command line arguments
     class Args(Tap):
+        train_attempts: bool  # generate training script for linear_attempts.py
         workers: int = 1  # number of workers for parallel execution
         runs: int = p.n_runs  # number of trials per parameter set
         sim_duration: float = p.sim_duration  # simulation duration in seconds
+        channel_qubits: int = p.channel_qubits  # qchannel capacity
         csv: str = ""  # save results as CSV file
         plt: str = ""  # save plot as image file
 
     args = Args().parse_args()
     p.n_runs = args.runs
     p.sim_duration = args.sim_duration
+    p.channel_qubits = args.channel_qubits
+
+    if args.train_attempts:
+        script = (train_attempts_row(*a) for a in itertools.product([p], NUM_ROUTERS_OPTIONS, DIST_PROPORTIONS))
+        sys.stdout.writelines(script)
+        sys.exit()
 
     # Simulator loop with process-based parallelism
     with Pool(processes=args.workers) as pool:
