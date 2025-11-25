@@ -1,5 +1,3 @@
-import logging
-
 from mqns.network.network import QuantumNetwork
 from mqns.network.proactive import ProactiveForwarder
 from mqns.simulator import Simulator
@@ -8,7 +6,7 @@ from mqns.utils import log, set_seed
 from examples_common.stats import gather_etg_decoh
 from examples_common.topo_asymmetric_channel import build_topology
 
-log.logger.setLevel(logging.DEBUG)
+log.set_default_level("DEBUG")
 
 SEED_BASE = 100
 
