@@ -42,6 +42,30 @@ Decreasing: reverse of Increasing.
 Mid-bottleneck: middle qchannel(s) are 1.2 times longer than all other qchannels.
 """
 
+VORA_SWAPPING_ORDER: dict[int, dict[str, list[int]]] = {
+    3: {
+        "uniform": [1, 3, 2],
+        "increasing": [1, 2, 3],
+        "decreasing": [3, 2, 1],
+        "mid_bottleneck": [1, 3, 2],
+    },
+    4: {
+        "uniform": [1, 4, 2, 3],
+        "increasing": [1, 2, 3, 4],
+        "decreasing": [4, 3, 2, 1],
+        "mid_bottleneck": [1, 3, 4, 2],
+    },
+    5: {
+        "uniform": [1, 4, 2, 5, 3],
+        "increasing": [1, 2, 3, 4, 5],
+        "decreasing": [5, 4, 3, 2, 1],
+        "mid_bottleneck": [1, 4, 3, 5, 2],
+    },
+}
+"""
+Pre-computed VoraSwap swapping orders.
+"""
+
 
 class ParameterSet:
     def __init__(self):
@@ -60,18 +84,15 @@ class ParameterSet:
 
     def build_topology(self) -> Topology:
         distances = self.compute_distances()
-        log.info(f"build_topology: distances={distances} sum={sum(distances)}")
-
-        swapping_order = f"swap_{self.number_of_routers}_{self.swapping_config}"
-        if self.swapping_config == "vora":
-            swapping_order += f"_{self.distance_proportion}"
+        swap = self.get_swap_sequence()
+        log.info(f"build_topology: distances={distances} sum={sum(distances)} swap-sequence={swap}")
 
         return build_topology(
             nodes=2 + self.number_of_routers,
             t_coherence=self.t_coherence,
             channel_length=distances,
             channel_capacity=self.channel_qubits,
-            swap=swapping_order,
+            swap=swap,
         )
 
     def compute_distances(self) -> list[float]:
@@ -79,6 +100,14 @@ class ParameterSet:
         weights = DISTANCE_PROPORTION_WEIGHTS[self.distance_proportion](n_segments)
         sum_weight = sum(weights)
         return [self.total_distance * w / sum_weight for w in weights]
+
+    def get_swap_sequence(self) -> str | list[int]:
+        if self.swapping_config != "vora":
+            return f"swap_{self.number_of_routers}_{self.swapping_config}"
+
+        so = VORA_SWAPPING_ORDER[self.number_of_routers][self.distance_proportion]
+        sd_rank = max(so) + 1
+        return [sd_rank] + so + [sd_rank]
 
 
 def train_attempts_row(p: ParameterSet, num_routers: int, dist_prop: str) -> str:
@@ -222,7 +251,7 @@ if __name__ == "__main__":
 
     # Command line arguments
     class Args(Tap):
-        train_attempts: bool  # generate training script for linear_attempts.py
+        train_attempts: bool = False  # generate training script for linear_attempts.py
         workers: int = 1  # number of workers for parallel execution
         runs: int = p.n_runs  # number of trials per parameter set
         sim_duration: float = p.sim_duration  # simulation duration in seconds
