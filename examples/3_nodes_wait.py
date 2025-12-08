@@ -1,13 +1,9 @@
 import itertools
-from collections.abc import Iterable
 from multiprocessing import Pool, freeze_support
 from typing import Any, TypedDict, cast
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.axes import Axes
-from matplotlib.figure import SubFigure
 from tap import Tap
 
 from mqns.network.network import QuantumNetwork
@@ -15,6 +11,7 @@ from mqns.network.proactive import CutoffSchemeWaitTime, ProactiveForwarder
 from mqns.simulator import Simulator
 from mqns.utils import log, set_seed
 
+from examples_common.plotting import Axes1D, SubFigure1D, plt, plt_save
 from examples_common.topo_linear import build_topology
 
 """
@@ -133,8 +130,8 @@ def plot(rows: list[tuple[Stats, Histograms]], *, save_plt: str):
     fig = plt.figure(figsize=(unit_width * 4, unit_height * len(rows)))
     fig.tight_layout()
 
-    subfigs = cast(Iterable[SubFigure], fig.subfigures(nrows=len(rows), ncols=1, hspace=0.1))
-    last_axs: Iterable[Axes] = []
+    subfigs = cast(SubFigure1D, fig.subfigures(nrows=len(rows), ncols=1, hspace=0.1))
+    last_axs: Axes1D = []
     for subfig, (stats, histograms) in zip(subfigs, rows, strict=True):
         subfig.suptitle(
             f"T_cohere={stats['t_cohere']:.4f} "
@@ -143,7 +140,7 @@ def plot(rows: list[tuple[Stats, Histograms]], *, save_plt: str):
             f"discard={stats['discard_mean']:.2f}\xb1{stats['discard_std']:.2f} "
         )
 
-        axs = cast(Iterable[Axes], subfig.subplots(nrows=1, ncols=2))
+        axs = cast(Axes1D, subfig.subplots(nrows=1, ncols=2))
         subfig.subplots_adjust(wspace=0.2, bottom=0.2)
         last_axs = axs
         for ax, (field, _, label_loc) in zip(axs, HISTOGRAM_INFO, strict=True):
@@ -155,9 +152,7 @@ def plot(rows: list[tuple[Stats, Histograms]], *, save_plt: str):
     for ax, (_, title, _) in zip(last_axs, HISTOGRAM_INFO, strict=True):
         ax.set_xlabel(title)
 
-    if save_plt:
-        fig.savefig(save_plt, dpi=300, transparent=True)
-    plt.show()
+    plt_save(save_plt)
 
 
 t_cohere_values = [0.1]
