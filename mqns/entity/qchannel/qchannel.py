@@ -76,9 +76,8 @@ class QuantumChannel(BaseChannel[QNode]):
             OverflowError - insufficient qubits.
         """
         for node in self.node_list:
-            memory = node.get_memory()
             cap = capacity if isinstance(capacity, int) else capacity[node.name]
-            memory.assign(self, n=cap)
+            node.memory.assign(self, n=cap)
 
     def send(self, qubit: QuantumModel, next_hop: QNode):
         """Send a qubit to the next_hop

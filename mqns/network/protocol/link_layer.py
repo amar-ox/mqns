@@ -164,7 +164,7 @@ class LinkLayer(Application):
     def install(self, node: Node, simulator: Simulator):
         super().install(node, simulator)
         self.own = self.get_node(node_type=QNode)
-        self.memory = self.own.get_memory()
+        self.memory = self.own.memory
 
     def handle_sync_phase(self, event: TimingPhaseEvent):
         """

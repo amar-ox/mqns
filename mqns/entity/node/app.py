@@ -137,3 +137,7 @@ class Application:
         if self._simulator is None:
             raise IndexError("application is not in a simulator")
         return self._simulator
+
+
+ApplicationT = TypeVar("ApplicationT", bound=Application)
+"""Represents an application type."""
