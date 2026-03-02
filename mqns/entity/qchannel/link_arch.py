@@ -93,7 +93,7 @@ class LinkArch(Protocol):
     """
     Success probability of a single attempt.
 
-    This is available after `set()`.
+    This is available after ``set()``.
     """
 
     def set(self, **kwargs: Unpack[LinkArchParameters]) -> None:
@@ -104,7 +104,7 @@ class LinkArch(Protocol):
     def delays(self, k: int) -> tuple[float, float, float]:
         """
         Compute protocol delays for k-th attempt.
-        This is available after `set()`.
+        This is available after ``set()``.
 
         Args:
             k: number of attempts, minimum is 1.
@@ -121,7 +121,7 @@ class LinkArch(Protocol):
     def make_epr(self, k: int, now: Time, *, key: str | None, src: QNode, dst: QNode) -> tuple[Entanglement, Time, Time]:
         """
         Create an elementary entanglement for k-th attempt.
-        This is available after `set()`.
+        This is available after ``set()``.
 
         Args:
             k: number of attempts, minimum is 1.

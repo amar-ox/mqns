@@ -271,7 +271,6 @@ class QuantumMemory(Entity):
         Raises:
             IndexError: qubit address out of range.
         """
-        pass
 
     @overload
     def read(
@@ -293,7 +292,6 @@ class QuantumMemory(Entity):
             IndexError: qubit not found.
             ValueError: no quantum information is stored.
         """
-        pass
 
     @overload
     def read[M: QuantumModel](
@@ -323,7 +321,6 @@ class QuantumMemory(Entity):
             IndexError: qubit not found.
             ValueError: no quantum information is stored or it is not the expected type.
         """
-        pass
 
     def read[M: QuantumModel](
         self,
