@@ -43,38 +43,47 @@ from mqns.entity.qchannel import QuantumChannel
 from mqns.models.core import QuantumModel
 from mqns.models.delay import DelayInput, parse_delay
 from mqns.models.epr import Entanglement
-from mqns.models.error import parse_time_decay
+from mqns.models.error import TimeDecayInput, parse_time_decay
 from mqns.simulator import Event, Simulator
 
 
 class QuantumMemoryInitKwargs(TypedDict, total=False):
+    """QuantumMemory constructor parameters."""
+
     capacity: int
+    """How many qubits can be stored in memory, must be positive, defaults to 1."""
     delay: DelayInput
+    """Async read/write delay in seconds or a ``DelayModel``."""
     t_cohere: float
+    """Memory decoherence time in seconds, defaults to 1."""
+    time_decay: TimeDecayInput
+    """Time decay function for loss of quantum information, defaults to dephasing in ``t_cohere``."""
 
 
 class QuantumMemory(Entity):
-    """Quantum memory stores qubits or entangled pairs
+    """
+    Quantum memory stores qubits or entangled pairs.
 
     It has two modes:
-        Synchronous mode, users can use the ``read`` and ``write`` function to operate the memory directly without delay
-        Asynchronous mode, users can use events to operate memories asynchronously
+
+    * Synchronous mode, caller uses ``read`` and ``write`` functions to operate the memory without delay.
+      This mode is used by most applications in MQNS.
+    * Asynchronous mode, caller uses events to operate the memory asynchronously.
     """
 
     def __init__(self, name: str, **kwargs: Unpack[QuantumMemoryInitKwargs]):
         """
+        Constructor.
+
         Args:
             name: memory name.
-            capacity: the capacity of this quantum memory, must be positive.
-            delay: async read/write delay in seconds, or a ``DelayModel``.
-            t_cohere: memory dephasing time in seconds, defaults to 1.0.
         """
         super().__init__(name=name)
         self.node: QNode
         """
         QNode that owns this memory.
 
-        This is assigned by ``QNode.set_memory()``.
+        This is assigned by ``QNode.memory`` setter.
         """
         self.capacity = kwargs.get("capacity", 1)
         """
@@ -84,8 +93,8 @@ class QuantumMemory(Entity):
         self.delay = parse_delay(kwargs.get("delay", 0))
         """Read/write delay, only applicable to async access."""
 
-        self.t_cohere = kwargs.get("t_cohere", 1.0)
-        """Memory dephasing time in seconds, often known as T2."""
+        self._t_cohere = kwargs.get("t_cohere", 1.0)
+        self._time_decay_input = kwargs.get("time_decay")
 
         assert self.capacity >= 1
         self._storage: list[tuple[MemoryQubit, QuantumModel | None]] = [
@@ -104,10 +113,14 @@ class QuantumMemory(Entity):
     def install(self, simulator: Simulator) -> None:
         super().install(simulator)
 
-        self.decoherence_delay = simulator.time(sec=self.t_cohere)
-        """Memory dephasing time."""
+        self.t_decohere = simulator.time(sec=self._t_cohere)
+        """
+        Memory decoherence time, often known as T2.
 
-        self.time_decay = parse_time_decay(None, self.decoherence_delay)
+        Stored qubits are deleted upon this timer via ``QubitDecoheredEvent``.
+        """
+
+        self.time_decay = parse_time_decay(self._time_decay_input, self.t_decohere)
         """Time based decay function constructed from store error model."""
 
     @override
@@ -132,8 +145,7 @@ class QuantumMemory(Entity):
         predicate: Callable[[MemoryQubit, QuantumModel | None], bool],
         *,
         qchannel: QuantumChannel | None = None,
-    ) -> Iterator[tuple[MemoryQubit, QuantumModel | None]]:
-        pass
+    ) -> Iterator[tuple[MemoryQubit, QuantumModel | None]]: ...
 
     @overload
     def find[M: QuantumModel](
@@ -142,8 +154,7 @@ class QuantumMemory(Entity):
         *,
         qchannel: QuantumChannel | None = None,
         has: type[M],
-    ) -> Iterator[tuple[MemoryQubit, M]]:
-        pass
+    ) -> Iterator[tuple[MemoryQubit, M]]: ...
 
     def find[M: QuantumModel](
         self,

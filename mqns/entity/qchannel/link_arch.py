@@ -291,7 +291,7 @@ class LinkArchBase(ABC, LinkArch):
         mem_a, mem_b = src.memory, dst.memory
         epr = self._make_epr(
             EntanglementInitKwargs(
-                decohere_time=t_epr_creation + min(mem_a.decoherence_delay, mem_b.decoherence_delay),
+                decohere_time=t_epr_creation + min(mem_a.t_decohere, mem_b.t_decohere),
                 fidelity_time=t_epr_creation,
                 src=src,
                 dst=dst,

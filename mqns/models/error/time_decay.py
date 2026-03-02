@@ -40,6 +40,7 @@ class TimeDecayDictCohere(TypedDict):
 type TimeDecayInput = (
     TimeDecayDictRate | TimeDecayDictCohere | tuple[ErrorModelConstructor, TimeDecayDictRate | TimeDecayDictCohere] | str | None
 )
+"""``parse_time_decay`` input."""
 
 
 def _set_rate(error: ErrorModel, value: float, accuracy: int):

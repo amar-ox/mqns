@@ -130,7 +130,7 @@ class CustomTopology(Topology):
             qn.add_apps(node["apps"] if "apps" in node else copy.deepcopy(self.nodes_apps))
 
             # Assign a new memory
-            memory_args = node.get("memory", self.memory_args)
+            memory_args = self.memory_args | node.get("memory", {})
             qn.memory = QuantumMemory(f"{qn.name}.memory", **memory_args)
 
             qnl.append(qn)
