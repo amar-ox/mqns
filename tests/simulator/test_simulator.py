@@ -10,11 +10,29 @@ from mqns.simulator import Event, Simulator, Time
 
 
 class SimpleEvent(Event):
-    invoke_count = defaultdict[str, int](lambda: 0)
+    seq = 0
+    invokes = defaultdict[str, list[int]](lambda: [])
 
     @override
     def invoke(self) -> None:
-        self.invoke_count[self.name or ""] += 1
+        self.invokes[self.name or ""].append(SimpleEvent.seq)
+        SimpleEvent.seq += 1
+
+
+class RescheduleEvent(SimpleEvent):
+    def __init__(self, t: Time, name: str, simulator: Simulator, *new_events: tuple[str, int]):
+        super().__init__(t, name)
+        self.simulator = simulator
+        self.new_events = new_events
+
+    @override
+    def invoke(self) -> None:
+        super().invoke()
+
+        for name, prio in self.new_events:
+            event = SimpleEvent(self.t, name)
+            event.priority = prio
+            self.simulator.add_event(event)
 
 
 class StopEvent(SimpleEvent):
@@ -22,6 +40,7 @@ class StopEvent(SimpleEvent):
         super().__init__(t, name)
         self.simulator = simulator
 
+    @override
     def invoke(self) -> None:
         super().invoke()
         assert self.simulator.running
@@ -30,9 +49,10 @@ class StopEvent(SimpleEvent):
 
 
 @pytest.fixture(autouse=True)
-def clear_invoke_count():
+def clear_invokes():
     yield
-    SimpleEvent.invoke_count.clear()
+    SimpleEvent.seq = 0
+    SimpleEvent.invokes.clear()
 
 
 def test_run():
@@ -41,7 +61,9 @@ def test_run():
 
     e = SimpleEvent(s.time(sec=1), name="t0")
     s.add_event(e)
+    assert e.is_canceled is False
     e.cancel()
+    assert e.is_canceled is True
     # 1 instance of t0 scheduled at 1.0 but will not be invoked
     assert s.total_events == 1
 
@@ -64,9 +86,40 @@ def test_run():
     assert s.tc == s.te
     assert not s.running
 
-    assert SimpleEvent.invoke_count["t0"] == 0
-    assert SimpleEvent.invoke_count["t1"] == 25
-    assert SimpleEvent.invoke_count["t2"] == 11
+    assert len(SimpleEvent.invokes["t0"]) == 0
+    assert len(SimpleEvent.invokes["t1"]) == 25
+    assert len(SimpleEvent.invokes["t2"]) == 11
+
+
+def test_ordering():
+    s = Simulator(0, 10, accuracy=1000)
+    t1 = s.time(sec=1)
+    t2 = s.time(sec=2)
+
+    p19 = SimpleEvent(t1, "p19")
+    p19.priority = 9
+    s.add_event(p19)
+    p11 = SimpleEvent(t1, "p11")
+    p11.priority = 1
+    s.add_event(p11)
+    p15 = SimpleEvent(t1, "p15")
+    p15.priority = 5
+    s.add_event(p15)
+
+    p25 = RescheduleEvent(t2, "p25", s, ("p21", 1), ("p29", 9))
+    p25.priority = 5
+    s.add_event(p25)
+
+    s.run()
+
+    assert SimpleEvent.invokes == {
+        "p11": [0],
+        "p15": [1],
+        "p19": [2],
+        "p21": [4],
+        "p25": [3],
+        "p29": [5],
+    }
 
 
 @pytest.mark.parametrize(
@@ -96,8 +149,8 @@ def test_stop(*, te: float):
     s.run()
     assert s.tc.sec < te
 
-    assert SimpleEvent.invoke_count["t1"] == 9
-    assert SimpleEvent.invoke_count["s0"] == 1
+    assert len(SimpleEvent.invokes["t1"]) == 9
+    assert len(SimpleEvent.invokes["s0"]) == 1
 
 
 def test_gate():
@@ -117,9 +170,9 @@ def test_gate():
 
     # let the Simulator hit the gate, verify b2,b5 invoked
     time.sleep(0.2)
-    assert SimpleEvent.invoke_count["b2"] == 1
-    assert SimpleEvent.invoke_count["b5"] == 1
-    assert SimpleEvent.invoke_count["a8"] == 0
+    assert len(SimpleEvent.invokes["b2"]) == 1
+    assert len(SimpleEvent.invokes["b5"]) == 1
+    assert len(SimpleEvent.invokes["a8"]) == 0
     assert s.tc == s.time(sec=5)
     assert th.is_alive()
 
@@ -130,14 +183,14 @@ def test_gate():
     # let the Simulator run again, verify a5,a8 invoked
     s.update_gate(s.time(sec=10))
     time.sleep(0.2)
-    assert SimpleEvent.invoke_count["a5"] == 1
-    assert SimpleEvent.invoke_count["a8"] == 1
+    assert len(SimpleEvent.invokes["a5"]) == 1
+    assert len(SimpleEvent.invokes["a8"]) == 1
     assert s.tc == s.time(sec=8)
     assert th.is_alive()
 
     # verify dropped events are not invoked
-    assert SimpleEvent.invoke_count["z0"] == 0
-    assert SimpleEvent.invoke_count["z4"] == 0
+    assert len(SimpleEvent.invokes["z0"]) == 0
+    assert len(SimpleEvent.invokes["z4"]) == 0
     assert s.total_events == 4
 
     # stop and cleanup

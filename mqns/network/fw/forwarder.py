@@ -174,14 +174,15 @@ class Forwarder(ForwarderClassicMixin, Application[QNode]):
         self.waiting_su: dict[int, tuple[SwapUpdateMsg, FibEntry]] = {}
         """
         SwapUpdates received prior to QubitEntangledEvent.
-        Key: MemoryQubit addr.
-        Value: SwapUpdateMsg and FibEntry.
+
+        * Key: MemoryQubit addr.
+        * Value: SwapUpdateMsg and FibEntry.
         """
 
         self.parallel_swappings: dict[str, tuple[Entanglement, Entanglement, Entanglement]] = {}
         """
         Records for potential parallel swappings.
-        See `_su_parallel` method.
+        See ``_su_parallel`` method.
         """
 
         self.remote_swapped_eprs: dict[str, Entanglement] = {}
@@ -712,6 +713,10 @@ class Forwarder(ForwarderClassicMixin, Application[QNode]):
 
         If QubitEntangledEvent for the qubit has not been processed, the SwapUpdate is buffered
         in ``self.waiting_su`` and will be re-tried after processing the QubitEntangledEvent.
+        This may happen, for example in S-R-D linear topology, when node R performs a swap as soon as
+        it is notified about R-D entanglement, before D is notified.
+        This cannot be resolved with ``Event.priority`` mechanism because R and D may be notified
+        at different times depending on the link architecture.
 
         Args:
             msg: The SWAP_UPDATE message.

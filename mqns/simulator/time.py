@@ -15,16 +15,19 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import functools
 from typing import final
 
 
 @final
+@functools.total_ordering
 class Time:
     """
     Timestamp or duration used in the simulator.
     """
 
     SENTINEL: "Time"
+    """Invalid Time instance as placeholder."""
 
     def __init__(self, time_slot: int, *, accuracy: int):
         """
@@ -67,14 +70,12 @@ class Time:
         Equality comparison operator.
 
         Time instance is equal to the other object only if:
+
         * The other object is also a Time instance.
         * They have the same accuracy.
         * They have the same time slot.
         """
         return type(other) is Time and self.accuracy == other.accuracy and self.time_slot == other.time_slot
-
-    def __ne__(self, other: object) -> bool:
-        return not self == other
 
     def __lt__(self, other: "Time") -> bool:
         """
@@ -83,18 +84,6 @@ class Time:
         """
         assert self.accuracy == other.accuracy
         return self.time_slot < other.time_slot
-
-    def __le__(self, other: "Time") -> bool:
-        assert self.accuracy == other.accuracy
-        return self.time_slot <= other.time_slot
-
-    def __gt__(self, other: "Time") -> bool:
-        assert self.accuracy == other.accuracy
-        return self.time_slot > other.time_slot
-
-    def __ge__(self, other: "Time") -> bool:
-        assert self.accuracy == other.accuracy
-        return self.time_slot >= other.time_slot
 
     def __hash__(self) -> int:
         return hash(self.time_slot)
