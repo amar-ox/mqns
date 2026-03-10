@@ -181,7 +181,9 @@ def test_gate():
     s.add_event(SimpleEvent(s.time(sec=5), "a5"))
 
     # let the Simulator run again, verify a5,a8 invoked
-    s.update_gate(s.time(sec=10))
+    update_gate_event = s.schedule_update_gate(s.time(sec=4), s.time(sec=10))
+    assert update_gate_event.t == s.time(sec=5)
+    assert update_gate_event.priority > 0
     time.sleep(0.2)
     assert len(SimpleEvent.invokes["a5"]) == 1
     assert len(SimpleEvent.invokes["a8"]) == 1
@@ -191,7 +193,7 @@ def test_gate():
     # verify dropped events are not invoked
     assert len(SimpleEvent.invokes["z0"]) == 0
     assert len(SimpleEvent.invokes["z4"]) == 0
-    assert s.total_events == 4
+    assert s.total_events == 5  # b2, b5, Simulator.update_gate, a5, a8
 
     # stop and cleanup
     s.stop()

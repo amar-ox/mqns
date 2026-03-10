@@ -1,7 +1,7 @@
 from typing import cast, final, override
 
 from mqns.entity.node import Application, Node
-from mqns.network.protocol import NodeProcessDelayApp
+from mqns.network.protocol.node_process_delay import NodeProcessDelayApp
 from mqns.simulator import Event, Simulator, Time
 
 

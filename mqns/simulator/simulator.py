@@ -1,20 +1,3 @@
-#    SimQN: a discrete-event simulator for the quantum networks
-#    Copyright (C) 2021-2022 Lutong Chen, Jian Li, Kaiping Xue
-#    University of Science and Technology of China, USTC.
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 import math
 import os
 import time
@@ -22,7 +5,7 @@ from collections.abc import Iterable
 from pstats import SortKey
 from typing import TYPE_CHECKING, Any, Protocol, overload
 
-from mqns.simulator.event import Event
+from mqns.simulator.event import Event, func_to_event
 from mqns.simulator.pool import HeapEventPool, SynchronizedEventPool
 from mqns.simulator.time import Time
 from mqns.utils import log
@@ -204,6 +187,31 @@ class Simulator:
         When the external program has released the gate, it should not schedule new events
         before the gate time, but may schedule new events at or after gate time.
         This restriction does not apply to internally scheduled events.
+
+        Note: in a multi-threaded environment, if a secondary thread adds one or more events and then
+        releases the gate, the gate update may occur before scheduled events are executed.
+        See ``schedule_update_gate``.
         """
         assert gate.accuracy == self.accuracy
+        log.debug(f"Simulator.update_gate({gate.time_slot})")
         self._pool.update_gate(gate.time_slot)
+
+    def schedule_update_gate(self, last_t: Time, gate: Time, priority=0xFFFFFFFF) -> Event:
+        """
+        Schedule ``update_gate`` action as an event.
+        A secondary thread may use this function in place of ``update_gate`` to ensure the events
+        it added take effect before releasing the gate.
+
+        Args:
+            last_t: Timestamp of the latest event added by the secondary thread.
+                    This must be earlier than or equal to the current gate time.
+            gate: New gate time.
+            priority: Event priority, defaults to 2^31-1 that represents a low priority.
+
+        The secondary thread must keep track of ``t`` and cancel previously scheduled gate update events.
+        """
+        event = func_to_event(max(last_t, self.tc), self.update_gate, gate)
+        event.name = "Simulator.update_gate"
+        event.priority = priority
+        self.add_event(event)
+        return event
