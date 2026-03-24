@@ -1,112 +1,111 @@
-# Multiverse Quantum Network Simulator
+# Multiverse Quantum Network Simulator (MQNS)
 
-![Build](https://github.com/usnistgov/mqns/actions/workflows/build.yml/badge.svg) ![Lint](https://github.com/usnistgov/mqns/actions/workflows/lint.yml/badge.svg)
+![Build](https://github.com/usnistgov/mqns/actions/workflows/build.yml/badge.svg)
+![Lint](https://github.com/usnistgov/mqns/actions/workflows/lint.yml/badge.svg)
 
 ## Overview
 
-**Multiverse** is a quantum network simulator designed to streamline the comparative evaluation of entanglement routing under dynamic and heterogeneous network conditions. It addresses the need for a unified, flexible framework for rapidly prototyping and benchmarking a wide range of entanglement distribution strategies and quantum network architectures. The simulator supports systematic exploration of routing algorithms, swapping strategies, purification schedules, and qubit/resource management across diverse network scenarios.
+**Multiverse Quantum Network Simulator (MQNS)** is a research-focused quantum network simulator for evaluating entanglement routing under dynamic, heterogeneous network conditions. It provides a unified framework for rapidly prototyping and benchmarking entanglement distribution strategies and quantum network architectures.
+
+MQNS enables systematic comparative studies across routing, swapping, purification, multiplexing, and resource-management designs.
 
 ![MQNS logo](docs/mqns-logo.svg)
 
-This software is developed at the [Smart Connected Systems Division](https://www.nist.gov/ctl/smart-connected-systems-division) of the [National Institute of Standards and Technology](https://www.nist.gov/).
+This software is developed at the [Smart Connected Systems Division](https://www.nist.gov/ctl/smart-connected-systems-division) of the [National Institute of Standards and Technology (NIST)](https://www.nist.gov/).
 
-This project is part of an ongoing research effort to evaluate the quantum networking approaches presented in our survey:
-🔗 [Entanglement Routing in Quantum Networks: A Comprehensive Survey](https://ieeexplore.ieee.org/document/10882978).
+## References
 
-## Current Features
+If you use MQNS in academic work, please cite the simulator paper and related routing survey:
+
+- **Simulator paper**: [arXiv:2512.22937](https://arxiv.org/abs/2512.22937)
+- **Survey**: [*Entanglement Routing in Quantum Networks: A Comprehensive Survey*](https://ieeexplore.ieee.org/document/10882978)
+
+## Current Capabilities
 
 ### Routing Model
 
-* Assumes **proactive centralized routing** defined in the survey taxonomy.
-* Global path computation at simulation start:
-  * **Dijkstra's algorithm** for single-path routing.
-  * **Yen’s algorithm** for multipath routing.
-* Paths can be installed/uninstalled at quantum routers; simulation focuses on the **forwarding phase**.
+- Assumes **proactive centralized routing** (as defined in the survey taxonomy).
+- Computes global paths at simulation startup using:
+  - **Dijkstra's algorithm** for single-path routing.
+  - **Yen's algorithm** for multipath routing.
+- Supports installing/uninstalling paths at quantum routers; current emphasis is on the **forwarding phase**.
 
 ### Forwarding Phase Components
 
-* **External and internal phases**:
-  * Synchronous and asynchronous modes.
-  * Elementary entanglement generation.
-  * Swapping and purification.
+- **External and internal forwarding phases** in both synchronous and asynchronous modes.
+- Elementary entanglement generation.
+- Swapping and purification workflows.
 
-* **Swapping strategies**:
-  * Sequential and Balanced Tree.
-  * Parallel (swap-asap).
-  * Per-path [heuristic-based ad-hoc strategies](https://arxiv.org/abs/2504.14040).
+#### Swapping Strategies
 
-* **Qubit lifecycle management**:
-  * Tracks reservation, entanglement, release, and intermediate states of a qubit.
+- Sequential and balanced-tree schemes.
+- Parallel swap-as-soon-as-possible execution.
+- Per-path [heuristic ad-hoc strategies](https://arxiv.org/abs/2504.14040).
 
-* **Qubit-path multiplexing** for:
-  * Single/multiple source-destination requests.
-  * Single/multiple paths.
-  * Includes **buffer-space** and **statistical multiplexing** schemes ([ref](https://www.spiedigitallibrary.org/conference-proceedings-of-spie/8163/1/Multiplexing-schemes-for-quantum-repeater-networks/10.1117/12.893272.short)) and other dynamic entanglement allocation strategies.
+#### Qubit Lifecycle and Multiplexing
 
-* **Memory management**:
-  * Policies for:
-    * Allocating qubits to paths.
-    * Choosing which qubits to swap when multiple are available.
+- Tracks reservation, entanglement, intermediate state transitions, and release.
+- Supports qubit-path multiplexing for:
+  - Single or multiple source-destination requests.
+  - Single or multiple paths.
+- Includes **buffer-space** and **statistical multiplexing** ([reference](https://www.spiedigitallibrary.org/conference-proceedings-of-spie/8163/1/Multiplexing-schemes-for-quantum-repeater-networks/10.1117/12.893272.short)) and other dynamic entanglement allocation approaches.
 
-* **Purification schemes**:
-  * Limited support for:
-    * Selection of link/segment to purify on each path.
-    * Number of purification rounds.
-    * Bennett 96 protocol.
+#### Memory and Purification
+
+- Memory-management policies for:
+  - Assigning qubits to paths.
+  - Selecting qubits to swap when multiple candidates are available.
+- Partial support for purification policy controls, including:
+  - Link/segment selection.
+  - Number of purification rounds.
+  - Bennett 96 protocol.
 
 ### Entanglement Link Model
 
-* Elementary link modeled using:
-  * Werner states EPR generation.
-  * Probability-based sampling.
-  * Estimated duration based on entanglement link protocols.
-
-* Link architectures:
-  * Detection-in-Midpoint with single-rail encoding using 2-round Barrett-Kok protocol.
-  * Detection-in-Midpoint with dual-rail polarization encoding.
-  * Sender-Receiver with dual-rail polarization encoding.
-  * Source-in-Midpoint with dual-rail polarization encoding.
+- Elementary link modeling includes:
+  - Werner-state EPR generation.
+  - Probability-based sampling.
+  - Duration estimates derived from entanglement link protocol characteristics.
+- Supported link architectures:
+  - Detection-in-Midpoint with single-rail encoding (2-round Barrett-Kok).
+  - Detection-in-Midpoint with dual-rail polarization encoding.
+  - Sender-Receiver with dual-rail polarization encoding.
+  - Source-in-Midpoint with dual-rail polarization encoding.
 
 ## Roadmap
 
-* WIP: Full support of purification scheme with **number of rounds or threshold fidelity**.
-* Make **memory management and qubit selection policies** configurable.
-* Add **log visualization timeline** for better debugging and analysis.
-* Enable **runtime path computation and reconfiguration** based on request arrivals.
-* Support for:
-  * **Reactive centralized routing**.
-  * **Distributed proactive routing**.
-  * **Distributed reactive routing**.
-* Refactor codebase for:
-  * Better modularity and extensibility.
-  * Comparative evaluation of entanglement routing strategy combinations.
+- Full purification support with configurable round limits or fidelity thresholds.
+- Configurable memory-management and qubit-selection policies.
+- Timeline-oriented logging and visualization for debugging and analysis.
+- Runtime path computation and reconfiguration based on request arrivals.
+- Additional routing models:
+  - Reactive centralized routing.
+  - Distributed proactive routing.
+  - Distributed reactive routing.
+- Ongoing refactoring for modularity, extensibility, and cleaner comparative evaluation workflows.
 
-> ⚠️ This is an active research and development project. Functionality and APIs are evolving.
+> ⚠️ MQNS is an active research project. APIs and behaviors may evolve.
 
----
+## Relationship to SimQN
 
-## Based on SimQN
+MQNS reuses selected components from [SimQN v0.1.5](https://github.com/QNLab-USTC/SimQN), which is licensed under the GNU General Public License v3.0 (GPLv3).
 
-This project reuses components from [SimQN v0.1.5](https://github.com/QNLab-USTC/SimQN), which is licensed under the GNU General Public License v3.0.
+MQNS is **not** a fork of the official SimQN repository. It is a standalone project that incorporates a SimQN snapshot (including portions of the discrete-event simulation engine, noise modeling, and foundational structure), with substantial modifications for dynamic routing protocols and enhanced entanglement management.
 
-This is *not* a fork of the official SimQN repository, but rather a standalone project that incorporates a snapshot of SimQN's implementation—specifically the discrete-event simulation engine, noise modeling framework, and code structure. Substantial modifications have been made to support dynamic routing protocols and enhanced entanglement management capabilities.
-
-This project is therefore licensed under the GPLv3. See the LICENSE file for details.
-
----
+As a result, MQNS is released under GPLv3. See [LICENSE](LICENSE) for details.
 
 ## Installation
 
-This is a development version to be installed from source.
+MQNS is currently distributed as source for development use.
 
-First, clone the repository:
+Clone the repository:
 
 ```bash
-git checkout https://github.com/usnistgov/mqns.git
+git clone https://github.com/usnistgov/mqns.git
 cd mqns
 ```
 
-Create a virtual environment:
+Create and activate a virtual environment:
 
 ```bash
 python -m venv .venv
@@ -119,7 +118,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-### Option 1: Install from wheel (local build)
+### Option 1: Install from a local wheel
 
 ```bash
 python -m build
@@ -132,29 +131,50 @@ pip install dist/mqns-0.1.0-py3-none-any.whl
 pip install -e .
 ```
 
----
+## Examples
 
-## Example: Three-Node Simulation
+The `examples/` directory contains runnable scripts for common MQNS experiments and workflows.
 
-The example `examples/3_nodes_thruput.py` simulates a linear three-node quantum network (`S → R → D`) to evaluate how memory coherence time affects end-to-end entanglement throughput.
+### Standard experiment examples
 
-It demonstrates:
+- **`3_nodes_thruput.py`**
+  Three-node linear topology (`S -> R -> D`) throughput study versus memory coherence time.
+  **Usage:** `python examples/3_nodes_thruput.py --mode P --epr_type W --link_arch DIM-BK-SeQUeNCe --runs 20 --csv out/3_nodes_thruput.csv --plt out/3_nodes_thruput.png`
 
-* Entanglement generation over lossy fiber links (approximating Barrett-Kok protocol)
-* Swapping at an intermediate node
-* Statistical analysis over multiple runs with variable memory coherence
+- **`3_nodes_wait.py`**
+  Single-repeater experiment with active fidelity enforcement using `T_wait`, reporting throughput and fidelity.
+  **Usage:** `python examples/3_nodes_wait.py --epr_type W --link_arch DIM-BK-SeQUeNCe --runs 20 --t_wait 0.0025 0.005 0.01 --csv out/3_nodes_wait.csv --json out/3_nodes_wait.json --plt out/3_nodes_wait.png`
 
-Run the example with:
+- **`asymmetric_channel_3_nodes.py`**
+  Three-node asymmetric-channel study of memory allocation impact across link architectures.
+  **Usage:** `python examples/asymmetric_channel_3_nodes.py --runs 10 --json out/asymmetric_channel_3_nodes.json --plt out/asymmetric_channel_3_nodes.png`
 
-```bash
-cd examples
-python 3_nodes_thruput.py > output.log
-```
+- **`swapping_policies_6_nodes.py`**
+  Six-node linear-path comparison of swapping policies under different memory allocation schemes.
+  **Usage:** `python examples/swapping_policies_6_nodes.py --runs 10 --json out/swapping_policies_6_nodes.json --plt out/swapping_policies_6_nodes.png`
 
-The script outputs a plot of the entanglement rate versus memory coherence time, and log messages in the `.log` file.
+- **`vora_evaluation.py`**
+  Evaluation of swapping-order strategies (including VORA) on weighted linear paths.
+  **Usage:** `python examples/vora_evaluation.py --runs 100 --total_distance 150 --t_cohere 0.01 --qchannel_capacity 25 --csv out/vora_evaluation.csv --plt out/vora_evaluation.png`
 
-More examples and configuration options will be added as the simulator evolves.
+- **`scalability_randomtopo_plot.py`**
+  Post-processing and plotting utility for random-topology scalability experiment outputs.
+  **Usage:** `python examples/scalability_randomtopo_plot.py --indir out/scalability --runs 5 --qchannel_capacity 10 --csv out/scalability_summary.csv --plt out/scalability_plot.png`
 
----
+### Quick-modify templates
 
-Feel free to open issues for bug reports or feature suggestions.
+These two templates are intended as starting points you can quickly customize to explore a wide range of scenarios.
+
+- **`template_linear.py`** *(linear-topology template)*
+  Starter script for linear-topology sweeps with configurable topology, link architecture, metrics, and output files.
+  **Usage:** `python examples/template_linear.py --runs 20 --csv out/template_linear.csv --json out/template_linear.json --plt out/template_linear.png`
+
+- **`template_routing.py`** *(routing + multiplexing template)*
+  Starter script for custom-topology routing and multiplexing scenarios, including single-path, multi-flow, and multipath modes.
+  **Usage:** `python examples/template_routing.py --runs 20`
+
+> Note: The files `linear_attempts.py` and `scalability_randomtopo.py` are intentionally excluded from the short list above, per project guidance.
+
+## Contributing and Feedback
+
+Please open an issue to report bugs, request features, or discuss improvements.
